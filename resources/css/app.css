@@ -4,8 +4,53 @@
 @source '../../storage/framework/views/*.php';
 @source '../**/*.blade.php';
 @source '../**/*.js';
+@source '../**/*.vue';
 
+/*
+ * Palet & tipografi SI-ABSEN (lihat docs/04-UIUX-Absensi.md).
+ * Tanpa ungu/indigo/violet.
+ */
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-display: 'Lexend', ui-sans-serif, system-ui, sans-serif;
+
+    /* Navy — elemen struktural (sidebar, header) */
+    --color-navy-50: #eef4f9;
+    --color-navy-100: #d3e2ee;
+    --color-navy-200: #a3c1d8;
+    --color-navy-300: #6d99bd;
+    --color-navy-400: #3f6f9c;
+    --color-navy-500: #24507b;
+    --color-navy-600: #173d61;
+    --color-navy-700: #0F2A43;
+    --color-navy-800: #0b2035;
+    --color-navy-900: #071726;
+
+    /* Teal — aksi utama */
+    --color-teal-50: #f0fdfa;
+    --color-teal-100: #ccfbf1;
+    --color-teal-200: #99f6e4;
+    --color-teal-300: #5eead4;
+    --color-teal-400: #2dd4bf;
+    --color-teal-500: #14b8a6;
+    --color-teal-600: #0D9488;
+    --color-teal-700: #0f766e;
+    --color-teal-800: #115e59;
+    --color-teal-900: #134e4a;
+
+    /* Emerald — status berhasil / tepat waktu */
+    --color-emerald-500: #10b981;
+    --color-emerald-600: #059669;
+    --color-emerald-700: #047857;
+
+    /* Amber — status terlambat / peringatan */
+    --color-amber-500: #f59e0b;
+    --color-amber-600: #d97706;
+    --color-amber-700: #B45309;
+}
+
+/* Judul & angka memakai Lexend */
+h1, h2, h3, h4, .font-display {
+    font-family: var(--font-display);
 }

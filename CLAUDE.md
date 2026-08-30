@@ -52,8 +52,8 @@ sesi tersebut di `05-TASK-Absensi.md`, lalu baca detail kebutuhannya di
 ## Lingkungan Development Lokal
 
 - Editor: VS Code (window terpisah dari project WORKA)
-- Local server: Laravel Herd — site ini di `si-absen.test`
-- Database: DBngin (MySQL, port 3306, instance sama dengan WORKA) — nama database `si_absen`
+- Local server: Laravel Herd — site ini di `capture.test` (folder proyek: `C:/Users/aset/Herd/capture`)
+- Database: DBngin (MySQL, port 3306, instance sama dengan WORKA) — nama database `capture`
 - DB GUI: TablePlus
 - Version control: Git + GitHub (repo terpisah dari `worka`)
 
@@ -66,6 +66,6 @@ sesi tersebut di `05-TASK-Absensi.md`, lalu baca detail kebutuhannya di
 ## Cara Mulai
 
 1. Pastikan `docs/` sudah lengkap (5 file markdown di atas) dan file ini berada di root proyek.
-2. Jalankan `claude` dari terminal di dalam folder proyek `si-absen`.
+2. Jalankan `claude` dari terminal di dalam folder proyek `capture`.
 3. Mulai dari Sesi S01 di `docs/05-TASK-Absensi.md` (setup proyek Laravel 13 + Inertia + Vue 3 + Tailwind 4).
 4. Kerjakan sesi secara berurutan sesuai fase; jangan lompat fase kecuali diarahkan.
