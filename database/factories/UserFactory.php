@@ -2,6 +2,8 @@
 
 namespace Database\Factories;
 
+use App\Enums\PeranPengguna;
+use App\Models\UnitKerja;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -25,21 +27,37 @@ class UserFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => fake()->name(),
+            'nama' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
-            'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
+            'role' => PeranPengguna::AdminDinas,
+            'unit_kerja_id' => null,
+            'aktif' => true,
             'remember_token' => Str::random(10),
         ];
     }
 
-    /**
-     * Indicate that the model's email address should be unverified.
-     */
-    public function unverified(): static
+    public function superadmin(): static
     {
         return $this->state(fn (array $attributes) => [
-            'email_verified_at' => null,
+            'role' => PeranPengguna::Superadmin,
+            'unit_kerja_id' => null,
         ]);
+    }
+
+    /**
+     * Admin UPT selalu terikat pada satu unit kerja.
+     */
+    public function adminUpt(?UnitKerja $unitKerja = null): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => PeranPengguna::AdminUpt,
+            'unit_kerja_id' => $unitKerja?->id ?? UnitKerja::factory(),
+        ]);
+    }
+
+    public function nonaktif(): static
+    {
+        return $this->state(fn (array $attributes) => ['aktif' => false]);
     }
 }
