@@ -1,13 +1,17 @@
 <?php
 
+use App\Http\Controllers\Admin\PegawaiController;
+use App\Http\Controllers\Admin\SettingWorkaController;
 use App\Http\Controllers\Admin\UnitKerjaController;
 use App\Http\Controllers\Auth\SesiController;
 use App\Http\Controllers\Kiosk\AktivasiController;
+use App\Http\Controllers\Kiosk\FotoPegawaiController;
 use App\Http\Controllers\Kiosk\LayarKioskController;
+use App\Http\Controllers\Kiosk\ValidasiNipController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-Route::redirect('/', '/dashboard')->name('beranda');
+Route::redirect('/', '/admin/dashboard')->name('beranda');
 
 /*
  * Autentikasi admin (FR-AUTH-01).
@@ -30,14 +34,26 @@ Route::prefix('kiosk')->name('kiosk.')->group(function () {
     Route::middleware('kiosk')->group(function () {
         Route::get('/', LayarKioskController::class)->name('utama');
         Route::post('lepas', [AktivasiController::class, 'destroy'])->name('lepas');
+
+        // Validasi NIP dijawab dari basis data lokal — satu tap tidak boleh
+        // bergantung pada tersedianya jaringan ke WORKA (FR-TAP-03).
+        Route::post('tap/validasi-nip', ValidasiNipController::class)
+            ->middleware('throttle:120,1')
+            ->name('tap.validasi-nip');
+
+        Route::get('pegawai/{nip}/foto', FotoPegawaiController::class)
+            ->where('nip', '[0-9]{8,20}')
+            ->middleware('throttle:300,1')
+            ->name('pegawai.foto');
     });
 });
 
 /*
- * Panel Admin. Pembatasan menu per peran mengikuti matriks pada
- * docs/02-SRS-Absensi.md §6 (FR-AUTH-02).
+ * Panel Admin. Prefix /admin mengikuti daftar endpoint pada
+ * docs/03-SDD-Absensi.md §4; pembatasan menu per peran mengikuti matriks
+ * pada docs/02-SRS-Absensi.md §6 (FR-AUTH-02).
  */
-Route::middleware(['auth', 'pengguna.aktif'])->group(function () {
+Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function () {
     Route::inertia('dashboard', 'Dashboard')->name('dashboard');
 
     Route::prefix('kelola-absen')->group(function () {
@@ -70,10 +86,27 @@ Route::middleware(['auth', 'pengguna.aktif'])->group(function () {
         });
     });
 
-    Route::inertia('pegawai', 'Segera', [
-        'judul' => 'Kelola Pegawai',
-        'deskripsi' => 'Data pegawai hasil sinkronisasi WORKA/BKD dan status foto referensi wajah. Dikerjakan pada Sesi S07 dan S08.',
-    ])->name('pegawai.index');
+    /*
+     * Kelola Pegawai (FR-PEG-01 s.d. FR-PEG-04). Data pegawai baca-saja;
+     * satu-satunya aksi tulis adalah memicu sinkronisasi dari WORKA, dan itu
+     * pun terbatas pada peran lintas unit.
+     */
+    Route::get('pegawai', [PegawaiController::class, 'index'])->name('pegawai.index');
+    Route::get('pegawai/status', [PegawaiController::class, 'statusSinkron'])->name('pegawai.status');
+
+    Route::middleware('peran:superadmin,admin_dinas')->group(function () {
+        Route::post('pegawai/sinkron', [PegawaiController::class, 'sinkron'])
+            ->middleware('throttle:6,1')
+            ->name('pegawai.sinkron');
+
+        /*
+         * Setting → Integrasi WORKA. Token API bersifat sistem-wide,
+         * jadi hanya peran lintas unit yang boleh menyentuhnya.
+         */
+        Route::get('setting/worka', [SettingWorkaController::class, 'edit'])->name('setting-worka.edit');
+        Route::post('setting/worka', [SettingWorkaController::class, 'update'])->name('setting-worka.update');
+        Route::post('setting/worka/test', [SettingWorkaController::class, 'uji'])->name('setting-worka.uji');
+    });
 
     Route::inertia('pengguna', 'Segera', [
         'judul' => 'Kelola User / Role',

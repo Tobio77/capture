@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\Kiosk;
+use App\Support\PengaturanRepository;
 use Illuminate\Http\Request;
 use Illuminate\Support\ServiceProvider;
 
@@ -13,7 +14,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        /*
+         * Satu instans per permintaan: pengaturan dibaca berulang kali
+         * (klien WORKA, halaman setting, status sinkronisasi) dan
+         * ingatannya hanya berguna bila instansnya dibagi.
+         */
+        $this->app->singleton(PengaturanRepository::class);
     }
 
     /**

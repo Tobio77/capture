@@ -29,7 +29,7 @@ class UnitKerjaTest extends TestCase
         Kiosk::factory()->count(2)->create(['unit_kerja_id' => $unitKerja->id]);
 
         $this->actingAs(User::factory()->superadmin()->create())
-            ->get('/kelola-absen/unit-kerja')
+            ->get('/admin/kelola-absen/unit-kerja')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('UnitKerja/Index')
@@ -45,7 +45,7 @@ class UnitKerjaTest extends TestCase
     public function superadmin_dapat_menambah_unit_kerja(): void
     {
         $this->actingAs(User::factory()->superadmin()->create())
-            ->post('/kelola-absen/unit-kerja', [
+            ->post('/admin/kelola-absen/unit-kerja', [
                 'kode' => 'blk-jbr',
                 'nama' => 'UPT Balai Latihan Kerja Jember',
             ])
@@ -66,7 +66,7 @@ class UnitKerjaTest extends TestCase
         $unitKerja = UnitKerja::factory()->create(['kode' => 'BLK-SBY', 'nama' => 'BLK Surabaya']);
 
         $this->actingAs(User::factory()->create(['role' => PeranPengguna::AdminDinas]))
-            ->patch("/kelola-absen/unit-kerja/{$unitKerja->id}", [
+            ->patch("/admin/kelola-absen/unit-kerja/{$unitKerja->id}", [
                 'kode' => 'BLK-SBY',
                 'nama' => 'UPT Balai Latihan Kerja Surabaya',
             ])
@@ -82,7 +82,7 @@ class UnitKerjaTest extends TestCase
         Pegawai::factory()->create(['unit_kerja_id' => $unitKerja->id]);
 
         $this->actingAs(User::factory()->superadmin()->create())
-            ->patch("/kelola-absen/unit-kerja/{$unitKerja->id}/status", ['aktif' => false])
+            ->patch("/admin/kelola-absen/unit-kerja/{$unitKerja->id}/status", ['aktif' => false])
             ->assertSessionHas('sukses');
 
         $this->assertFalse($unitKerja->refresh()->aktif);
@@ -96,7 +96,7 @@ class UnitKerjaTest extends TestCase
         UnitKerja::factory()->create(['kode' => 'BLK-SBY']);
 
         $this->actingAs(User::factory()->superadmin()->create())
-            ->post('/kelola-absen/unit-kerja', ['kode' => 'BLK-SBY', 'nama' => 'Unit Kembar'])
+            ->post('/admin/kelola-absen/unit-kerja', ['kode' => 'BLK-SBY', 'nama' => 'Unit Kembar'])
             ->assertSessionHasErrors('kode');
 
         $this->assertDatabaseCount('unit_kerja', 1);
@@ -108,7 +108,7 @@ class UnitKerjaTest extends TestCase
         $unitKerja = UnitKerja::factory()->create(['kode' => 'BLK-SBY']);
 
         $this->actingAs(User::factory()->superadmin()->create())
-            ->patch("/kelola-absen/unit-kerja/{$unitKerja->id}", [
+            ->patch("/admin/kelola-absen/unit-kerja/{$unitKerja->id}", [
                 'kode' => 'BLK-SBY',
                 'nama' => 'Nama Baru',
             ])
@@ -119,7 +119,7 @@ class UnitKerjaTest extends TestCase
     public function kode_dengan_karakter_tidak_sah_ditolak(): void
     {
         $this->actingAs(User::factory()->superadmin()->create())
-            ->post('/kelola-absen/unit-kerja', ['kode' => 'BLK SBY!', 'nama' => 'Unit Uji'])
+            ->post('/admin/kelola-absen/unit-kerja', ['kode' => 'BLK SBY!', 'nama' => 'Unit Uji'])
             ->assertSessionHasErrors('kode');
     }
 
@@ -127,7 +127,7 @@ class UnitKerjaTest extends TestCase
     public function pesan_validasi_memakai_bahasa_indonesia(): void
     {
         $this->actingAs(User::factory()->superadmin()->create())
-            ->post('/kelola-absen/unit-kerja', ['kode' => '', 'nama' => ''])
+            ->post('/admin/kelola-absen/unit-kerja', ['kode' => '', 'nama' => ''])
             ->assertSessionHasErrors([
                 'kode' => 'Kolom kode unit kerja wajib diisi.',
                 'nama' => 'Kolom nama unit kerja wajib diisi.',
@@ -140,7 +140,7 @@ class UnitKerjaTest extends TestCase
         UnitKerja::factory()->create(['kode' => 'BLK-SBY']);
 
         $this->actingAs(User::factory()->adminUpt()->create())
-            ->get('/kelola-absen/unit-kerja')
+            ->get('/admin/kelola-absen/unit-kerja')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->where('dapat_mengubah', false)->etc());
     }
@@ -152,15 +152,15 @@ class UnitKerjaTest extends TestCase
         $adminUpt = User::factory()->adminUpt($unitKerja)->create();
 
         $this->actingAs($adminUpt)
-            ->post('/kelola-absen/unit-kerja', ['kode' => 'BARU', 'nama' => 'Unit Baru'])
+            ->post('/admin/kelola-absen/unit-kerja', ['kode' => 'BARU', 'nama' => 'Unit Baru'])
             ->assertForbidden();
 
         $this->actingAs($adminUpt)
-            ->patch("/kelola-absen/unit-kerja/{$unitKerja->id}", ['kode' => 'BLK-SBY', 'nama' => 'Diubah'])
+            ->patch("/admin/kelola-absen/unit-kerja/{$unitKerja->id}", ['kode' => 'BLK-SBY', 'nama' => 'Diubah'])
             ->assertForbidden();
 
         $this->actingAs($adminUpt)
-            ->patch("/kelola-absen/unit-kerja/{$unitKerja->id}/status", ['aktif' => false])
+            ->patch("/admin/kelola-absen/unit-kerja/{$unitKerja->id}/status", ['aktif' => false])
             ->assertForbidden();
 
         $this->assertDatabaseCount('unit_kerja', 1);
@@ -172,7 +172,7 @@ class UnitKerjaTest extends TestCase
     {
         $pelaku = User::factory()->superadmin()->create();
 
-        $this->actingAs($pelaku)->post('/kelola-absen/unit-kerja', [
+        $this->actingAs($pelaku)->post('/admin/kelola-absen/unit-kerja', [
             'kode' => 'BLK-JBR',
             'nama' => 'UPT BLK Jember',
         ]);

@@ -28,6 +28,20 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    /*
+     * WORKA — sistem kepegawaian Disnakertrans. SI-ABSEN hanya membaca
+     * master data pegawai dan unit kerja dari sana (FR-PEG-01, FR-PEG-02).
+     *
+     * URL dan token juga dapat diatur lewat menu Setting → Integrasi WORKA;
+     * nilai pada tabel `pengaturan` mengalahkan nilai di .env.
+     */
+    'worka' => [
+        'api_url' => env('WORKA_API_URL', 'http://worka.test'),
+        'api_token' => env('WORKA_API_TOKEN'),
+        'timeout' => env('WORKA_API_TIMEOUT', 30),
+        'sync_interval' => env('WORKA_SYNC_INTERVAL', 1440),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

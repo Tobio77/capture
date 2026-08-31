@@ -26,8 +26,8 @@ class AksesPeranTest extends TestCase
     public static function ruteKhususLintasUnit(): array
     {
         return [
-            'Setting Absen' => ['/kelola-absen/setting'],
-            'Kelola User / Role' => ['/pengguna'],
+            'Setting Absen' => ['/admin/kelola-absen/setting'],
+            'Kelola User / Role' => ['/admin/pengguna'],
         ];
     }
 
@@ -54,7 +54,7 @@ class AksesPeranTest extends TestCase
     #[Test]
     public function semua_peran_dapat_mengakses_menu_umum(): void
     {
-        $ruteUmum = ['/dashboard', '/kelola-absen/event', '/kelola-absen/rekap', '/kelola-absen/unit-kerja', '/pegawai', '/laporan'];
+        $ruteUmum = ['/admin/dashboard', '/admin/kelola-absen/event', '/admin/kelola-absen/rekap', '/admin/kelola-absen/unit-kerja', '/admin/pegawai', '/admin/laporan'];
 
         foreach ([$this->adminUpt(), User::factory()->superadmin()->create()] as $pengguna) {
             foreach ($ruteUmum as $rute) {
@@ -67,7 +67,7 @@ class AksesPeranTest extends TestCase
     public function menu_admin_upt_tidak_memuat_kelola_user_dan_setting_absen(): void
     {
         $this->actingAs($this->adminUpt())
-            ->get('/dashboard')
+            ->get('/admin/dashboard')
             ->assertInertia(function (Assert $page) {
                 $menu = $page->toArray()['props']['menu'];
                 $label = $this->labelMenu($menu);
@@ -84,7 +84,7 @@ class AksesPeranTest extends TestCase
     public function menu_superadmin_memuat_seluruh_menu(): void
     {
         $this->actingAs(User::factory()->superadmin()->create())
-            ->get('/dashboard')
+            ->get('/admin/dashboard')
             ->assertInertia(function (Assert $page) {
                 $label = $this->labelMenu($page->toArray()['props']['menu']);
 
@@ -100,7 +100,7 @@ class AksesPeranTest extends TestCase
         $adminUpt = $this->adminUpt();
 
         $this->actingAs($adminUpt)
-            ->get('/dashboard')
+            ->get('/admin/dashboard')
             ->assertInertia(fn (Assert $page) => $page
                 ->where('auth.pengguna.role', 'admin_upt')
                 ->where('auth.pengguna.lintas_unit', false)
@@ -108,7 +108,7 @@ class AksesPeranTest extends TestCase
                 ->etc());
 
         $this->actingAs(User::factory()->superadmin()->create())
-            ->get('/dashboard')
+            ->get('/admin/dashboard')
             ->assertInertia(fn (Assert $page) => $page
                 ->where('auth.pengguna.lintas_unit', true)
                 ->where('auth.pengguna.unit_kerja', null)

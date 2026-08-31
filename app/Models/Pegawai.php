@@ -18,7 +18,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'nama',
     'unit_kerja_id',
     'jabatan',
+    'aktif',
     'foto_referensi_path',
+    'foto_tersedia_worka',
     'wajah_terdaftar',
     'sumber_sinkron_terakhir',
 ])]
@@ -35,6 +37,8 @@ class Pegawai extends Model
     protected function casts(): array
     {
         return [
+            'aktif' => 'boolean',
+            'foto_tersedia_worka' => 'boolean',
             'wajah_terdaftar' => 'boolean',
             'sumber_sinkron_terakhir' => 'datetime',
         ];
@@ -44,6 +48,14 @@ class Pegawai extends Model
     public function unitKerja(): BelongsTo
     {
         return $this->belongsTo(UnitKerja::class);
+    }
+
+    /**
+     * @param  Builder<Pegawai>  $query
+     */
+    public function scopeAktif(Builder $query): void
+    {
+        $query->where('aktif', true);
     }
 
     /**

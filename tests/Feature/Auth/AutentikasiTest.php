@@ -33,7 +33,7 @@ class AutentikasiTest extends TestCase
         $this->post('/masuk', [
             'email' => 'admin.dinas@capture.test',
             'password' => 'rahasia123',
-        ])->assertRedirect('/dashboard');
+        ])->assertRedirect('/admin/dashboard');
 
         $this->assertAuthenticatedAs($pengguna);
     }
@@ -75,12 +75,12 @@ class AutentikasiTest extends TestCase
     {
         $pengguna = User::factory()->create();
 
-        $this->actingAs($pengguna)->get('/dashboard')->assertOk();
+        $this->actingAs($pengguna)->get('/admin/dashboard')->assertOk();
 
         $pengguna->update(['aktif' => false]);
 
         $this->actingAs($pengguna)
-            ->get('/dashboard')
+            ->get('/admin/dashboard')
             ->assertRedirect('/masuk')
             ->assertSessionHas('gagal');
 
@@ -131,8 +131,8 @@ class AutentikasiTest extends TestCase
     #[Test]
     public function tamu_diarahkan_ke_halaman_masuk(): void
     {
-        $this->get('/dashboard')->assertRedirect('/masuk');
-        $this->get('/')->assertRedirect('/dashboard');
+        $this->get('/admin/dashboard')->assertRedirect('/masuk');
+        $this->get('/')->assertRedirect('/admin/dashboard');
     }
 
     #[Test]
@@ -140,6 +140,6 @@ class AutentikasiTest extends TestCase
     {
         $this->actingAs(User::factory()->create())
             ->get('/masuk')
-            ->assertRedirect('/dashboard');
+            ->assertRedirect('/admin/dashboard');
     }
 }

@@ -65,6 +65,19 @@ return [
             'replace_placeholders' => true,
         ],
 
+        /*
+         * Seluruh galat integrasi WORKA ditulis terpisah dari laravel.log
+         * agar penelusuran masalah sinkronisasi tidak tenggelam di antara
+         * log aplikasi lain.
+         */
+        'worka' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/worka-api.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => env('LOG_DAILY_DAYS', 30),
+            'replace_placeholders' => true,
+        ],
+
         'daily' => [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),

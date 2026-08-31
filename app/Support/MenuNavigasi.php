@@ -38,6 +38,7 @@ class MenuNavigasi
                     ['label' => 'Rekap Absen', 'rute' => 'rekap.index', 'peran' => $semuaPeran],
                     ['label' => 'Setting Absen', 'rute' => 'setting-absen.index', 'peran' => $lintasUnit],
                     ['label' => 'Setting Unit Kerja', 'rute' => 'unit-kerja.index', 'peran' => $semuaPeran],
+                    ['label' => 'Integrasi WORKA', 'rute' => 'setting-worka.edit', 'peran' => $lintasUnit],
                 ],
             ],
             [
