@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Auth\SesiController;
+use App\Http\Controllers\Kiosk\AktivasiController;
+use App\Http\Controllers\Kiosk\LayarKioskController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -15,6 +17,20 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::post('keluar', [SesiController::class, 'destroy'])->middleware('auth')->name('keluar');
+
+/*
+ * Perangkat kiosk. Autentikasi memakai device_token per perangkat, bukan akun
+ * personal pegawai (FR-AUTH-01, NFR-03).
+ */
+Route::prefix('kiosk')->name('kiosk.')->group(function () {
+    Route::get('aktivasi', [AktivasiController::class, 'create'])->name('aktivasi');
+    Route::post('aktivasi', [AktivasiController::class, 'store'])->middleware('throttle:10,1');
+
+    Route::middleware('kiosk')->group(function () {
+        Route::get('/', LayarKioskController::class)->name('utama');
+        Route::post('lepas', [AktivasiController::class, 'destroy'])->name('lepas');
+    });
+});
 
 /*
  * Panel Admin. Pembatasan menu per peran mengikuti matriks pada
@@ -53,7 +69,7 @@ Route::middleware(['auth', 'pengguna.aktif'])->group(function () {
 
     Route::inertia('pengguna', 'Segera', [
         'judul' => 'Kelola User / Role',
-        'deskripsi' => 'Akun admin dan akun kiosk. Dikerjakan pada Sesi S23 dan S24.',
+        'deskripsi' => 'Akun admin dan akun kiosk beserta penerbitan kode aktivasi. Dikerjakan pada Sesi S23 dan S24.',
     ])->middleware('peran:superadmin,admin_dinas')->name('pengguna.index');
 
     Route::inertia('laporan', 'Segera', [

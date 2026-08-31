@@ -54,6 +54,18 @@ class HandleInertiaRequests extends Middleware
                     'unit_kerja' => $pengguna->unitKerja?->only(['id', 'kode', 'nama']),
                 ] : null,
             ],
+            /*
+             * Ditulis sebagai closure karena middleware kiosk berjalan setelah
+             * middleware Inertia — perangkat baru dikenali saat respons dirender.
+             */
+            'kiosk' => fn () => $request->kiosk() ? [
+                'id' => $request->kiosk()->id,
+                'nama_titik' => $request->kiosk()->nama_titik,
+                'status' => $request->kiosk()->status->value,
+                'ip_terakhir' => $request->kiosk()->ip_terakhir,
+                'diaktifkan_pada' => $request->kiosk()->diaktifkan_pada?->toIso8601String(),
+                'unit_kerja' => $request->kiosk()->unitKerja?->only(['id', 'kode', 'nama']),
+            ] : null,
             'menu' => $pengguna ? MenuNavigasi::untuk($pengguna) : [],
             'rute_saat_ini' => $request->route()?->getName(),
             'flash' => [

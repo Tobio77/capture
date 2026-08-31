@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\AutentikasiKiosk;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\PastikanPenggunaAktif;
 use App\Http\Middleware\PastikanPeranPengguna;
@@ -21,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->alias([
+            'kiosk' => AutentikasiKiosk::class,
             'peran' => PastikanPeranPengguna::class,
             'pengguna.aktif' => PastikanPenggunaAktif::class,
         ]);

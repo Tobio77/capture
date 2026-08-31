@@ -2,19 +2,19 @@
 
 namespace Database\Seeders;
 
-use App\Enums\StatusKiosk;
 use App\Models\Kiosk;
 use App\Models\UnitKerja;
+use App\Services\KioskService;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Str;
 
 /**
- * Data contoh perangkat kiosk untuk pengembangan lokal.
- * device_token asli diterbitkan melalui alur aktivasi perangkat (S04).
+ * Titik absen contoh untuk pengembangan lokal.
+ * Kiosk didaftarkan admin (FR-USR-02); perangkatnya diaktifkan sendiri
+ * dengan menukarkan kode aktivasi di layar /kiosk/aktivasi (S04).
  */
 class KioskSeeder extends Seeder
 {
-    public function run(): void
+    public function run(KioskService $kioskService): void
     {
         $daftar = [
             ['nama_titik' => 'Aula Senam BLK Surabaya', 'unit' => 'BLK-SBY'],
@@ -24,17 +24,25 @@ class KioskSeeder extends Seeder
         ];
 
         $unitKerja = UnitKerja::pluck('id', 'kode');
+        $kode = [];
 
-        foreach ($daftar as $kiosk) {
-            Kiosk::firstOrCreate(
-                ['nama_titik' => $kiosk['nama_titik']],
-                [
-                    'unit_kerja_id' => $unitKerja[$kiosk['unit']],
-                    'device_token' => Str::random(64),
-                    'status' => StatusKiosk::Offline,
-                    'aktif' => true,
-                ],
+        foreach ($daftar as $titik) {
+            $kiosk = Kiosk::firstOrCreate(
+                ['nama_titik' => $titik['nama_titik']],
+                ['unit_kerja_id' => $unitKerja[$titik['unit']], 'aktif' => true],
             );
+
+            if (! $kiosk->sudah_diaktifkan) {
+                $kode[$kiosk->nama_titik] = $kioskService->terbitkanKodeAktivasi($kiosk);
+            }
+        }
+
+        if ($kode !== [] && $this->command) {
+            $this->command->newLine();
+            $this->command->info('Kode aktivasi kiosk (berlaku '.KioskService::MASA_KODE_JAM.' jam):');
+            foreach ($kode as $namaTitik => $nilai) {
+                $this->command->line(sprintf('  %-28s %s', $namaTitik, $nilai));
+            }
         }
     }
 }
