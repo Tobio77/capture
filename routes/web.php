@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\UnitKerjaController;
 use App\Http\Controllers\Auth\SesiController;
 use App\Http\Controllers\Kiosk\AktivasiController;
 use App\Http\Controllers\Kiosk\LayarKioskController;
@@ -56,10 +57,17 @@ Route::middleware(['auth', 'pengguna.aktif'])->group(function () {
             'deskripsi' => 'Metode absen, toleransi default, ambang kecocokan wajah, dan kompresi foto. Dikerjakan pada Sesi S09.',
         ])->middleware('peran:superadmin,admin_dinas')->name('setting-absen.index');
 
-        Route::inertia('unit-kerja', 'Segera', [
-            'judul' => 'Setting Unit Kerja',
-            'deskripsi' => 'Daftar unit kerja peserta SI-ABSEN. Dikerjakan pada Sesi S05.',
-        ])->name('unit-kerja.index');
+        /*
+         * Setting Unit Kerja (FR-UNIT-01, FR-UNIT-02).
+         * Admin UPT boleh melihat daftarnya, tetapi tidak boleh mengubah (SRS §6).
+         */
+        Route::get('unit-kerja', [UnitKerjaController::class, 'index'])->name('unit-kerja.index');
+
+        Route::middleware('peran:superadmin,admin_dinas')->group(function () {
+            Route::post('unit-kerja', [UnitKerjaController::class, 'store'])->name('unit-kerja.store');
+            Route::patch('unit-kerja/{unit_kerja}', [UnitKerjaController::class, 'update'])->name('unit-kerja.update');
+            Route::patch('unit-kerja/{unit_kerja}/status', [UnitKerjaController::class, 'ubahStatus'])->name('unit-kerja.status');
+        });
     });
 
     Route::inertia('pegawai', 'Segera', [
