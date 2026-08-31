@@ -1,8 +1,63 @@
 <?php
 
+use App\Http\Controllers\Auth\SesiController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-Route::get('/', function () {
-    return Inertia::render('Beranda');
-})->name('beranda');
+Route::redirect('/', '/dashboard')->name('beranda');
+
+/*
+ * Autentikasi admin (FR-AUTH-01).
+ */
+Route::middleware('guest')->group(function () {
+    Route::get('masuk', [SesiController::class, 'create'])->name('masuk');
+    Route::post('masuk', [SesiController::class, 'store']);
+});
+
+Route::post('keluar', [SesiController::class, 'destroy'])->middleware('auth')->name('keluar');
+
+/*
+ * Panel Admin. Pembatasan menu per peran mengikuti matriks pada
+ * docs/02-SRS-Absensi.md §6 (FR-AUTH-02).
+ */
+Route::middleware(['auth', 'pengguna.aktif'])->group(function () {
+    Route::inertia('dashboard', 'Dashboard')->name('dashboard');
+
+    Route::prefix('kelola-absen')->group(function () {
+        Route::inertia('event', 'Segera', [
+            'judul' => 'Daftar Event',
+            'deskripsi' => 'Pembuatan dan pengelolaan event absensi. Dikerjakan pada Sesi S10.',
+        ])->name('event.index');
+
+        Route::inertia('rekap', 'Segera', [
+            'judul' => 'Rekap Absen',
+            'deskripsi' => 'Daftar e-presensi per event yang diperbarui secara live. Dikerjakan pada Sesi S21.',
+        ])->name('rekap.index');
+
+        // Setting Absen adalah pengaturan global sistem — tidak untuk Admin UPT.
+        Route::inertia('setting', 'Segera', [
+            'judul' => 'Setting Absen',
+            'deskripsi' => 'Metode absen, toleransi default, ambang kecocokan wajah, dan kompresi foto. Dikerjakan pada Sesi S09.',
+        ])->middleware('peran:superadmin,admin_dinas')->name('setting-absen.index');
+
+        Route::inertia('unit-kerja', 'Segera', [
+            'judul' => 'Setting Unit Kerja',
+            'deskripsi' => 'Daftar unit kerja peserta SI-ABSEN. Dikerjakan pada Sesi S05.',
+        ])->name('unit-kerja.index');
+    });
+
+    Route::inertia('pegawai', 'Segera', [
+        'judul' => 'Kelola Pegawai',
+        'deskripsi' => 'Data pegawai hasil sinkronisasi WORKA/BKD dan status foto referensi wajah. Dikerjakan pada Sesi S07 dan S08.',
+    ])->name('pegawai.index');
+
+    Route::inertia('pengguna', 'Segera', [
+        'judul' => 'Kelola User / Role',
+        'deskripsi' => 'Akun admin dan akun kiosk. Dikerjakan pada Sesi S23 dan S24.',
+    ])->middleware('peran:superadmin,admin_dinas')->name('pengguna.index');
+
+    Route::inertia('laporan', 'Segera', [
+        'judul' => 'Laporan',
+        'deskripsi' => 'Laporan kehadiran per periode dan unit kerja beserta ekspor. Dikerjakan pada Sesi S22.',
+    ])->name('laporan.index');
+});

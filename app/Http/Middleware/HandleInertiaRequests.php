@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\MenuNavigasi;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -35,11 +36,26 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $pengguna = $request->user();
+
         return [
             ...parent::share($request),
             'app' => [
                 'nama' => config('app.name'),
             ],
+            'auth' => [
+                'pengguna' => $pengguna ? [
+                    'id' => $pengguna->id,
+                    'nama' => $pengguna->nama,
+                    'email' => $pengguna->email,
+                    'role' => $pengguna->role->value,
+                    'role_label' => $pengguna->role->label(),
+                    'lintas_unit' => $pengguna->lintasUnit(),
+                    'unit_kerja' => $pengguna->unitKerja?->only(['id', 'kode', 'nama']),
+                ] : null,
+            ],
+            'menu' => $pengguna ? MenuNavigasi::untuk($pengguna) : [],
+            'rute_saat_ini' => $request->route()?->getName(),
             'flash' => [
                 'sukses' => fn () => $request->session()->get('sukses'),
                 'gagal' => fn () => $request->session()->get('gagal'),
