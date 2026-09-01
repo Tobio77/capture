@@ -205,10 +205,48 @@ Dua pengaman berlaku pada tahap ini:
 | nama                    | varchar(150)            | sumber: WORKA/BKD                          |
 | unit_kerja_id           | bigint, FK → unit_kerja |                                            |
 | jabatan                 | varchar(150)            | sumber: WORKA/BKD                          |
-| foto_referensi_path     | varchar(255), nullable  | path foto referensi wajah                  |
+| foto_referensi_path     | varchar(255), nullable  | path foto referensi wajah pada disk privat |
+| embedding_wajah         | json, nullable          | deskriptor wajah 128 dimensi (face-api.js) |
 | wajah_terdaftar         | boolean                 | default false                              |
+| wajah_didaftarkan_at    | timestamp, nullable     | waktu pendaftaran/pembaruan wajah terakhir |
 | sumber_sinkron_terakhir | timestamp               | waktu sinkronisasi terakhir dari WORKA/BKD |
 | timestamps              | \-                      | created_at, updated_at                     |
+
+`foto_referensi_path`, `embedding_wajah`, `wajah_terdaftar`, dan
+`wajah_didaftarkan_at` adalah milik SI-ABSEN sendiri: sinkronisasi WORKA tidak
+pernah menimpanya (lihat §3.1 dan FR-PEG-02).
+
+### Pendaftaran foto referensi wajah (FR-PEG-05)
+
+Wajah referensi disimpan dalam dua bentuk yang saling melengkapi:
+
+| Bentuk    | Tempat                     | Dipakai untuk                          |
+|-----------|----------------------------|----------------------------------------|
+| Foto      | disk privat `local`, `foto-referensi/` | rujukan visual admin      |
+| Embedding | kolom `embedding_wajah`    | pencocokan wajah di kiosk (S15)        |
+
+**Embedding dihitung di browser, bukan di server.** Saat admin mengunggah foto,
+face-api.js di halaman Kelola Pegawai mendeteksi wajah dan menghasilkan
+deskriptor 128 dimensi, lalu foto dan deskriptor dikirim bersama dalam satu
+permintaan. Server hanya memeriksa bentuk deskriptor (panjang 128, seluruhnya
+angka berhingga) dan menyimpannya — tidak ada pustaka pengenalan wajah di sisi
+server, konsisten dengan keputusan arsitektur bahwa verifikasi wajah berjalan
+di klien.
+
+Konsekuensi yang disengaja:
+
+- Foto yang tidak berisi wajah, atau berisi lebih dari satu wajah, **ditolak di
+  browser sebelum terkirim** — tidak ada foto referensi tanpa embedding yang
+  sah, sehingga S15 tidak perlu menangani data setengah jadi.
+- Model face-api.js (~6,7 MB, `public/models/`) dimuat **malas**: hanya ketika
+  admin membuka dialog pendaftaran wajah, bukan pada setiap kunjungan halaman.
+- Foto tidak pernah diletakkan pada disk publik. Penyajiannya melalui route
+  terautentikasi `GET /admin/pegawai/{pegawai}/wajah`, dengan Admin UPT
+  terbatas pada pegawai unitnya beserta turunannya (NFR-04, SRS §6).
+- Pembaruan mengganti berkas lama setelah baris tersimpan, sehingga kegagalan
+  penyimpanan tidak meninggalkan pegawai tanpa foto sama sekali.
+- Pencabutan menghapus berkas dan embedding, tetapi **tidak** menghapus baris
+  pegawai — datanya milik WORKA (FR-PEG-02).
 
 ## 3.3 users (akun admin)
 
@@ -318,6 +356,9 @@ Ringkasan endpoint inti; daftar lengkap akan dirinci sebagai route Laravel pada 
 | GET        | /admin/event/{id}/rekap                | Rekap absen live per event                                                      |
 | GET        | /admin/pegawai                         | Daftar pegawai (terfilter sesuai peran)                                         |
 | POST       | /admin/pegawai/sinkron                 | Trigger sinkronisasi manual dari WORKA/BKD                                      |
+| GET        | /admin/pegawai/{pegawai}/wajah         | Sajikan foto referensi lewat route terautentikasi (NFR-04)                      |
+| POST       | /admin/pegawai/{pegawai}/wajah         | Daftarkan/perbarui foto referensi beserta embedding dari browser (FR-PEG-05)    |
+| DELETE     | /admin/pegawai/{pegawai}/wajah         | Cabut pendaftaran wajah; foto dan embedding dihapus                             |
 | GET        | /admin/laporan                         | Laporan kehadiran terfilter tanggal & unit kerja                                |
 
 # 5. Desain Modul Verifikasi Wajah (Client-Side)

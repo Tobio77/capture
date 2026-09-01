@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\FotoReferensiWajahController;
 use App\Http\Controllers\Admin\PegawaiController;
 use App\Http\Controllers\Admin\SettingWorkaController;
 use App\Http\Controllers\Admin\UnitKerjaController;
@@ -9,7 +10,6 @@ use App\Http\Controllers\Kiosk\FotoPegawaiController;
 use App\Http\Controllers\Kiosk\LayarKioskController;
 use App\Http\Controllers\Kiosk\ValidasiNipController;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
 Route::redirect('/', '/admin/dashboard')->name('beranda');
 
@@ -93,6 +93,19 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
      */
     Route::get('pegawai', [PegawaiController::class, 'index'])->name('pegawai.index');
     Route::get('pegawai/status', [PegawaiController::class, 'statusSinkron'])->name('pegawai.status');
+
+    /*
+     * Foto referensi wajah (FR-PEG-05). Terbuka untuk seluruh peran admin —
+     * Admin UPT termasuk, terbatas pegawai unitnya (matriks peran SRS §6).
+     * Fotonya disajikan lewat route terautentikasi, tidak pernah dari disk
+     * publik, karena NFR-04 melarang akses berkas tanpa autentikasi.
+     */
+    Route::get('pegawai/{pegawai}/wajah', [FotoReferensiWajahController::class, 'show'])
+        ->name('pegawai.wajah.show');
+    Route::post('pegawai/{pegawai}/wajah', [FotoReferensiWajahController::class, 'store'])
+        ->name('pegawai.wajah.store');
+    Route::delete('pegawai/{pegawai}/wajah', [FotoReferensiWajahController::class, 'destroy'])
+        ->name('pegawai.wajah.destroy');
 
     Route::middleware('peran:superadmin,admin_dinas')->group(function () {
         Route::post('pegawai/sinkron', [PegawaiController::class, 'sinkron'])

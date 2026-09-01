@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Pegawai;
 use App\Models\UnitKerja;
+use App\Services\FotoReferensiWajahService;
 use Illuminate\Database\Seeder;
 
 /**
@@ -34,11 +35,30 @@ class PegawaiSeeder extends Seeder
                     'nama' => $pegawai['nama'],
                     'unit_kerja_id' => $unitKerja[$pegawai['unit']],
                     'jabatan' => $pegawai['jabatan'],
-                    'foto_referensi_path' => $pegawai['wajah'] ? "referensi-wajah/{$pegawai['nip']}.jpg" : null,
+                    'foto_referensi_path' => $pegawai['wajah'] ? "foto-referensi/{$pegawai['nip']}.jpg" : null,
+
+                    // Wajah terdaftar selalu berpasangan dengan embedding-nya;
+                    // tanpa itu kiosk tidak dapat mencocokkan apa pun.
+                    'embedding_wajah' => $pegawai['wajah'] ? $this->embeddingContoh() : null,
                     'wajah_terdaftar' => $pegawai['wajah'],
+                    'wajah_didaftarkan_at' => $pegawai['wajah'] ? now() : null,
                     'sumber_sinkron_terakhir' => now(),
                 ],
             );
         }
+    }
+
+    /**
+     * Deskriptor contoh untuk data pengembangan — bukan wajah sungguhan,
+     * hanya menjaga bentuk datanya utuh.
+     *
+     * @return array<int, float>
+     */
+    protected function embeddingContoh(): array
+    {
+        return array_map(
+            fn () => round(mt_rand(-1000000, 1000000) / 1000000, 6),
+            range(1, FotoReferensiWajahService::DIMENSI_EMBEDDING),
+        );
     }
 }

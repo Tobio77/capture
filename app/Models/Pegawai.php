@@ -20,8 +20,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'jabatan',
     'aktif',
     'foto_referensi_path',
+    'embedding_wajah',
     'foto_tersedia_worka',
     'wajah_terdaftar',
+    'wajah_didaftarkan_at',
     'sumber_sinkron_terakhir',
 ])]
 class Pegawai extends Model
@@ -38,8 +40,10 @@ class Pegawai extends Model
     {
         return [
             'aktif' => 'boolean',
+            'embedding_wajah' => 'array',
             'foto_tersedia_worka' => 'boolean',
             'wajah_terdaftar' => 'boolean',
+            'wajah_didaftarkan_at' => 'datetime',
             'sumber_sinkron_terakhir' => 'datetime',
         ];
     }

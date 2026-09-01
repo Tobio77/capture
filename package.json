@@ -17,6 +17,7 @@
     "dependencies": {
         "@inertiajs/vue3": "^3.7.0",
         "@vitejs/plugin-vue": "^6.0.8",
+        "face-api.js": "^0.22.2",
         "vue": "^3.5.42"
     }
 }

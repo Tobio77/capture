@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
+import PendaftaranWajah from '@/Components/PendaftaranWajah.vue'
 
 const props = defineProps({
   pegawai: { type: Object, required: true },
@@ -12,6 +13,7 @@ const props = defineProps({
 })
 
 const filter = reactive({ ...props.filter })
+const wajahDikelola = ref(null) // pegawai yang sedang didaftarkan wajahnya
 const sedangSinkron = ref(false)
 const koneksi = ref(null) // null = belum diperiksa
 
@@ -218,6 +220,7 @@ const tanggalSingkat = (iso) =>
               <th scope="col" class="px-4 py-3 font-medium">Foto Wajah</th>
               <th scope="col" class="px-4 py-3 font-medium">Status</th>
               <th scope="col" class="px-4 py-3 font-medium">Sinkron Terakhir</th>
+              <th scope="col" class="px-4 py-3 text-right font-medium">Aksi</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
@@ -246,9 +249,18 @@ const tanggalSingkat = (iso) =>
               <td class="px-4 py-3 text-xs text-slate-500">
                 {{ tanggalSingkat(orang.sumber_sinkron_terakhir) }}
               </td>
+              <td class="whitespace-nowrap px-4 py-3 text-right">
+                <button
+                  type="button"
+                  class="rounded-md px-2.5 py-1.5 text-xs font-medium text-teal-700 transition hover:bg-teal-50"
+                  @click="wajahDikelola = orang"
+                >
+                  {{ orang.wajah_terdaftar ? 'Perbarui wajah' : 'Daftarkan wajah' }}
+                </button>
+              </td>
             </tr>
             <tr v-if="pegawai.data.length === 0">
-              <td colspan="7" class="px-6 py-12 text-center text-sm text-slate-500">
+              <td colspan="8" class="px-6 py-12 text-center text-sm text-slate-500">
                 Tidak ada pegawai yang cocok dengan filter ini.
                 <span v-if="status_sinkron.total_pegawai_lokal === 0" class="mt-1 block">
                   Jalankan sinkronisasi dari WORKA untuk menarik data pegawai.
@@ -284,5 +296,7 @@ const tanggalSingkat = (iso) =>
         </div>
       </div>
     </div>
+
+    <PendaftaranWajah :pegawai="wajahDikelola" @tutup="wajahDikelola = null" />
   </AdminLayout>
 </template>
