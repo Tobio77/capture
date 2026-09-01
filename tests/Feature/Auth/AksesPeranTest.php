@@ -27,8 +27,36 @@ class AksesPeranTest extends TestCase
     {
         return [
             'Setting Absen' => ['/admin/kelola-absen/setting'],
-            'Kelola User / Role' => ['/admin/pengguna'],
         ];
+    }
+
+    /**
+     * Route yang hanya boleh disentuh Superadmin.
+     *
+     * Kelola akun admin bukan sekadar "lintas unit": matriks SRS §6 memberi
+     * Admin Dinas hak "Ya (kiosk saja)" pada Kelola User/Role, sehingga akun
+     * admin tertutup baginya (FR-USR-01).
+     *
+     * @return array<string, array{string}>
+     */
+    public static function ruteKhususSuperadmin(): array
+    {
+        return [
+            'Kelola akun admin' => ['/admin/pengguna'],
+        ];
+    }
+
+    #[Test]
+    #[DataProvider('ruteKhususSuperadmin')]
+    public function hanya_superadmin_yang_dapat_mengakses_kelola_akun_admin(string $rute): void
+    {
+        $this->actingAs(User::factory()->superadmin()->create())->get($rute)->assertOk();
+
+        $this->actingAs(User::factory()->create(['role' => PeranPengguna::AdminDinas]))
+            ->get($rute)
+            ->assertForbidden();
+
+        $this->actingAs($this->adminUpt())->get($rute)->assertForbidden();
     }
 
     #[Test]

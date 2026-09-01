@@ -71,6 +71,14 @@ class HandleInertiaRequests extends Middleware
             'flash' => [
                 'sukses' => fn () => $request->session()->get('sukses'),
                 'gagal' => fn () => $request->session()->get('gagal'),
+
+                /*
+                 * Kata sandi sementara akun admin (FR-USR-01). Hanya lewat
+                 * flash, tidak pernah tersimpan: yang ada di basis data hanya
+                 * hash-nya, sehingga nilainya tidak dapat ditampilkan lagi
+                 * setelah halaman berpindah.
+                 */
+                'sandi_sementara' => fn () => $request->session()->get('sandi_sementara'),
             ],
         ];
     }

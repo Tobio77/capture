@@ -697,6 +697,11 @@ Ringkasan endpoint inti; daftar lengkap akan dirinci sebagai route Laravel pada 
 | PATCH      | /admin/kelola-absen/event/{event}      | Ubah event yang masih aktif                                                     |
 | DELETE     | /admin/kelola-absen/event/{event}      | Hapus permanen event yang belum menautkan absensi                               |
 | POST       | /admin/kelola-absen/event/{event}/tutup| Tutup entry event (FR-EVT-04)                                                   |
+| GET        | /admin/pengguna                        | Kelola akun admin, khusus Superadmin (FR-USR-01)                                 |
+| POST       | /admin/pengguna                        | Buat akun admin beserta kata sandi sementaranya                                 |
+| PATCH      | /admin/pengguna/{pengguna}             | Ubah akun admin beserta cakupan unitnya                                          |
+| PATCH      | /admin/pengguna/{pengguna}/status      | Aktifkan/nonaktifkan akun admin                                                  |
+| POST       | /admin/pengguna/{pengguna}/reset-sandi | Terbitkan kata sandi sementara baru                                              |
 | GET        | /admin/laporan                         | Laporan kehadiran per pegawai, terfilter rentang dan unit (FR-LAP-01, FR-LAP-02) |
 | GET        | /admin/laporan/ekspor                  | Unduh laporan sebagai CSV siap Excel (FR-LAP-03)                                |
 | GET        | /admin/kelola-absen/rekap              | Rekap absen per event, terfilter cakupan unit (FR-REK-01, FR-REK-02)             |

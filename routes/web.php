@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\FotoReferensiWajahController;
 use App\Http\Controllers\Admin\KartuRfidController;
 use App\Http\Controllers\Admin\LaporanController;
 use App\Http\Controllers\Admin\PegawaiController;
+use App\Http\Controllers\Admin\PenggunaController;
 use App\Http\Controllers\Admin\RekapController;
 use App\Http\Controllers\Admin\SettingAbsenController;
 use App\Http\Controllers\Admin\SettingWorkaController;
@@ -188,10 +189,20 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
         Route::post('setting/worka/test', [SettingWorkaController::class, 'uji'])->name('setting-worka.uji');
     });
 
-    Route::inertia('pengguna', 'Segera', [
-        'judul' => 'Kelola User / Role',
-        'deskripsi' => 'Akun admin dan perangkat absen beserta penerbitan kode aktivasi. Dikerjakan pada Sesi S23 dan S24.',
-    ])->middleware('peran:superadmin,admin_dinas')->name('pengguna.index');
+    /*
+     * Kelola akun admin (FR-USR-01). Terbatas Superadmin — Admin Dinas hanya
+     * boleh mengelola perangkat absen (matriks peran SRS §6).
+     */
+    Route::middleware('peran:superadmin')->group(function () {
+        Route::get('pengguna', [PenggunaController::class, 'index'])->name('pengguna.index');
+        Route::post('pengguna', [PenggunaController::class, 'store'])->name('pengguna.store');
+        Route::patch('pengguna/{pengguna}', [PenggunaController::class, 'update'])->name('pengguna.update');
+        Route::patch('pengguna/{pengguna}/status', [PenggunaController::class, 'ubahStatus'])
+            ->name('pengguna.status');
+        Route::post('pengguna/{pengguna}/reset-sandi', [PenggunaController::class, 'resetSandi'])
+            ->middleware('throttle:10,1')
+            ->name('pengguna.reset-sandi');
+    });
 
     /*
      * Laporan kehadiran (FR-LAP-01 s.d. FR-LAP-03). Cakupan unitnya mengikuti

@@ -48,10 +48,15 @@ class MenuNavigasi
                 'peran' => $semuaPeran,
             ],
             [
+                /*
+                 * Akun admin hanya boleh disentuh Superadmin; Admin Dinas
+                 * terbatas pada perangkat absen, yang menempati menunya
+                 * sendiri (matriks peran SRS §6).
+                 */
                 'label' => 'Kelola User / Role',
                 'ikon' => 'pengguna',
                 'rute' => 'pengguna.index',
-                'peran' => $lintasUnit,
+                'peran' => [PeranPengguna::Superadmin],
             ],
             [
                 'label' => 'Laporan',
