@@ -42,6 +42,13 @@ return [
         'sync_interval' => env('WORKA_SYNC_INTERVAL', 1440),
 
         /*
+         * Kode unit OPD induk pada hirarki WORKA. Anak langsung simpul inilah
+         * yang menjadi "unit kerja level teratas" di SI-ABSEN — unit yang
+         * dikelola admin dan dipilih pada event/kiosk (lihat SDD §3.1).
+         */
+        'kode_opd' => env('WORKA_KODE_OPD', 'DISNAKERTRANS'),
+
+        /*
          * Induk unit kerja milik SI-ABSEN sendiri, dalam bentuk
          * kode unit lokal => kode unit induk di WORKA.
          *

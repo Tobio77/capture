@@ -41,6 +41,118 @@ class UnitKerjaTest extends TestCase
                 ->etc());
     }
 
+    /**
+     * Hirarki ringkas menyerupai produksi: OPD → UPT → seksi.
+     *
+     * @return array{opd: UnitKerja, upt: UnitKerja, seksi: UnitKerja}
+     */
+    protected function hirarki(): array
+    {
+        $opd = UnitKerja::factory()->create(['kode' => 'DISNAKERTRANS', 'nama' => 'Dinas Tenaga Kerja dan Transmigrasi']);
+        $upt = UnitKerja::factory()->create(['kode' => 'BLK-SGS', 'nama' => 'UPT BLK Singosari', 'induk_id' => $opd->id]);
+        $seksi = UnitKerja::factory()->create(['kode' => 'BLK-SGS-TU', 'nama' => 'Sub Bagian Tata Usaha', 'induk_id' => $upt->id]);
+
+        return ['opd' => $opd, 'upt' => $upt, 'seksi' => $seksi];
+    }
+
+    #[Test]
+    public function hanya_unit_level_teratas_yang_ditampilkan(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+
+        // OPD sendiri dan seksi di bawah UPT tidak ikut diekspos; yang dikelola
+        // admin hanya unit level teratas.
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->get('/admin/kelola-absen/unit-kerja')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('daftar', 1)
+                ->where('daftar.0.id', $upt->id)
+                ->where('daftar.0.kode', 'BLK-SGS')
+                ->where('daftar.0.jumlah_unit_turunan', 1)
+                ->etc());
+    }
+
+    #[Test]
+    public function jumlah_pegawai_dan_kiosk_mencakup_seluruh_turunan(): void
+    {
+        ['upt' => $upt, 'seksi' => $seksi] = $this->hirarki();
+
+        // Pegawai menaut ke seksi, bukan ke UPT — inilah sebab menghitung unit
+        // itu sendiri saja menghasilkan angka nol yang menyesatkan.
+        Pegawai::factory()->count(4)->create(['unit_kerja_id' => $seksi->id]);
+        Pegawai::factory()->count(2)->create(['unit_kerja_id' => $upt->id]);
+        Kiosk::factory()->create(['unit_kerja_id' => $seksi->id]);
+        Kiosk::factory()->create(['unit_kerja_id' => $upt->id]);
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->get('/admin/kelola-absen/unit-kerja')
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('daftar', 1)
+                ->where('daftar.0.jumlah_pegawai', 6)
+                ->where('daftar.0.jumlah_kiosk', 2)
+                ->etc());
+    }
+
+    #[Test]
+    public function admin_upt_hanya_melihat_unit_teratas_yang_menaunginya(): void
+    {
+        ['opd' => $opd, 'upt' => $upt, 'seksi' => $seksi] = $this->hirarki();
+        $lain = UnitKerja::factory()->create(['kode' => 'BLK-SBY', 'induk_id' => $opd->id]);
+
+        // Admin ditempatkan pada seksi; yang tampil tetap UPT yang menaunginya.
+        $admin = User::factory()->create([
+            'role' => PeranPengguna::AdminUpt,
+            'unit_kerja_id' => $seksi->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->get('/admin/kelola-absen/unit-kerja')
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('dapat_mengubah', false)
+                ->has('daftar', 1)
+                ->where('daftar.0.id', $upt->id)
+                ->etc());
+
+        $this->assertNotSame($lain->id, $upt->id);
+    }
+
+    #[Test]
+    public function unit_baru_dibuat_sebagai_anak_opd_agar_tetap_tampil(): void
+    {
+        ['opd' => $opd] = $this->hirarki();
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->post('/admin/kelola-absen/unit-kerja', [
+                'kode' => 'BLK-JBR',
+                'nama' => 'UPT Balai Latihan Kerja Jember',
+            ])
+            ->assertSessionHas('sukses');
+
+        $this->assertDatabaseHas('unit_kerja', [
+            'kode' => 'BLK-JBR',
+            'induk_id' => $opd->id,
+        ]);
+
+        // Tanpa induk yang benar, unit baru langsung lenyap dari daftar.
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->get('/admin/kelola-absen/unit-kerja')
+            ->assertInertia(fn (Assert $page) => $page->has('daftar', 2)->etc());
+    }
+
+    #[Test]
+    public function tanpa_simpul_opd_unit_tanpa_induk_dianggap_level_teratas(): void
+    {
+        // Instalasi baru: WORKA belum pernah disinkronkan, simpul OPD belum ada.
+        UnitKerja::factory()->create(['kode' => 'DISNAKER']);
+        UnitKerja::factory()->create(['kode' => 'BLK-SBY']);
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->get('/admin/kelola-absen/unit-kerja')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->has('daftar', 2)->etc());
+    }
+
     #[Test]
     public function superadmin_dapat_menambah_unit_kerja(): void
     {

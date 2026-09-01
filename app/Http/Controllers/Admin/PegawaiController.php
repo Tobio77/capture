@@ -30,14 +30,26 @@ class PegawaiController extends Controller
             ->with('unitKerja:id,kode,nama')
             ->cari($request->string('cari')->toString() ?: null)
 
+            /*
+             * Cakupan unit selalu menyertakan turunannya: pegawai menaut ke
+             * seksi/subbag, sedangkan yang dipilih admin adalah UPT/bidang di
+             * atasnya. Padanan persis akan mengosongkan daftar UPT (SDD §3.1).
+             */
+
             // Admin UPT hanya melihat pegawai unit kerjanya sendiri (SRS §6).
             ->when(
                 ! $pengguna->lintasUnit(),
-                fn ($q) => $q->where('unit_kerja_id', $pengguna->unit_kerja_id),
+                fn ($q) => $q->whereIn(
+                    'unit_kerja_id',
+                    UnitKerja::idsDenganTurunan($pengguna->unit_kerja_id),
+                ),
             )
             ->when(
                 $request->filled('unit_kerja_id'),
-                fn ($q) => $q->where('unit_kerja_id', $request->integer('unit_kerja_id')),
+                fn ($q) => $q->whereIn(
+                    'unit_kerja_id',
+                    UnitKerja::idsDenganTurunan($request->integer('unit_kerja_id')),
+                ),
             )
             ->when(
                 $request->string('status_foto')->toString() === 'terdaftar',
@@ -71,10 +83,21 @@ class PegawaiController extends Controller
 
         return Inertia::render('Pegawai/Index', [
             'pegawai' => $pegawai,
+            // Penyaring memakai unit level teratas saja; seksi/subbag ikut
+            // terjaring lewat cakupan turunan di atas.
             'unit_kerja' => UnitKerja::query()
-                ->when(! $pengguna->lintasUnit(), fn ($q) => $q->whereKey($pengguna->unit_kerja_id))
+                ->levelTeratas()
                 ->orderBy('nama')
-                ->get(['id', 'kode', 'nama']),
+                ->get(['id', 'kode', 'nama'])
+                ->when(
+                    ! $pengguna->lintasUnit(),
+                    fn ($daftar) => $daftar->filter(fn (UnitKerja $unit) => in_array(
+                        $pengguna->unit_kerja_id,
+                        UnitKerja::idsDenganTurunan($unit->id),
+                        true,
+                    )),
+                )
+                ->values(),
             'filter' => [
                 'cari' => $request->string('cari')->toString(),
                 'unit_kerja_id' => $request->string('unit_kerja_id')->toString(),

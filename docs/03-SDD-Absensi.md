@@ -89,6 +89,39 @@ berinduk, dan karena unit yang dibuat manual oleh admin belum tentu memiliki
 induk. FK menggunakan `nullOnDelete` — selaras dengan kebijakan unit kerja
 dinonaktifkan, bukan dihapus (FR-UNIT-01).
 
+### Unit kerja level teratas
+
+WORKA memodelkan struktur organisasi sampai tingkat seksi/subbag, sedangkan
+SI-ABSEN menyelenggarakan absensi pada tingkat UPT/bidang. Karena itu tidak
+seluruh baris `unit_kerja` diekspos ke admin.
+
+**Unit level teratas** adalah anak langsung simpul OPD (`DISNAKERTRANS`, diatur
+lewat `services.worka.kode_opd`) — yaitu `DISNAKER`, seluruh UPT, seluruh
+bidang, dan sekretariat; 25 unit pada data saat ini. Inilah satuan yang muncul
+di Setting Unit Kerja, menjadi cakupan Admin UPT, dan dipilih pada event maupun
+kiosk. Perhatikan bahwa ini **bukan** `induk_id IS NULL` — predikat itu hanya
+menghasilkan `PROV-JATIM`, karena unit level teratas tetap berinduk ke OPD.
+
+Sebaliknya, setiap query yang menjawab "siapa saja yang bernaung di unit ini"
+— daftar pegawai, cakupan Admin UPT, penyaring unit, peserta event — **wajib
+mencakup seluruh turunan**, karena pegawai menaut ke seksi/subbag, bukan ke
+UPT-nya. Padanan persis (`unit_kerja_id = ?`) akan menampilkan UPT berisi
+ratusan pegawai sebagai nol.
+
+Keduanya disediakan pada model `UnitKerja`:
+
+| Kebutuhan                    | Pemakaian                              |
+|------------------------------|----------------------------------------|
+| Unit yang boleh diekspos     | `UnitKerja::query()->levelTeratas()`   |
+| Cakupan sebuah unit          | `UnitKerja::idsDenganTurunan($id)`     |
+
+`idsDenganTurunan()` menelusuri sedalam apa pun dari satu kali baca tabel, dan
+membawa penjaga siklus karena FK tidak mencegah A → B → A. Unit yang dibuat
+admin lewat Setting Unit Kerja otomatis dijadikan anak simpul OPD, supaya tidak
+langsung lenyap dari daftar. Selama WORKA belum pernah disinkronkan, simpul OPD
+belum ada dan unit tanpa induk yang dianggap level teratas — agar halaman tidak
+tampil kosong pada instalasi baru.
+
 Sinkronisasi unit kerja dari WORKA berjalan **tiga tahap** karena urutan baris
 yang dikirim WORKA tidak menjamin induk muncul lebih dulu daripada anaknya:
 

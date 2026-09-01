@@ -69,4 +69,94 @@ class UnitKerja extends Model
     {
         $query->where('aktif', true);
     }
+
+    /**
+     * Unit kerja "level teratas": anak langsung simpul OPD pada hirarki WORKA
+     * — DISNAKER, tiap UPT, tiap bidang, dan sekretariat.
+     *
+     * Inilah satuan yang dikelola admin dan dipilih pada event maupun kiosk.
+     * Seksi/subbag di bawahnya sengaja tidak diekspos: absensi diselenggarakan
+     * pada tingkat UPT/bidang, sementara turunannya tetap ikut terhitung lewat
+     * {@see self::idsDenganTurunan()}.
+     *
+     * Selama WORKA belum pernah disinkronkan, simpul OPD belum ada; pada
+     * keadaan itu unit tanpa induk yang dianggap level teratas, supaya
+     * halaman Setting Unit Kerja tidak tampil kosong di instalasi baru.
+     *
+     * @param  Builder<UnitKerja>  $query
+     */
+    public function scopeLevelTeratas(Builder $query): void
+    {
+        $opd = static::idOpd();
+
+        $opd === null
+            ? $query->whereNull('induk_id')
+            : $query->where('induk_id', $opd);
+    }
+
+    /**
+     * Id simpul OPD pada hirarki WORKA, atau null bila WORKA belum pernah
+     * disinkronkan.
+     */
+    public static function idOpd(): ?int
+    {
+        $id = static::query()
+            ->where('kode', config('services.worka.kode_opd'))
+            ->value('id');
+
+        return $id === null ? null : (int) $id;
+    }
+
+    /**
+     * Id sebuah unit beserta seluruh turunannya, sedalam apa pun.
+     *
+     * Dipakai setiap kali pertanyaannya "siapa saja yang bernaung di unit ini"
+     * — daftar pegawai, cakupan admin UPT, dan peserta event — karena pegawai
+     * menaut ke seksi/subbag, bukan ke UPT-nya.
+     *
+     * @param  int|array<int, int>  $akar
+     * @return array<int, int>
+     */
+    public static function idsDenganTurunan(int|array $akar): array
+    {
+        $anakPerInduk = static::anakPerInduk();
+        $hasil = [];
+        $antrian = array_values((array) $akar);
+
+        while ($antrian !== []) {
+            $id = array_shift($antrian);
+
+            // Penjaga siklus: FK tidak mencegah A → B → A, dan satu baris
+            // rusak tidak boleh membuat permintaan berputar selamanya.
+            if (isset($hasil[$id])) {
+                continue;
+            }
+
+            $hasil[$id] = $id;
+
+            foreach ($anakPerInduk[$id] ?? [] as $anak) {
+                $antrian[] = $anak;
+            }
+        }
+
+        return array_values($hasil);
+    }
+
+    /**
+     * Peta induk → daftar id anak langsung, dari satu kali baca tabel.
+     *
+     * @return array<int, array<int, int>>
+     */
+    protected static function anakPerInduk(): array
+    {
+        $anakPerInduk = [];
+
+        foreach (static::query()->pluck('induk_id', 'id') as $id => $indukId) {
+            if ($indukId !== null) {
+                $anakPerInduk[(int) $indukId][] = (int) $id;
+            }
+        }
+
+        return $anakPerInduk;
+    }
 }

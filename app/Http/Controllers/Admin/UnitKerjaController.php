@@ -17,20 +17,14 @@ class UnitKerjaController extends Controller
     public function __construct(protected UnitKerjaService $unitKerja) {}
 
     /**
-     * Daftar unit kerja beserta jumlah pegawai dan kiosk (FR-UNIT-02).
+     * Daftar unit kerja level teratas beserta jumlah pegawai dan kiosk
+     * se-turunannya (FR-UNIT-02).
      * Admin UPT dapat melihat daftar ini, tetapi tanpa aksi ubah (SRS §6).
      */
     public function index(Request $request): Response
     {
         return Inertia::render('UnitKerja/Index', [
-            'daftar' => $this->unitKerja->daftar()->map(fn (UnitKerja $unit) => [
-                'id' => $unit->id,
-                'kode' => $unit->kode,
-                'nama' => $unit->nama,
-                'aktif' => $unit->aktif,
-                'jumlah_pegawai' => $unit->pegawai_count,
-                'jumlah_kiosk' => $unit->kiosk_count,
-            ]),
+            'daftar' => $this->unitKerja->daftar($request->user()),
             'dapat_mengubah' => $request->user()->lintasUnit(),
         ]);
     }

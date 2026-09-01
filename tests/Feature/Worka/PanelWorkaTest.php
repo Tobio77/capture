@@ -97,6 +97,44 @@ class PanelWorkaTest extends TestCase
     }
 
     #[Test]
+    public function cakupan_pegawai_admin_upt_menyertakan_seksi_di_bawahnya(): void
+    {
+        $upt = UnitKerja::factory()->create(['kode' => 'BLK-SGS']);
+        $seksi = UnitKerja::factory()->create(['kode' => 'BLK-SGS-TU', 'induk_id' => $upt->id]);
+        $unitLain = UnitKerja::factory()->create(['kode' => 'BLK-MJK']);
+
+        Pegawai::factory()->create(['unit_kerja_id' => $upt->id]);
+        Pegawai::factory()->count(4)->create(['unit_kerja_id' => $seksi->id]);
+        Pegawai::factory()->count(3)->create(['unit_kerja_id' => $unitLain->id]);
+
+        // Pegawai menaut ke seksi; padanan persis hanya akan memberi 1 baris.
+        $this->actingAs(User::factory()->adminUpt($upt)->create())
+            ->get('/admin/pegawai')
+            ->assertInertia(fn (Assert $page) => $page->has('pegawai.data', 5)->etc());
+    }
+
+    #[Test]
+    public function penyaring_unit_kerja_menjaring_seluruh_turunannya(): void
+    {
+        $opd = UnitKerja::factory()->create(['kode' => 'DISNAKERTRANS']);
+        $upt = UnitKerja::factory()->create(['kode' => 'BLK-SGS', 'induk_id' => $opd->id]);
+        $seksi = UnitKerja::factory()->create(['kode' => 'BLK-SGS-TU', 'induk_id' => $upt->id]);
+        $lain = UnitKerja::factory()->create(['kode' => 'BLK-MJK', 'induk_id' => $opd->id]);
+
+        Pegawai::factory()->count(2)->create(['unit_kerja_id' => $seksi->id]);
+        Pegawai::factory()->count(3)->create(['unit_kerja_id' => $lain->id]);
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->get('/admin/pegawai?unit_kerja_id='.$upt->id)
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('pegawai.data', 2)
+
+                // Penyaring hanya menawarkan unit level teratas.
+                ->has('unit_kerja', 2)
+                ->etc());
+    }
+
+    #[Test]
     public function admin_upt_tidak_boleh_memicu_sinkronisasi(): void
     {
         Http::fake();

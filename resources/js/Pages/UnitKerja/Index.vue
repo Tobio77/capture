@@ -94,7 +94,15 @@ const ubahStatus = (unit) => {
           <tbody class="divide-y divide-slate-100">
             <tr v-for="unit in daftar" :key="unit.id" :class="{ 'bg-slate-50/60': !unit.aktif }">
               <td class="px-6 py-3 font-display font-medium text-navy-700">{{ unit.kode }}</td>
-              <td class="px-6 py-3 text-slate-700">{{ unit.nama }}</td>
+              <td class="px-6 py-3 text-slate-700">
+                {{ unit.nama }}
+                <span
+                  v-if="unit.jumlah_unit_turunan > 0"
+                  class="ml-2 whitespace-nowrap text-xs text-slate-500"
+                >
+                  membawahi {{ unit.jumlah_unit_turunan }} unit
+                </span>
+              </td>
               <td class="px-6 py-3 text-right font-display tabular-nums text-slate-600">{{ unit.jumlah_pegawai }}</td>
               <td class="px-6 py-3 text-right font-display tabular-nums text-slate-600">{{ unit.jumlah_kiosk }}</td>
               <td class="px-6 py-3">
