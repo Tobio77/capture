@@ -68,13 +68,36 @@ Skema berikut adalah rancangan awal tabel inti; penamaan kolom dapat disesuaikan
 
 ## 3.1 unit_kerja
 
-| **Kolom**  | **Tipe**     | **Keterangan**                 |
-|------------|--------------|--------------------------------|
-| id         | bigint, PK   |                                |
-| kode       | varchar(20)  | Kode unit, unik (mis. BLK-SBY) |
-| nama       | varchar(150) |                                |
-| aktif      | boolean      | default true                   |
-| timestamps | \-           | created_at, updated_at         |
+| **Kolom**  | **Tipe**                          | **Keterangan**                                             |
+|------------|-----------------------------------|------------------------------------------------------------|
+| id         | bigint, PK                        |                                                            |
+| kode       | varchar(20)                       | Kode unit, unik (mis. BLK-SBY)                             |
+| nama       | varchar(150)                      |                                                            |
+| induk_id   | bigint, FK → unit_kerja, nullable | Unit induk sesuai hirarki WORKA; null pada unit puncak      |
+| aktif      | boolean                           | default true                                               |
+| timestamps | \-                                | created_at, updated_at                                     |
+
+Hirarki unit kerja mengikuti WORKA (provinsi → dinas → bidang/UPT →
+subbag/seksi) melalui `induk_id` yang menunjuk ke baris `unit_kerja` lain.
+Kolom ini nullable karena unit puncak (Pemerintah Provinsi Jawa Timur) tidak
+berinduk, dan karena unit yang dibuat manual oleh admin belum tentu memiliki
+induk. FK menggunakan `nullOnDelete` — selaras dengan kebijakan unit kerja
+dinonaktifkan, bukan dihapus (FR-UNIT-01).
+
+Sinkronisasi unit kerja dari WORKA berjalan **dua tahap** karena urutan baris
+yang dikirim WORKA tidak menjamin induk muncul lebih dulu daripada anaknya:
+
+1. **Tahap simpan** — seluruh unit dibuat/diperbarui (kode, nama, aktif) tanpa
+   menyentuh `induk_id`, sekaligus mencatat kode induk tiap unit.
+2. **Tahap tautkan** — `induk_id` diisi dengan mencocokkan kode induk terhadap
+   kolom `kode` setelah semua unit dipastikan ada.
+
+Induk dibaca dari medan `parent` pada jawaban `GET /api/v1/absen/unit-kerja`
+(objek `{id, kode, nama}`, bernilai null pada unit puncak); kunci `induk` ikut
+dikenali sebagai alias. Bila kode induk tidak ada pada daftar yang dikirim
+WORKA, tautan lama dipertahankan dan kejadiannya dicatat di
+`storage/logs/worka-api.log` — hirarki tidak diputus berdasarkan data tak
+lengkap. Unit lokal di luar daftar WORKA tidak disentuh sama sekali.
 
 ## 3.2 pegawai
 

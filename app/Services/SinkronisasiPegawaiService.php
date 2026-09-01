@@ -124,6 +124,12 @@ class SinkronisasiPegawaiService
     /**
      * Sinkronkan daftar unit kerja dari WORKA.
      *
+     * Berjalan dua tahap karena induk sebuah unit bisa saja belum tercatat
+     * ketika unit anaknya diproses — WORKA tidak menjamin urutan induk lebih
+     * dulu. Tahap pertama menyimpan seluruh unit tanpa menyentuh induk_id,
+     * tahap kedua baru menautkan induk berdasarkan pencocokan kode setelah
+     * semua unit dipastikan ada.
+     *
      * Nama dan kode mengikuti WORKA. Kolom `aktif` di SI-ABSEN adalah penanda
      * keikutsertaan yang diatur admin (FR-UNIT-01), jadi hanya diturunkan
      * paksa ketika WORKA menyatakan unitnya sudah tidak aktif — unit yang
@@ -134,7 +140,25 @@ class SinkronisasiPegawaiService
     public function sinkronUnitKerja(): int
     {
         $daftar = $this->worka->getUnitKerja()['data'];
-        $tersentuh = 0;
+
+        [$tersentuh, $kodeInduk] = $this->simpanUnitKerja($daftar);
+        $tersentuh = $this->tautkanInduk($kodeInduk, $tersentuh);
+
+        $this->pengaturan->simpan(self::KUNCI_UNIT_SINKRON_TERAKHIR, Carbon::now()->toIso8601String());
+
+        return count($tersentuh);
+    }
+
+    /**
+     * Tahap pertama: buat atau perbarui setiap unit kerja, tanpa induk.
+     *
+     * @param  array<int, array<string, mixed>>  $daftar
+     * @return array{0: array<string, true>, 1: array<string, string|null>} kode unit yang tersentuh, dan kode induk per kode unit
+     */
+    protected function simpanUnitKerja(array $daftar): array
+    {
+        $tersentuh = [];
+        $kodeInduk = [];
 
         foreach ($daftar as $unit) {
             $kode = $unit['kode'] ?? null;
@@ -142,6 +166,8 @@ class SinkronisasiPegawaiService
             if (! is_string($kode) || $kode === '') {
                 continue;
             }
+
+            $kodeInduk[$kode] = $this->kodeInduk($unit);
 
             $lokal = UnitKerja::query()->where('kode', $kode)->first();
             $aktifDiWorka = (bool) ($unit['aktif'] ?? true);
@@ -152,7 +178,7 @@ class SinkronisasiPegawaiService
                     'nama' => $unit['nama'] ?? $kode,
                     'aktif' => $aktifDiWorka,
                 ]);
-                $tersentuh++;
+                $tersentuh[$kode] = true;
 
                 continue;
             }
@@ -167,13 +193,89 @@ class SinkronisasiPegawaiService
 
             if ($lokal->isDirty()) {
                 $lokal->save();
-                $tersentuh++;
+                $tersentuh[$kode] = true;
             }
         }
 
-        $this->pengaturan->simpan(self::KUNCI_UNIT_SINKRON_TERAKHIR, Carbon::now()->toIso8601String());
+        return [$tersentuh, $kodeInduk];
+    }
+
+    /**
+     * Tahap kedua: tautkan induk_id berdasarkan kode induk dari WORKA.
+     *
+     * Hanya unit yang dikirim WORKA pada putaran ini yang disentuh; unit lokal
+     * di luar daftar (mis. dibuat manual oleh admin) dibiarkan apa adanya.
+     *
+     * @param  array<string, string|null>  $kodeInduk
+     * @param  array<string, true>  $tersentuh
+     * @return array<string, true>
+     */
+    protected function tautkanInduk(array $kodeInduk, array $tersentuh): array
+    {
+        $unitPerKode = UnitKerja::query()
+            ->whereIn('kode', array_keys($kodeInduk))
+            ->get()
+            ->keyBy('kode');
+
+        foreach ($kodeInduk as $kode => $induk) {
+            $lokal = $unitPerKode->get($kode);
+
+            if ($lokal === null) {
+                continue;
+            }
+
+            // Unit puncak tidak berinduk; unit yang induknya dilepas di WORKA
+            // ikut dilepas di sini agar hirarki tidak tertinggal versi lama.
+            $indukId = null;
+
+            if ($induk !== null && $induk !== $kode) {
+                $indukId = $unitPerKode->get($induk)?->id;
+
+                if ($indukId === null) {
+                    // Induk di luar daftar yang dikirim WORKA: biarkan tautan
+                    // lama daripada memutusnya berdasarkan data tak lengkap.
+                    Log::channel('worka')->warning('Induk unit kerja tidak ditemukan saat sinkronisasi.', [
+                        'unit_kerja_kode' => $kode,
+                        'induk_kode' => $induk,
+                    ]);
+
+                    continue;
+                }
+            }
+
+            $lokal->induk_id = $indukId;
+
+            if ($lokal->isDirty()) {
+                $lokal->save();
+                $tersentuh[$kode] = true;
+            }
+        }
 
         return $tersentuh;
+    }
+
+    /**
+     * Kode unit induk dari satu baris unit kerja WORKA.
+     *
+     * WORKA mengirimkan induk sebagai objek `parent` ({id, kode, nama}) dan
+     * bernilai null pada unit puncak. Bentuk lain (kunci `induk`, atau kode
+     * sebagai skalar) ikut dikenali agar sinkronisasi tidak patah bila
+     * penamaan medan di WORKA bergeser.
+     *
+     * @param  array<string, mixed>  $unit
+     */
+    protected function kodeInduk(array $unit): ?string
+    {
+        foreach (['parent', 'induk'] as $medan) {
+            $nilai = $unit[$medan] ?? null;
+            $kode = is_array($nilai) ? ($nilai['kode'] ?? null) : $nilai;
+
+            if (is_string($kode) && $kode !== '') {
+                return $kode;
+            }
+        }
+
+        return null;
     }
 
     /**

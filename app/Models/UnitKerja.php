@@ -7,9 +7,10 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['kode', 'nama', 'aktif'])]
+#[Fillable(['kode', 'nama', 'induk_id', 'aktif'])]
 class UnitKerja extends Model
 {
     /** @use HasFactory<UnitKerjaFactory> */
@@ -25,6 +26,22 @@ class UnitKerja extends Model
         return [
             'aktif' => 'boolean',
         ];
+    }
+
+    /**
+     * Unit induk sesuai hirarki WORKA — null pada unit puncak.
+     *
+     * @return BelongsTo<UnitKerja, $this>
+     */
+    public function induk(): BelongsTo
+    {
+        return $this->belongsTo(UnitKerja::class, 'induk_id');
+    }
+
+    /** @return HasMany<UnitKerja, $this> */
+    public function anak(): HasMany
+    {
+        return $this->hasMany(UnitKerja::class, 'induk_id');
     }
 
     /** @return HasMany<Pegawai, $this> */

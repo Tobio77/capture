@@ -266,6 +266,73 @@ class SinkronisasiPegawaiTest extends TestCase
     }
 
     #[Test]
+    public function induk_unit_kerja_tertaut_walau_anak_dikirim_lebih_dulu(): void
+    {
+        // Urutan sengaja dibalik: anak lebih dulu, induknya belakangan —
+        // inilah alasan sinkronisasi unit berjalan dua tahap.
+        $this->palsukanWorka(unitKerja: [
+            [
+                'id' => 52, 'kode' => 'BLK-SGS-TU', 'nama' => 'Sub Bagian Tata Usaha', 'aktif' => true,
+                'parent' => ['id' => 51, 'kode' => 'BLK-SGS', 'nama' => 'UPT BLK Singosari'],
+            ],
+            [
+                'id' => 51, 'kode' => 'BLK-SGS', 'nama' => 'UPT BLK Singosari', 'aktif' => true,
+                'parent' => ['id' => 2, 'kode' => 'DISNAKERTRANS', 'nama' => 'Dinas Tenaga Kerja dan Transmigrasi'],
+            ],
+            [
+                'id' => 2, 'kode' => 'DISNAKERTRANS', 'nama' => 'Dinas Tenaga Kerja dan Transmigrasi', 'aktif' => true,
+                'parent' => null,
+            ],
+        ]);
+
+        $this->layanan()->sinkronPenuh();
+
+        $dinas = UnitKerja::query()->where('kode', 'DISNAKERTRANS')->sole();
+        $upt = UnitKerja::query()->where('kode', 'BLK-SGS')->sole();
+        $subbag = UnitKerja::query()->where('kode', 'BLK-SGS-TU')->sole();
+
+        $this->assertNull($dinas->induk_id, 'Unit puncak tidak berinduk.');
+        $this->assertSame($dinas->id, $upt->induk_id);
+        $this->assertSame($upt->id, $subbag->induk_id);
+        $this->assertSame('BLK-SGS', $subbag->induk->kode);
+    }
+
+    #[Test]
+    public function induk_yang_tidak_dikirim_worka_tidak_memutus_tautan_lama(): void
+    {
+        $induk = UnitKerja::factory()->create(['kode' => 'BLK-SGS']);
+        $anak = UnitKerja::factory()->create(['kode' => 'BLK-SGS-TU', 'induk_id' => $induk->id]);
+
+        // WORKA hanya mengirim anaknya, induknya di luar daftar.
+        $this->palsukanWorka(unitKerja: [
+            [
+                'id' => 52, 'kode' => 'BLK-SGS-TU', 'nama' => 'Sub Bagian Tata Usaha', 'aktif' => true,
+                'parent' => ['id' => 51, 'kode' => 'BLK-SGS', 'nama' => 'UPT BLK Singosari'],
+            ],
+        ]);
+
+        $this->layanan()->sinkronPenuh();
+
+        $this->assertSame($induk->id, $anak->refresh()->induk_id);
+    }
+
+    #[Test]
+    public function unit_lokal_di_luar_daftar_worka_tidak_disentuh(): void
+    {
+        $lokal = UnitKerja::factory()->create(['kode' => 'UPT-LOKAL', 'nama' => 'Unit Buatan Admin']);
+
+        $this->palsukanWorka(
+            unitKerja: [['id' => 7, 'kode' => 'BLK-SBY', 'nama' => 'UPT BLK Surabaya', 'aktif' => true, 'parent' => null]],
+        );
+
+        $this->layanan()->sinkronPenuh();
+
+        $this->assertSame('Unit Buatan Admin', $lokal->refresh()->nama);
+        $this->assertNull($lokal->induk_id);
+        $this->assertTrue($lokal->aktif);
+    }
+
+    #[Test]
     public function pegawai_dengan_unit_kerja_tak_dikenal_dilewati_tanpa_menggagalkan_sinkronisasi(): void
     {
         $this->palsukanWorka(
