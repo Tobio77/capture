@@ -249,6 +249,24 @@ class EventAbsenService
     }
 
     /**
+     * Unit kerja yang tercakup sebuah event, sudah diperluas ke seluruh
+     * turunannya.
+     *
+     * Dipakai untuk menjawab "siapa yang berhak muncul pada event ini" —
+     * termasuk membatasi data pegawai yang boleh diambil perangkat absen.
+     *
+     * @return array<int, int>
+     */
+    public function unitTercakup(EventAbsen $event): array
+    {
+        if ($event->berlakuUntukSemuaUnit()) {
+            return UnitKerja::query()->pluck('id')->all();
+        }
+
+        return UnitKerja::idsDenganTurunan($event->unitKerja->pluck('id')->all());
+    }
+
+    /**
      * Unit kerja kiosk beserta seluruh turunannya, ditambah rantai induknya
      * sampai simpul OPD.
      *

@@ -7,6 +7,7 @@ use App\Enums\PeranPengguna;
 use App\Models\UnitKerja;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
@@ -104,6 +105,12 @@ class PenggunaService
     {
         $pengguna->update(['aktif' => $aktif]);
 
+        // Akun yang dinonaktifkan diputus sesinya di tempat, tidak menunggu
+        // permintaan berikutnya melewati middleware `pengguna.aktif`.
+        if (! $aktif) {
+            $this->putusSesi($pengguna);
+        }
+
         $this->log->catat(
             AksiLog::Ubah,
             ($aktif ? 'Mengaktifkan' : 'Menonaktifkan')." akun {$pengguna->nama} ({$pengguna->email}).",
@@ -127,10 +134,7 @@ class PenggunaService
 
         $pengguna->update(['password' => Hash::make($sandi)]);
 
-        // Sesi yang sedang berjalan ikut gugur, supaya akun yang disalahgunakan
-        // benar-benar terputus begitu sandinya diganti.
-        $pengguna->setRememberToken(Str::random(60));
-        $pengguna->save();
+        $this->putusSesi($pengguna);
 
         $this->log->catat(
             AksiLog::Ubah,
@@ -140,6 +144,33 @@ class PenggunaService
         );
 
         return $sandi;
+    }
+
+    /**
+     * Putuskan seluruh sesi milik sebuah akun (NFR-03).
+     *
+     * Mengganti kata sandi saja tidak cukup: cookie sesi yang sudah terbit
+     * tetap sah sampai kedaluwarsa, sehingga akun yang disalahgunakan masih
+     * hidup di peramban penyalahgunanya. Karena sesi disimpan di basis data,
+     * barisnya dapat dihapus langsung.
+     *
+     * Remember token ikut diputar agar cookie "ingat saya" tidak dapat
+     * memulihkan sesi yang baru saja diputus.
+     */
+    protected function putusSesi(User $pengguna): void
+    {
+        $pengguna->setRememberToken(Str::random(60));
+        $pengguna->save();
+
+        // Driver sesi selain database tidak menyimpan barisnya di sini;
+        // pemutusan lewat remember token tetap berlaku.
+        if (config('session.driver') !== 'database') {
+            return;
+        }
+
+        DB::table(config('session.table', 'sessions'))
+            ->where('user_id', $pengguna->id)
+            ->delete();
     }
 
     /**

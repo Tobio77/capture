@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Kiosk;
 use App\Http\Controllers\Controller;
 use App\Services\EventAbsenService;
 use App\Services\KartuRfidService;
+use App\Services\SettingAbsenService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -25,6 +26,7 @@ class IdentifikasiTapController extends Controller
     public function __construct(
         protected EventAbsenService $event,
         protected KartuRfidService $kartu,
+        protected SettingAbsenService $setting,
     ) {}
 
     public function __invoke(Request $request): JsonResponse
@@ -118,9 +120,15 @@ class IdentifikasiTapController extends Controller
                  * mengirimkan satu deskriptor sudah cukup dan biometrik
                  * pegawai lain tidak perlu berada di browser kiosk.
                  *
+                 * Tidak dikirim sama sekali ketika admin mematikan verifikasi
+                 * wajah: tidak ada gunanya menaruh data biometrik di perangkat
+                 * yang memang tidak akan memakainya.
+                 *
                  * Foto referensinya sendiri tidak pernah ikut dikirim.
                  */
-                'embedding_wajah' => $pegawai->embedding_wajah,
+                'embedding_wajah' => $this->setting->ambil()['metode_wajah_aktif']
+                    ? $pegawai->embedding_wajah
+                    : null,
             ],
         ]);
     }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Kiosk;
 use App\Exceptions\WorkaApiException;
 use App\Http\Controllers\Controller;
 use App\Models\Pegawai;
+use App\Services\EventAbsenService;
 use App\Services\WorkaApiClient;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -19,7 +20,10 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class FotoPegawaiController extends Controller
 {
-    public function __construct(protected WorkaApiClient $worka) {}
+    public function __construct(
+        protected WorkaApiClient $worka,
+        protected EventAbsenService $event,
+    ) {}
 
     public function __invoke(Request $request, string $nip): Response
     {
@@ -28,6 +32,22 @@ class FotoPegawaiController extends Controller
         $pegawai = Pegawai::query()->where('nip', $nip)->first();
 
         if ($pegawai === null || ! $pegawai->aktif) {
+            abort(404, 'Foto pegawai tidak tersedia.');
+        }
+
+        /*
+         * Perangkat hanya boleh melihat foto pegawai yang memang dapat absen
+         * padanya. Tanpa pembatasan ini, satu perangkat yang dikuasai orang
+         * lain dapat memanen foto seluruh pegawai dinas hanya dengan
+         * menelusuri NIP — padahal ia cuma perlu menampilkan wajah orang yang
+         * baru saja men-tap di depannya.
+         */
+        $kiosk = $request->kiosk();
+        $eventAktif = $kiosk === null ? null : $this->event->eventAktifUntukKiosk($kiosk);
+
+        if ($eventAktif === null
+            || ! in_array($pegawai->unit_kerja_id, $this->event->unitTercakup($eventAktif), true)
+        ) {
             abort(404, 'Foto pegawai tidak tersedia.');
         }
 

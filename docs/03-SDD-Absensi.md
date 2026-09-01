@@ -579,6 +579,46 @@ menggabungkan seluruh kolom menjadi satu, dan berkasnya diawali BOM UTF-8 agar
 nama ber-diakritik tidak rusak. Pencetakan memakai gaya cetak lanskap seperti
 rekap event.
 
+### Batas data yang boleh dilihat perangkat absen (NFR-03, NFR-04)
+
+Perangkat absen memegang device token yang berlaku setahun dan berdiri di
+ruang publik. Karena itu batas datanya ditarik sesempit kebutuhannya, bukan
+seluas peran teknisnya:
+
+| Data | Batas |
+|------|-------|
+| Foto pegawai dari WORKA | Hanya pegawai yang tercakup event aktif perangkat itu |
+| Embedding wajah | Hanya pegawai yang di-tap, dan hanya bila verifikasi wajah menyala |
+| Foto referensi | Tidak pernah dikirim ke perangkat sama sekali |
+| UID kartu | Tidak pernah dikembalikan ke perangkat |
+| Foto absen | Hanya perangkat pada event yang sama |
+
+**Proxy foto WORKA dibatasi cakupan event.** Tanpa itu, satu perangkat yang
+dikuasai orang lain dapat memanen foto seluruh pegawai dinas hanya dengan
+menelusuri NIP — padahal ia cuma perlu menampilkan wajah orang yang baru saja
+men-tap di depannya. Perangkat yang sedang tidak melayani event tidak dapat
+membuka data pegawai sama sekali.
+
+**Embedding tidak dikirim ketika verifikasi wajah dimatikan admin.** Tidak ada
+gunanya menaruh data biometrik pada perangkat yang memang tidak akan
+memakainya.
+
+### Pemutusan akses (NFR-03)
+
+Mengganti kata sandi saja tidak memutus sesi: cookie yang sudah terbit tetap
+sah sampai kedaluwarsa, sehingga akun yang disalahgunakan masih hidup di
+peramban penyalahgunanya. Karena sesi disimpan di basis data, barisnya dihapus
+langsung saat **reset kata sandi** maupun **penonaktifan akun**, dan remember
+token ikut diputar agar cookie "ingat saya" tidak dapat memulihkannya.
+
+Device token perangkat disimpan sebagai hash, tidak pernah mentah, dan
+`device_token` beserta `kode_aktivasi` disembunyikan dari serialisasi model
+agar tidak bocor lewat prop Inertia yang tanpa sengaja memuat seluruh atribut.
+
+**`SESSION_SECURE_COOKIE=true` wajib di produksi.** Tanpa itu cookie sesi admin
+dan device token perangkat ikut terkirim pada koneksi non-HTTPS. Dibiarkan
+kosong hanya untuk pengembangan lokal di `http://capture.test`.
+
 ### Antrian luring (NFR-05)
 
 Jaringan yang putus di tengah apel tidak boleh menghanguskan absen yang
