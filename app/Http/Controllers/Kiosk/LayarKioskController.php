@@ -4,13 +4,17 @@ namespace App\Http\Controllers\Kiosk;
 
 use App\Http\Controllers\Controller;
 use App\Services\EventAbsenService;
+use App\Services\SettingAbsenService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class LayarKioskController extends Controller
 {
-    public function __construct(protected EventAbsenService $event) {}
+    public function __construct(
+        protected EventAbsenService $event,
+        protected SettingAbsenService $setting,
+    ) {}
 
     /**
      * Layar utama kiosk. Dua panel Capture Foto & Daftar e-Presensi
@@ -29,9 +33,26 @@ class LayarKioskController extends Controller
             $this->event->catatKioskAktif($event, $kiosk, $request->ip());
         }
 
+        $setting = $this->setting->ambil();
+
         // Prop `kiosk` sudah dibagikan HandleInertiaRequests; jangan ditimpa
         // di sini agar bentuknya tetap sama di seluruh layar kiosk.
         return Inertia::render('Kiosk/Utama', [
+            /*
+             * FR-SET-01: metode yang dimatikan admin tidak muncul di layar
+             * kiosk — kamera disembunyikan bila verifikasi wajah nonaktif,
+             * dan kolom ketik disembunyikan bila input manual nonaktif.
+             */
+            'metode' => [
+                'manual' => $setting['metode_manual_aktif'],
+                'rfid' => $setting['metode_rfid_aktif'],
+                'wajah' => $setting['metode_wajah_aktif'],
+            ],
+
+            // Daftar e-Presensi diisi setelah tabel absensi ada (S16) dan
+            // diperbarui berkala pada S21.
+            'daftar_presensi' => [],
+
             // Null berarti tidak ada entry yang dibuka untuk unit ini, dan
             // layar kiosk menampilkan keadaan itu alih-alih menerima tap.
             'event' => $event === null ? null : [

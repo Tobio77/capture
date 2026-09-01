@@ -8,9 +8,12 @@ use App\Models\EventAbsen;
 use App\Models\Kiosk;
 use App\Models\Pegawai;
 use App\Models\UnitKerja;
+use App\Models\User;
 use App\Services\KioskService;
+use App\Services\SettingAbsenService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -82,6 +85,48 @@ class ValidasiNipTest extends TestCase
             ]);
 
         Http::assertNothingSent();
+    }
+
+    #[Test]
+    public function layar_kiosk_membawa_event_dan_metode_yang_aktif(): void
+    {
+        // FR-SET-01: metode yang dimatikan admin tidak muncul di layar kiosk.
+        app(SettingAbsenService::class)->simpan([
+            'metode_manual_aktif' => true,
+            'metode_rfid_aktif' => false,
+            'metode_wajah_aktif' => true,
+            'toleransi_default_menit' => 15,
+            'ambang_kecocokan_wajah' => 85,
+            'kompresi_foto' => 'sedang',
+        ], User::factory()->superadmin()->create());
+
+        $this->denganToken()
+            ->get('/kiosk')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Kiosk/Utama')
+                ->where('event.nama', 'Apel Pagi')
+                ->where('metode.manual', true)
+                ->where('metode.rfid', false)
+                ->where('metode.wajah', true)
+                ->has('daftar_presensi', 0)
+                ->etc());
+    }
+
+    #[Test]
+    public function layar_kiosk_tanpa_event_aktif_menyatakan_entry_tertutup(): void
+    {
+        $this->event->update(['status' => StatusEvent::Ditutup, 'ditutup_pada' => now()]);
+
+        $this->denganToken()
+            ->get('/kiosk')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Kiosk/Utama')
+                // Null menandakan tidak ada entry yang dibuka; layar
+                // menampilkan keadaan itu alih-alih menerima tap.
+                ->where('event', null)
+                ->etc());
     }
 
     #[Test]

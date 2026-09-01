@@ -508,7 +508,7 @@ Ringkasan endpoint inti; daftar lengkap akan dirinci sebagai route Laravel pada 
 |------------|----------------------------------------|---------------------------------------------------------------------------------|
 | POST       | /admin/login                           | Login akun admin                                                                |
 | POST       | /kiosk/aktivasi                        | Aktivasi perangkat kiosk, menghasilkan device_token                             |
-| GET        | /kiosk/event-aktif                     | Kiosk mengambil event aktif untuk unit kerjanya                                 |
+| GET        | /kiosk                                 | Layar utama kiosk; membawa event aktif, metode yang menyala, dan daftar presensi |
 | GET        | /kiosk/embedding-wajah/{unit_kerja_id} | Kiosk mengambil daftar embedding wajah pegawai unit terkait (di-cache di klien) |
 | POST       | /kiosk/absen                           | Kirim hasil absen (ID pegawai, jenis, metode, skor kecocokan, foto terkompresi) |
 | GET        | /admin/kelola-absen/event              | Daftar event (terfilter sesuai peran)                                           |
