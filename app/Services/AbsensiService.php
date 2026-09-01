@@ -190,6 +190,76 @@ class AbsensiService
     }
 
     /**
+     * Rekap absen sebuah event untuk panel admin (FR-REK-01).
+     *
+     * Lebih lengkap daripada Daftar e-Presensi kiosk: membawa unit kerja,
+     * metode, dan status ketepatan yang dibutuhkan rekap cetak.
+     *
+     * `$cakupanUnit` membatasi baris pada unit kerja tertentu (FR-REK-02).
+     * Pembatasan itu berlaku pada **unit pegawai**, bukan cakupan event —
+     * sehingga Admin UPT yang membuka event bercakupan "semua unit" tetap
+     * hanya melihat pegawainya sendiri.
+     *
+     * @param  array<int, int>|null  $cakupanUnit
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function rekap(EventAbsen $event, ?array $cakupanUnit = null): Collection
+    {
+        return Absensi::query()
+            ->with(['pegawai:id,nip,nama,unit_kerja_id', 'pegawai.unitKerja:id,kode,nama'])
+            ->where('event_absen_id', $event->id)
+            ->when($cakupanUnit !== null, fn ($q) => $q->whereHas(
+                'pegawai',
+                fn ($p) => $p->whereIn('unit_kerja_id', $cakupanUnit),
+            ))
+            ->orderBy('waktu')
+            ->get()
+            ->groupBy('pegawai_id')
+            ->map(function (Collection $baris) {
+                $datang = $baris->firstWhere('jenis', JenisAbsen::Datang);
+                $pulang = $baris->firstWhere('jenis', JenisAbsen::Pulang);
+                $pegawai = $baris->first()->pegawai;
+                $rujukan = $datang ?? $baris->first();
+
+                return [
+                    'pegawai_id' => $pegawai->id,
+                    'nip' => $pegawai->nip,
+                    'nama' => $pegawai->nama,
+                    'unit_kerja' => $pegawai->unitKerja?->nama,
+                    'jam_masuk' => $datang?->waktu->format('H:i'),
+                    'jam_pulang' => $pulang?->waktu->format('H:i'),
+                    'metode' => $rujukan->metode->label(),
+                    'status_ketepatan' => $datang?->status_ketepatan?->value,
+                    'status_label' => $datang?->status_ketepatan?->label(),
+                    'skor_kecocokan_wajah' => $datang?->skor_kecocokan_wajah,
+                    'foto_url' => $datang?->foto_path === null
+                        ? null
+                        : route('absensi.foto', ['absensi' => $datang->id]),
+                    'urut' => $rujukan->waktu,
+                ];
+            })
+            ->sortBy('urut')
+            ->map(fn (array $baris) => collect($baris)->except('urut')->all())
+            ->values();
+    }
+
+    /**
+     * Ringkasan angka sebuah rekap, untuk kepala halaman dan lembar cetak.
+     *
+     * @param  Collection<int, array<string, mixed>>  $rekap
+     * @return array<string, int>
+     */
+    public function ringkasanRekap(Collection $rekap): array
+    {
+        return [
+            'hadir' => $rekap->count(),
+            'tepat' => $rekap->where('status_ketepatan', 'tepat')->count(),
+            'terlambat' => $rekap->where('status_ketepatan', 'terlambat')->count(),
+            'sudah_pulang' => $rekap->whereNotNull('jam_pulang')->count(),
+        ];
+    }
+
+    /**
      * Simpan foto hasil capture yang dikirim kiosk sebagai data URI.
      *
      * Foto sudah disusutkan di kiosk sesuai preset Setting Absen; server hanya

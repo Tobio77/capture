@@ -518,6 +518,31 @@ tampil tidak tertimpa di tengah pembacaan pegawai. Karena daftar disusun ulang
 dari basis data setiap kali — satu baris per pegawai, bukan per tap — tidak ada
 peluang baris ganda muncul dari balapan antar kiosk (FR-TAP-05).
 
+### Rekap Absen per event (FR-REK-01 s.d. FR-REK-03)
+
+Satu baris per pegawai — jam masuk dan pulang mengisi kolom berbeda pada baris
+yang sama, seperti Daftar e-Presensi kiosk, tetapi ditambah unit kerja, metode,
+status ketepatan, dan foto yang dibutuhkan lembar rekap.
+
+**Pembatasan cakupan berlaku pada unit pegawai, bukan cakupan event.** Ini inti
+FR-REK-02: Admin UPT **boleh membuka** rekap event bercakupan "semua unit" —
+aksesnya terbuka — tetapi barisnya hanya memuat pegawai unitnya sendiri beserta
+turunannya. Yang dibatasi isinya, bukan aksesnya.
+
+Tabel menyegarkan dirinya setiap 15 detik selama event masih dibuka, dan
+berhenti sendiri begitu entry ditutup karena angkanya tidak akan bergerak lagi.
+Rekap tetap dapat dibuka setelah event ditutup — rekap adalah arsip.
+
+Foto absen pada panel admin disajikan lewat `GET /admin/absensi/{absensi}/foto`,
+**terpisah dari route kiosk**: yang ini dibatasi peran dan cakupan unit
+pengguna, sedangkan route kiosk dibatasi perangkat yang sedang melayani event
+(NFR-04).
+
+Pencetakan (FR-REK-03) memakai gaya cetak, bukan berkas terpisah: sidebar,
+pemilih event, tombol, dan kolom foto disembunyikan sehingga lembar berisi kop
+event beserta tabelnya saja. Foto sengaja tidak ikut tercetak — rekap cetak
+dipakai sebagai lampiran administratif, bukan bukti visual.
+
 ### Antrian luring (NFR-05)
 
 Jaringan yang putus di tengah apel tidak boleh menghanguskan absen yang
@@ -636,7 +661,9 @@ Ringkasan endpoint inti; daftar lengkap akan dirinci sebagai route Laravel pada 
 | PATCH      | /admin/kelola-absen/event/{event}      | Ubah event yang masih aktif                                                     |
 | DELETE     | /admin/kelola-absen/event/{event}      | Hapus permanen event yang belum menautkan absensi                               |
 | POST       | /admin/kelola-absen/event/{event}/tutup| Tutup entry event (FR-EVT-04)                                                   |
-| GET        | /admin/kelola-absen/event/{event}/rekap| Rekap absen live per event (S21)                                                |
+| GET        | /admin/kelola-absen/rekap              | Rekap absen per event, terfilter cakupan unit (FR-REK-01, FR-REK-02)             |
+| GET        | /admin/kelola-absen/rekap/{event}/data | Rekap terkini sebagai JSON untuk pembaruan berkala                               |
+| GET        | /admin/absensi/{absensi}/foto          | Foto absen untuk panel admin, dibatasi cakupan unit (NFR-04)                     |
 | GET        | /admin/kelola-absen/setting            | Form Setting Absen (Superadmin & Admin Dinas)                                   |
 | POST       | /admin/kelola-absen/setting            | Simpan Setting Absen (FR-SET-01 s.d. FR-SET-04)                                 |
 | GET        | /admin/pegawai                         | Daftar pegawai (terfilter sesuai peran)                                         |

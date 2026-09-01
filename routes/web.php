@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\EventController;
 use App\Http\Controllers\Admin\FotoReferensiWajahController;
 use App\Http\Controllers\Admin\KartuRfidController;
 use App\Http\Controllers\Admin\PegawaiController;
+use App\Http\Controllers\Admin\RekapController;
 use App\Http\Controllers\Admin\SettingAbsenController;
 use App\Http\Controllers\Admin\SettingWorkaController;
 use App\Http\Controllers\Admin\UnitKerjaController;
@@ -105,10 +106,15 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
         Route::post('event/{event}/tutup', [EventController::class, 'tutup'])->name('event.tutup');
         Route::delete('event/{event}', [EventController::class, 'destroy'])->name('event.destroy');
 
-        Route::inertia('rekap', 'Segera', [
-            'judul' => 'Rekap Absen',
-            'deskripsi' => 'Daftar e-presensi per event yang diperbarui secara live. Dikerjakan pada Sesi S21.',
-        ])->name('rekap.index');
+        /*
+         * Rekap Absen per event (FR-REK-01 s.d. FR-REK-03). Admin UPT boleh
+         * membuka rekap event yang menyentuh unitnya — termasuk event
+         * bercakupan semua unit — tetapi hanya melihat pegawainya sendiri.
+         */
+        Route::get('rekap', [RekapController::class, 'index'])->name('rekap.index');
+        Route::get('rekap/{event}/data', [RekapController::class, 'data'])
+            ->middleware('throttle:60,1')
+            ->name('rekap.data');
 
         /*
          * Setting Absen (FR-SET-01 s.d. FR-SET-04) adalah pengaturan global
@@ -137,6 +143,11 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
      * satu-satunya aksi tulis adalah memicu sinkronisasi dari WORKA, dan itu
      * pun terbatas pada peran lintas unit.
      */
+    // Foto absen untuk panel admin, terpisah dari route kiosk: dibatasi peran
+    // dan cakupan unit, bukan perangkat yang sedang melayani event (NFR-04).
+    Route::get('absensi/{absensi}/foto', [RekapController::class, 'foto'])
+        ->name('absensi.foto');
+
     Route::get('pegawai', [PegawaiController::class, 'index'])->name('pegawai.index');
     Route::get('pegawai/status', [PegawaiController::class, 'statusSinkron'])->name('pegawai.status');
 
