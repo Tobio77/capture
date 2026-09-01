@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Kiosk;
 
 use App\Http\Controllers\Controller;
 use App\Models\Pegawai;
+use App\Services\EventAbsenService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -16,11 +17,31 @@ use Illuminate\Http\Request;
  */
 class ValidasiNipController extends Controller
 {
+    public function __construct(protected EventAbsenService $event) {}
+
     public function __invoke(Request $request): JsonResponse
     {
         $data = $request->validate([
             'nip' => ['required', 'string', 'max:20'],
         ]);
+
+        $kiosk = $request->kiosk();
+
+        /*
+         * FR-EVT-04: begitu event ditutup, tap baru ditolak. Kiosk tidak
+         * menyebutkan event mana yang dimaksud — FR-EVT-06 menjamin paling
+         * banyak satu event aktif per unit, sehingga server yang menentukan.
+         * Tidak ada event aktif berarti tidak ada yang dapat diabsen.
+         */
+        $event = $kiosk === null ? null : $this->event->eventAktifUntukKiosk($kiosk);
+
+        if ($event === null) {
+            return response()->json([
+                'success' => false,
+                'code' => 'EVENT_TIDAK_AKTIF',
+                'message' => 'Tidak ada event yang sedang dibuka untuk unit kerja ini.',
+            ], 409);
+        }
 
         $nip = trim($data['nip']);
 
@@ -49,11 +70,16 @@ class ValidasiNipController extends Controller
             ], 403);
         }
 
-        $kiosk = $request->kiosk();
-
         return response()->json([
             'success' => true,
             'data' => [
+                // Event yang akan menampung tap ini, ditentukan server.
+                'event' => [
+                    'id' => $event->id,
+                    'nama' => $event->nama,
+                    'jam_mulai' => substr((string) $event->jam_mulai, 0, 5),
+                    'toleransi_menit' => $event->toleransi_menit,
+                ],
                 'nip' => $pegawai->nip,
                 'nama' => $pegawai->nama,
                 'jabatan' => $pegawai->jabatan,

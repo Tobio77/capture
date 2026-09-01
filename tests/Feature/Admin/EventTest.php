@@ -482,6 +482,93 @@ class EventTest extends TestCase
     }
 
     /* ---------------------------------------------------------------------
+     * Tutup entry (FR-EVT-04).
+     * ------------------------------------------------------------------- */
+
+    #[Test]
+    public function admin_dapat_menutup_entry_event_aktif(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        $event = EventAbsen::factory()->create(['nama' => 'Apel Pagi']);
+        $event->unitKerja()->attach($upt);
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->post(self::URL."/{$event->id}/tutup")
+            ->assertRedirect()
+            ->assertSessionHas('sukses');
+
+        $event->refresh();
+
+        $this->assertSame(StatusEvent::Ditutup, $event->status);
+        $this->assertNotNull($event->ditutup_pada);
+    }
+
+    #[Test]
+    public function event_yang_sudah_ditutup_tidak_dapat_ditutup_lagi(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        $event = EventAbsen::factory()->ditutup()->create();
+        $event->unitKerja()->attach($upt);
+
+        $waktuTutup = $event->ditutup_pada;
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->post(self::URL."/{$event->id}/tutup")
+            ->assertForbidden();
+
+        // Waktu penutupan aslinya tidak boleh tergeser.
+        $this->assertEquals($waktuTutup, $event->refresh()->ditutup_pada);
+    }
+
+    #[Test]
+    public function admin_upt_tidak_dapat_menutup_event_unit_lain(): void
+    {
+        ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
+        $event = EventAbsen::factory()->create();
+        $event->unitKerja()->attach($lain);
+
+        $this->actingAs(User::factory()->adminUpt($upt)->create())
+            ->post(self::URL."/{$event->id}/tutup")
+            ->assertForbidden();
+
+        $this->assertTrue($event->refresh()->aktif());
+    }
+
+    #[Test]
+    public function penutupan_event_tercatat_pada_audit_trail(): void
+    {
+        // NFR-09: setiap perubahan status event tercatat dengan pelaku dan waktu.
+        ['upt' => $upt] = $this->hirarki();
+        $event = EventAbsen::factory()->create(['nama' => 'Apel Pagi']);
+        $event->unitKerja()->attach($upt);
+        $pelaku = User::factory()->superadmin()->create();
+
+        $this->actingAs($pelaku)->post(self::URL."/{$event->id}/tutup");
+
+        $log = LogAktivitas::aksi(AksiLog::Ubah)->sole();
+
+        $this->assertSame($pelaku->id, $log->user_id);
+        $this->assertTrue($log->subjek->is($event));
+        $this->assertStringContainsString('Menutup entry event Apel Pagi', $log->deskripsi);
+    }
+
+    #[Test]
+    public function menutup_event_membuka_jalan_bagi_event_berikutnya(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        $admin = User::factory()->superadmin()->create();
+        $event = EventAbsen::factory()->create();
+        $event->unitKerja()->attach($upt);
+
+        $this->actingAs($admin)->post(self::URL."/{$event->id}/tutup");
+
+        // FR-EVT-06 tidak lagi menghalangi begitu event lama ditutup.
+        $this->actingAs($admin)
+            ->post(self::URL, $this->isian(['nama' => 'Apel Berikutnya', 'unit_kerja_id' => [$upt->id]]))
+            ->assertSessionHas('sukses');
+    }
+
+    /* ---------------------------------------------------------------------
      * Hapus keras — hanya selama belum ada absensi tertaut.
      * ------------------------------------------------------------------- */
 

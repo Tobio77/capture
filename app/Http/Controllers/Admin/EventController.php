@@ -59,6 +59,22 @@ class EventController extends Controller
     }
 
     /**
+     * Tutup entry event (FR-EVT-04).
+     */
+    public function tutup(Request $request, EventAbsen $event): RedirectResponse
+    {
+        abort_unless($this->boleh($request, $event), 403);
+        abort_unless($event->aktif(), 403, 'Event ini sudah ditutup.');
+
+        $this->event->tutup($event, $request->user());
+
+        return back()->with(
+            'sukses',
+            "Entry event {$event->nama} ditutup. Tap baru pada kiosk akan ditolak.",
+        );
+    }
+
+    /**
      * Hapus event secara permanen.
      *
      * Hanya diizinkan selama event belum menautkan satu pun absensi; statusnya

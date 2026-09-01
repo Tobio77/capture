@@ -67,6 +67,7 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
         Route::get('event', [EventController::class, 'index'])->name('event.index');
         Route::post('event', [EventController::class, 'store'])->name('event.store');
         Route::patch('event/{event}', [EventController::class, 'update'])->name('event.update');
+        Route::post('event/{event}/tutup', [EventController::class, 'tutup'])->name('event.tutup');
         Route::delete('event/{event}', [EventController::class, 'destroy'])->name('event.destroy');
 
         Route::inertia('rekap', 'Segera', [

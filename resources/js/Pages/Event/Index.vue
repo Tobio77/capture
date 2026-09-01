@@ -74,6 +74,16 @@ function simpan() {
   }
 }
 
+function tutup(event) {
+  const pesan =
+    `Tutup entry event "${event.nama}"?\n\n` +
+    'Tap baru pada kiosk untuk event ini akan ditolak, dan event tidak dapat dibuka kembali.'
+
+  if (window.confirm(pesan)) {
+    form.post(`/admin/kelola-absen/event/${event.id}/tutup`, { preserveScroll: true })
+  }
+}
+
 function hapus(event) {
   const pesan = `Hapus event "${event.nama}" secara permanen? Tindakan ini tidak dapat dibatalkan.`
 
@@ -163,6 +173,14 @@ function tanggalPanjang(iso) {
                   @click="bukaUbah(event)"
                 >
                   Ubah
+                </button>
+                <button
+                  v-if="event.status === 'aktif'"
+                  type="button"
+                  class="rounded-md px-2.5 py-1.5 text-xs font-medium text-navy-700 transition hover:bg-navy-50"
+                  @click="tutup(event)"
+                >
+                  Tutup
                 </button>
                 <button
                   v-if="event.dapat_dihapus"

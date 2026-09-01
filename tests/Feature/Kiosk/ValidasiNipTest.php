@@ -2,6 +2,9 @@
 
 namespace Tests\Feature\Kiosk;
 
+use App\Enums\CakupanEvent;
+use App\Enums\StatusEvent;
+use App\Models\EventAbsen;
 use App\Models\Kiosk;
 use App\Models\Pegawai;
 use App\Models\UnitKerja;
@@ -22,6 +25,8 @@ class ValidasiNipTest extends TestCase
 
     protected UnitKerja $unitKerja;
 
+    protected EventAbsen $event;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -37,6 +42,11 @@ class ValidasiNipTest extends TestCase
             'nama_titik' => 'Aula Senam BLK Surabaya',
             'unit_kerja_id' => $this->unitKerja->id,
         ]);
+
+        // Tap hanya dilayani selama ada event yang dibuka untuk unit ini
+        // (FR-EVT-04); tanpa ini seluruh tap dijawab EVENT_TIDAK_AKTIF.
+        $this->event = EventAbsen::factory()->create(['nama' => 'Apel Pagi']);
+        $this->event->unitKerja()->attach($this->unitKerja);
     }
 
     protected function denganToken(): static
@@ -72,6 +82,75 @@ class ValidasiNipTest extends TestCase
             ]);
 
         Http::assertNothingSent();
+    }
+
+    #[Test]
+    public function tap_ditolak_setelah_event_ditutup(): void
+    {
+        // FR-EVT-04: setelah entry ditutup, tap baru pada kiosk ditolak.
+        Pegawai::factory()->create([
+            'nip' => '199001012020011001',
+            'unit_kerja_id' => $this->unitKerja->id,
+        ]);
+
+        $this->event->update(['status' => StatusEvent::Ditutup, 'ditutup_pada' => now()]);
+
+        $this->denganToken()
+            ->post('/kiosk/tap/validasi-nip', ['nip' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->assertStatus(409)
+            ->assertJson([
+                'success' => false,
+                'code' => 'EVENT_TIDAK_AKTIF',
+            ]);
+    }
+
+    #[Test]
+    public function tap_ditolak_bila_unit_kiosk_tidak_punya_event_yang_dibuka(): void
+    {
+        // Event ada, tetapi cakupannya unit lain.
+        $this->event->unitKerja()->sync([UnitKerja::factory()->create(['kode' => 'BLK-MJK'])->id]);
+
+        $this->denganToken()
+            ->post('/kiosk/tap/validasi-nip', ['nip' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->assertStatus(409)
+            ->assertJson(['code' => 'EVENT_TIDAK_AKTIF']);
+    }
+
+    #[Test]
+    public function event_semua_unit_melayani_kiosk_unit_mana_pun(): void
+    {
+        Pegawai::factory()->create([
+            'nip' => '199001012020011001',
+            'unit_kerja_id' => $this->unitKerja->id,
+        ]);
+
+        $this->event->unitKerja()->sync([]);
+        $this->event->update(['cakupan' => CakupanEvent::SemuaUnit]);
+
+        $this->denganToken()
+            ->post('/kiosk/tap/validasi-nip', ['nip' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->assertOk()
+            ->assertJson(['success' => true]);
+    }
+
+    #[Test]
+    public function jawaban_tap_menyertakan_event_yang_menampungnya(): void
+    {
+        // Kiosk tidak menyebutkan event mana yang dimaksud — FR-EVT-06
+        // menjamin hanya ada satu yang aktif, jadi server yang menentukan.
+        Pegawai::factory()->create([
+            'nip' => '199001012020011001',
+            'unit_kerja_id' => $this->unitKerja->id,
+        ]);
+
+        $this->denganToken()
+            ->post('/kiosk/tap/validasi-nip', ['nip' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->assertOk()
+            ->assertJson([
+                'data' => [
+                    'event' => ['id' => $this->event->id, 'nama' => 'Apel Pagi'],
+                ],
+            ]);
     }
 
     #[Test]

@@ -354,6 +354,32 @@ dihitung bentrok dengan dirinya sendiri. Pesan kesalahannya menyebut nama,
 tanggal, dan cakupan event yang bentrok agar admin tahu persis apa yang harus
 ditutup.
 
+### Menutup entry (FR-EVT-04)
+
+Menutup event mengubah `status` menjadi `ditutup` dan mengisi `ditutup_pada`;
+perubahannya tercatat pada audit trail beserta pelaku dan waktunya (NFR-09).
+Penutupan bersifat **satu arah** — tidak ada aksi membuka kembali, karena
+membukanya lagi akan menghidupkan penerimaan tap atas event yang sudah
+dinyatakan selesai.
+
+**Penolakan tap.** Kiosk tidak menyebutkan event mana yang dimaksud saat
+men-tap. Server yang menentukan lewat `EventAbsenService::eventAktifUntukKiosk()`,
+dan itu tidak pernah ambigu karena FR-EVT-06 menjamin paling banyak satu event
+aktif per unit kerja. Begitu event ditutup, unit itu tidak lagi memiliki event
+aktif sehingga `POST /kiosk/tap/validasi-nip` menjawab:
+
+```json
+{ "success": false, "code": "EVENT_TIDAK_AKTIF", "message": "…" }
+```
+
+dengan status HTTP 409. Jawaban sukses kini menyertakan objek `event` (id,
+nama, jam_mulai, toleransi_menit) sebagai penampung tap tersebut.
+
+Cakupan kiosk dihitung dari unit kerjanya beserta seluruh turunannya **dan**
+rantai induknya sampai simpul OPD — kiosk dapat terdaftar pada seksi, sedangkan
+cakupan event dinyatakan pada unit level teratas. Event bercakupan "semua unit"
+melayani kiosk unit mana pun.
+
 ### Penghapusan event
 
 Event dapat dihapus permanen **selama belum menautkan satu pun baris
@@ -466,7 +492,7 @@ Ringkasan endpoint inti; daftar lengkap akan dirinci sebagai route Laravel pada 
 | POST       | /admin/kelola-absen/event              | Buat event baru (FR-EVT-01, FR-EVT-02)                                          |
 | PATCH      | /admin/kelola-absen/event/{event}      | Ubah event yang masih aktif                                                     |
 | DELETE     | /admin/kelola-absen/event/{event}      | Hapus permanen event yang belum menautkan absensi                               |
-| POST       | /admin/kelola-absen/event/{event}/tutup| Tutup event (S11)                                                               |
+| POST       | /admin/kelola-absen/event/{event}/tutup| Tutup entry event (FR-EVT-04)                                                   |
 | GET        | /admin/kelola-absen/event/{event}/rekap| Rekap absen live per event (S21)                                                |
 | GET        | /admin/kelola-absen/setting            | Form Setting Absen (Superadmin & Admin Dinas)                                   |
 | POST       | /admin/kelola-absen/setting            | Simpan Setting Absen (FR-SET-01 s.d. FR-SET-04)                                 |

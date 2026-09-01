@@ -4,9 +4,12 @@ namespace App\Services;
 
 use App\Enums\AksiLog;
 use App\Enums\CakupanEvent;
+use App\Enums\StatusEvent;
 use App\Models\EventAbsen;
+use App\Models\Kiosk;
 use App\Models\UnitKerja;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -120,6 +123,70 @@ class EventAbsenService
         );
 
         return $event;
+    }
+
+    /**
+     * Tutup entry sebuah event (FR-EVT-04).
+     *
+     * Setelah ditutup, kiosk pada unit terkait tidak lagi menemukan event
+     * aktif sehingga tap baru ditolak — lihat {@see self::eventAktifUntukKiosk()}.
+     * Perubahan status dicatat pada audit trail (NFR-09).
+     */
+    public function tutup(EventAbsen $event, User $pelaku): EventAbsen
+    {
+        $event->update([
+            'status' => StatusEvent::Ditutup,
+            'ditutup_pada' => Carbon::now(),
+        ]);
+
+        $this->log->catat(
+            AksiLog::Ubah,
+            "Menutup entry event {$event->nama} ({$this->ringkasCakupan($event)}).",
+            user: $pelaku,
+            subjek: $event,
+        );
+
+        return $event;
+    }
+
+    /**
+     * Event yang sedang melayani sebuah kiosk, atau null bila tidak ada.
+     *
+     * FR-EVT-06 menjamin paling banyak satu event aktif per unit kerja,
+     * sehingga penentuannya tidak pernah ambigu dan kiosk tidak perlu
+     * menyebutkan event mana yang dimaksud saat men-tap.
+     */
+    public function eventAktifUntukKiosk(Kiosk $kiosk): ?EventAbsen
+    {
+        return EventAbsen::query()
+            ->aktif()
+            ->with('unitKerja:id,kode,nama')
+            ->menyentuhUnit($this->cakupanKiosk($kiosk))
+            ->orderByDesc('tanggal')
+            ->orderByDesc('jam_mulai')
+            ->first();
+    }
+
+    /**
+     * Unit kerja kiosk beserta seluruh turunannya, ditambah rantai induknya
+     * sampai simpul OPD.
+     *
+     * Rantai induk diikutkan karena cakupan event dinyatakan pada unit level
+     * teratas, sedangkan kiosk bisa saja terdaftar pada seksi di bawahnya.
+     *
+     * @return array<int, int>
+     */
+    protected function cakupanKiosk(Kiosk $kiosk): array
+    {
+        $ids = UnitKerja::idsDenganTurunan($kiosk->unit_kerja_id);
+        $unit = UnitKerja::query()->find($kiosk->unit_kerja_id);
+
+        while ($unit?->induk_id !== null) {
+            $ids[] = $unit->induk_id;
+            $unit = $unit->induk;
+        }
+
+        return array_values(array_unique($ids));
     }
 
     /**
