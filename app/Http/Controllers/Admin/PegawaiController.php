@@ -76,6 +76,7 @@ class PegawaiController extends Controller
                 'nama' => $p->nama,
                 'unit_kerja' => $p->unitKerja?->only(['id', 'kode', 'nama']),
                 'jabatan' => $p->jabatan,
+                'uid_kartu' => $p->uid_kartu,
                 'wajah_terdaftar' => $p->wajah_terdaftar,
                 'wajah_didaftarkan_at' => $p->wajah_didaftarkan_at?->toIso8601String(),
                 'aktif' => $p->aktif,

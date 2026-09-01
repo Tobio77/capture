@@ -18,9 +18,10 @@ use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 /**
- * Validasi NIP saat tap dan proxy foto pegawai (FR-TAP-03, NFR-04).
+ * Identifikasi tap (kartu RFID maupun NIP) dan proxy foto pegawai
+ * (FR-TAP-01, FR-TAP-03, NFR-04).
  */
-class ValidasiNipTest extends TestCase
+class IdentifikasiTapTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -71,7 +72,7 @@ class ValidasiNipTest extends TestCase
         ]);
 
         $this->denganToken()
-            ->post('/kiosk/tap/validasi-nip', ['nip' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
             ->assertOk()
             ->assertJson([
                 'success' => true,
@@ -130,6 +131,51 @@ class ValidasiNipTest extends TestCase
     }
 
     #[Test]
+    public function tap_kartu_rfid_mengenali_pemiliknya(): void
+    {
+        // Reader 13,56 MHz mengetikkan UID kartu, bukan NIP.
+        Pegawai::factory()->create([
+            'nip' => '199001012020011001',
+            'nama' => 'Ahmad Fauzi',
+            'uid_kartu' => '04A3B21C',
+            'unit_kerja_id' => $this->unitKerja->id,
+        ]);
+
+        $this->denganToken()
+            ->post('/kiosk/tap/identifikasi', ['id_card' => '04a3:b2:1c'], ['Accept' => 'application/json'])
+            ->assertOk()
+            ->assertJson([
+                'success' => true,
+                'data' => ['nip' => '199001012020011001', 'nama' => 'Ahmad Fauzi', 'metode' => 'rfid'],
+            ]);
+    }
+
+    #[Test]
+    public function ketikan_nip_ditandai_sebagai_metode_manual(): void
+    {
+        Pegawai::factory()->create([
+            'nip' => '199001012020011001',
+            'uid_kartu' => '04A3B21C',
+            'unit_kerja_id' => $this->unitKerja->id,
+        ]);
+
+        // Pegawai berkartu yang mengetik NIP tetap tercatat sebagai manual.
+        $this->denganToken()
+            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->assertOk()
+            ->assertJson(['data' => ['metode' => 'manual']]);
+    }
+
+    #[Test]
+    public function kartu_tak_dikenal_ditolak_dengan_kode_yang_dapat_dibaca_mesin(): void
+    {
+        $this->denganToken()
+            ->post('/kiosk/tap/identifikasi', ['id_card' => 'DEADBEEF'], ['Accept' => 'application/json'])
+            ->assertStatus(404)
+            ->assertJson(['success' => false, 'code' => 'ID_TIDAK_DIKENAL']);
+    }
+
+    #[Test]
     public function tap_mencatat_kiosk_sebagai_terhubung_pada_event(): void
     {
         // FR-EVT-03: kiosk yang melayani event tercatat beserta alamat IP-nya.
@@ -139,7 +185,7 @@ class ValidasiNipTest extends TestCase
         ]);
 
         $this->denganToken()
-            ->post('/kiosk/tap/validasi-nip', ['nip' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
             ->assertOk();
 
         $this->assertDatabaseHas('event_kiosk', [
@@ -173,7 +219,7 @@ class ValidasiNipTest extends TestCase
         $this->event->update(['status' => StatusEvent::Ditutup, 'ditutup_pada' => now()]);
 
         $this->denganToken()
-            ->post('/kiosk/tap/validasi-nip', ['nip' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
             ->assertStatus(409)
             ->assertJson([
                 'success' => false,
@@ -188,7 +234,7 @@ class ValidasiNipTest extends TestCase
         $this->event->unitKerja()->sync([UnitKerja::factory()->create(['kode' => 'BLK-MJK'])->id]);
 
         $this->denganToken()
-            ->post('/kiosk/tap/validasi-nip', ['nip' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
             ->assertStatus(409)
             ->assertJson(['code' => 'EVENT_TIDAK_AKTIF']);
     }
@@ -205,7 +251,7 @@ class ValidasiNipTest extends TestCase
         $this->event->update(['cakupan' => CakupanEvent::SemuaUnit]);
 
         $this->denganToken()
-            ->post('/kiosk/tap/validasi-nip', ['nip' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
             ->assertOk()
             ->assertJson(['success' => true]);
     }
@@ -221,7 +267,7 @@ class ValidasiNipTest extends TestCase
         ]);
 
         $this->denganToken()
-            ->post('/kiosk/tap/validasi-nip', ['nip' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
             ->assertOk()
             ->assertJson([
                 'data' => [
@@ -234,9 +280,9 @@ class ValidasiNipTest extends TestCase
     public function nip_tak_dikenal_dijawab_dengan_kode_yang_dapat_dibaca_mesin(): void
     {
         $this->denganToken()
-            ->post('/kiosk/tap/validasi-nip', ['nip' => '199901012020011009'], ['Accept' => 'application/json'])
+            ->post('/kiosk/tap/identifikasi', ['id_card' => '199901012020011009'], ['Accept' => 'application/json'])
             ->assertNotFound()
-            ->assertJson(['success' => false, 'code' => 'NIP_NOT_FOUND']);
+            ->assertJson(['success' => false, 'code' => 'ID_TIDAK_DIKENAL']);
     }
 
     #[Test]
@@ -249,7 +295,7 @@ class ValidasiNipTest extends TestCase
         ]);
 
         $this->denganToken()
-            ->post('/kiosk/tap/validasi-nip', ['nip' => '198512312010011001'], ['Accept' => 'application/json'])
+            ->post('/kiosk/tap/identifikasi', ['id_card' => '198512312010011001'], ['Accept' => 'application/json'])
             ->assertForbidden()
             ->assertJson(['success' => false, 'code' => 'PEGAWAI_TIDAK_AKTIF']);
     }
@@ -265,7 +311,7 @@ class ValidasiNipTest extends TestCase
         ]);
 
         $this->denganToken()
-            ->post('/kiosk/tap/validasi-nip', ['nip' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
             ->assertOk()
             ->assertJson(['data' => ['unit_kerja_sama' => false]]);
     }
@@ -275,7 +321,7 @@ class ValidasiNipTest extends TestCase
     {
         Pegawai::factory()->create(['nip' => '199001012020011001', 'unit_kerja_id' => $this->unitKerja->id]);
 
-        $this->post('/kiosk/tap/validasi-nip', ['nip' => '199001012020011001'], ['Accept' => 'application/json'])
+        $this->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
             ->assertRedirect('/kiosk/aktivasi');
     }
 

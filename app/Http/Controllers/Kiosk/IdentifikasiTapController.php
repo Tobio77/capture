@@ -3,26 +3,34 @@
 namespace App\Http\Controllers\Kiosk;
 
 use App\Http\Controllers\Controller;
-use App\Models\Pegawai;
 use App\Services\EventAbsenService;
+use App\Services\KartuRfidService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Validasi NIP saat pegawai men-tap kartu di kiosk (FR-TAP-03).
+ * Mengenali pegawai dari tap kartu RFID atau ketikan manual (FR-TAP-03).
+ *
+ * Kolom tap menerima dua bentuk masukan yang tidak dapat dibedakan dari sisi
+ * peramban: UID kartu yang "diketikkan" reader HID, dan NIP yang diketik
+ * pegawai sendiri. Keduanya dikirim apa adanya sebagai `id_card`, lalu
+ * diselesaikan KartuRfidService.
  *
  * Pencarian dilakukan pada basis data LOKAL, bukan memanggil WORKA:
  * satu tap tidak boleh bergantung pada tersedianya jaringan ke WORKA,
  * dan data pegawai sudah disinkronkan secara terjadwal.
  */
-class ValidasiNipController extends Controller
+class IdentifikasiTapController extends Controller
 {
-    public function __construct(protected EventAbsenService $event) {}
+    public function __construct(
+        protected EventAbsenService $event,
+        protected KartuRfidService $kartu,
+    ) {}
 
     public function __invoke(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'nip' => ['required', 'string', 'max:20'],
+            'id_card' => ['required', 'string', 'max:32'],
         ]);
 
         $kiosk = $request->kiosk();
@@ -47,18 +55,13 @@ class ValidasiNipController extends Controller
         // alamat IP-nya, terhitung sejak tap pertama yang dilayaninya.
         $this->event->catatKioskAktif($event, $kiosk, $request->ip());
 
-        $nip = trim($data['nip']);
-
-        $pegawai = Pegawai::query()
-            ->with('unitKerja:id,kode,nama')
-            ->where('nip', $nip)
-            ->first();
+        $pegawai = $this->kartu->kenali($data['id_card']);
 
         if ($pegawai === null) {
             return response()->json([
                 'success' => false,
-                'code' => 'NIP_NOT_FOUND',
-                'message' => 'NIP tidak terdaftar dalam sistem.',
+                'code' => 'ID_TIDAK_DIKENAL',
+                'message' => 'Kartu atau NIP tidak terdaftar dalam sistem.',
             ], 404);
         }
 
@@ -87,6 +90,13 @@ class ValidasiNipController extends Controller
                 'nip' => $pegawai->nip,
                 'nama' => $pegawai->nama,
                 'jabatan' => $pegawai->jabatan,
+
+                // Kiosk menandai tap yang datang dari kartu terdaftar, agar
+                // metode absen tercatat benar saat penyimpanan (S16).
+                'metode' => $pegawai->uid_kartu !== null
+                    && KartuRfidService::normalkan($data['id_card']) === $pegawai->uid_kartu
+                        ? 'rfid'
+                        : 'manual',
                 'unit_kerja_kode' => $pegawai->unitKerja?->kode,
                 'unit_kerja_nama' => $pegawai->unitKerja?->nama,
 

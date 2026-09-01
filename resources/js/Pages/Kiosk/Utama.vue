@@ -33,11 +33,13 @@ const tahap = ref(entryDibuka.value ? 'menunggu_tap' : 'menunggu_event')
 let jedaPulih = null
 
 /**
- * Tap dari kolom ID. Untuk sementara hanya mencari identitas pegawai lewat
- * endpoint validasi NIP; penerimaan HID/RFID diperdalam pada S14, verifikasi
- * wajah pada S15, dan penyimpanan absennya pada S16.
+ * Tap dari kolom ID — UID kartu maupun NIP yang diketik, keduanya dikirim
+ * apa adanya karena hanya server yang tahu bedanya.
+ *
+ * Untuk sementara berhenti pada pengenalan identitas: verifikasi wajah
+ * menyusul pada S15 dan penyimpanan absennya pada S16.
  */
-async function tangkapTap({ id_card }) {
+async function tangkapTap({ id_card, jenis: jenisTap }) {
   clearTimeout(jedaPulih)
 
   tahap.value = 'memindai'
@@ -45,14 +47,14 @@ async function tangkapTap({ id_card }) {
   pesan.value = null
 
   try {
-    const jawaban = await fetch('/kiosk/tap/validasi-nip', {
+    const jawaban = await fetch('/kiosk/tap/identifikasi', {
       method: 'POST',
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
         'X-XSRF-TOKEN': decodeURIComponent(document.cookie.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? ''),
       },
-      body: JSON.stringify({ nip: id_card }),
+      body: JSON.stringify({ id_card }),
     })
 
     const isi = await jawaban.json()
@@ -68,6 +70,10 @@ async function tangkapTap({ id_card }) {
       nama: isi.data.nama,
       unit_kerja: isi.data.unit_kerja_nama,
       jam: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+
+      // Dibawa untuk S16: jenis yang dipilih pegawai dan asal masukannya.
+      jenis: jenisTap,
+      metode: isi.data.metode,
     }
 
     tahap.value = 'berhasil'

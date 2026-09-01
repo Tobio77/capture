@@ -15,6 +15,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 #[Fillable([
     'nip',
+    'uid_kartu',
+    'kartu_didaftarkan_at',
     'nama',
     'unit_kerja_id',
     'jabatan',
@@ -43,6 +45,7 @@ class Pegawai extends Model
             'embedding_wajah' => 'array',
             'foto_tersedia_worka' => 'boolean',
             'wajah_terdaftar' => 'boolean',
+            'kartu_didaftarkan_at' => 'datetime',
             'wajah_didaftarkan_at' => 'datetime',
             'sumber_sinkron_terakhir' => 'datetime',
         ];

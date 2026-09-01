@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\EventController;
 use App\Http\Controllers\Admin\FotoReferensiWajahController;
+use App\Http\Controllers\Admin\KartuRfidController;
 use App\Http\Controllers\Admin\PegawaiController;
 use App\Http\Controllers\Admin\SettingAbsenController;
 use App\Http\Controllers\Admin\SettingWorkaController;
@@ -9,8 +10,8 @@ use App\Http\Controllers\Admin\UnitKerjaController;
 use App\Http\Controllers\Auth\SesiController;
 use App\Http\Controllers\Kiosk\AktivasiController;
 use App\Http\Controllers\Kiosk\FotoPegawaiController;
+use App\Http\Controllers\Kiosk\IdentifikasiTapController;
 use App\Http\Controllers\Kiosk\LayarKioskController;
-use App\Http\Controllers\Kiosk\ValidasiNipController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/admin/dashboard')->name('beranda');
@@ -37,11 +38,12 @@ Route::prefix('kiosk')->name('kiosk.')->group(function () {
         Route::get('/', LayarKioskController::class)->name('utama');
         Route::post('lepas', [AktivasiController::class, 'destroy'])->name('lepas');
 
-        // Validasi NIP dijawab dari basis data lokal — satu tap tidak boleh
-        // bergantung pada tersedianya jaringan ke WORKA (FR-TAP-03).
-        Route::post('tap/validasi-nip', ValidasiNipController::class)
+        // Identifikasi tap (UID kartu maupun NIP) dijawab dari basis data
+        // lokal — satu tap tidak boleh bergantung pada tersedianya jaringan
+        // ke WORKA (FR-TAP-03).
+        Route::post('tap/identifikasi', IdentifikasiTapController::class)
             ->middleware('throttle:120,1')
-            ->name('tap.validasi-nip');
+            ->name('tap.identifikasi');
 
         Route::get('pegawai/{nip}/foto', FotoPegawaiController::class)
             ->where('nip', '[0-9]{8,20}')
@@ -105,6 +107,15 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
      */
     Route::get('pegawai', [PegawaiController::class, 'index'])->name('pegawai.index');
     Route::get('pegawai/status', [PegawaiController::class, 'statusSinkron'])->name('pegawai.status');
+
+    /*
+     * Kartu RFID pegawai (FR-TAP-03). Reader di lokasi mengeluarkan UID
+     * kartu, bukan NIP, sehingga kartu harus ditautkan lebih dulu.
+     */
+    Route::post('pegawai/{pegawai}/kartu', [KartuRfidController::class, 'store'])
+        ->name('pegawai.kartu.store');
+    Route::delete('pegawai/{pegawai}/kartu', [KartuRfidController::class, 'destroy'])
+        ->name('pegawai.kartu.destroy');
 
     /*
      * Foto referensi wajah (FR-PEG-05). Terbuka untuk seluruh peran admin —

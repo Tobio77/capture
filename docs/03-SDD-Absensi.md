@@ -210,6 +210,8 @@ Dua pengaman berlaku pada tahap ini:
 |-------------------------|-------------------------|--------------------------------------------|
 | id                      | bigint, PK              |                                            |
 | nip                     | varchar(20), unik       | sumber: WORKA/BKD                          |
+| uid_kartu               | varchar(32), unik, nullable | UID kartu RFID; milik SI-ABSEN         |
+| kartu_didaftarkan_at    | timestamp, nullable     | waktu pendaftaran kartu terakhir           |
 | nama                    | varchar(150)            | sumber: WORKA/BKD                          |
 | unit_kerja_id           | bigint, FK → unit_kerja |                                            |
 | jabatan                 | varchar(150)            | sumber: WORKA/BKD                          |
@@ -223,6 +225,31 @@ Dua pengaman berlaku pada tahap ini:
 `foto_referensi_path`, `embedding_wajah`, `wajah_terdaftar`, dan
 `wajah_didaftarkan_at` adalah milik SI-ABSEN sendiri: sinkronisasi WORKA tidak
 pernah menimpanya (lihat §3.1 dan FR-PEG-02).
+
+### Kartu RFID (FR-TAP-03)
+
+Reader di lokasi adalah **USB/HID 13,56 MHz**, yang mengeluarkan **UID kartu**
+sebagai ketikan keyboard — bukan NIP. Karena itu kartu perlu ditautkan lebih
+dulu lewat Kelola Pegawai sebelum dapat dipakai men-tap.
+
+Kolom tap di kiosk mengirim apa pun yang masuk sebagai `id_card`, dan
+`KartuRfidService::kenali()` mencocokkannya **ke NIP lebih dulu, baru ke
+`uid_kartu`**. Urutan itu disengaja: bila kartu di lokasi ternyata sudah berisi
+NIP, tap langsung bekerja tanpa perlu mendaftarkan kartu sama sekali.
+
+Seluruh UID dinormalkan (`KartuRfidService::normalkan()`) dengan membuang
+pemisah dan menyamakan huruf besar, agar kartu yang sama menghasilkan nilai
+yang sama walau dibaca reader bermerek lain yang memakai gaya penulisan
+berbeda. Satu UID hanya boleh dimiliki satu pegawai — kartu ganda membuat tap
+salah alamat.
+
+Jawaban identifikasi membawa medan `metode` (`rfid` bila nilainya cocok dengan
+UID kartu terdaftar, selain itu `manual`) supaya metode absen tercatat benar
+saat penyimpanan (S16). Kartu bersifat opsional: pegawai tanpa kartu tetap
+dapat absen dengan mengetik NIP.
+
+UID kartu tidak pernah ikut tercatat pada audit trail — kartu adalah kredensial
+fisik, dan yang perlu terekam hanyalah siapa mendaftarkan kartu untuk siapa.
 
 ### Pendaftaran foto referensi wajah (FR-PEG-05)
 
@@ -508,6 +535,7 @@ Ringkasan endpoint inti; daftar lengkap akan dirinci sebagai route Laravel pada 
 |------------|----------------------------------------|---------------------------------------------------------------------------------|
 | POST       | /admin/login                           | Login akun admin                                                                |
 | POST       | /kiosk/aktivasi                        | Aktivasi perangkat kiosk, menghasilkan device_token                             |
+| POST       | /kiosk/tap/identifikasi                | Kenali pegawai dari UID kartu RFID atau NIP yang diketik (FR-TAP-03)            |
 | GET        | /kiosk                                 | Layar utama kiosk; membawa event aktif, metode yang menyala, dan daftar presensi |
 | GET        | /kiosk/embedding-wajah/{unit_kerja_id} | Kiosk mengambil daftar embedding wajah pegawai unit terkait (di-cache di klien) |
 | POST       | /kiosk/absen                           | Kirim hasil absen (ID pegawai, jenis, metode, skor kecocokan, foto terkompresi) |
@@ -521,6 +549,8 @@ Ringkasan endpoint inti; daftar lengkap akan dirinci sebagai route Laravel pada 
 | GET        | /admin/kelola-absen/setting            | Form Setting Absen (Superadmin & Admin Dinas)                                   |
 | POST       | /admin/kelola-absen/setting            | Simpan Setting Absen (FR-SET-01 s.d. FR-SET-04)                                 |
 | GET        | /admin/pegawai                         | Daftar pegawai (terfilter sesuai peran)                                         |
+| POST       | /admin/pegawai/{pegawai}/kartu         | Daftarkan/ganti kartu RFID pegawai (FR-TAP-03)                                  |
+| DELETE     | /admin/pegawai/{pegawai}/kartu         | Cabut kartu RFID pegawai                                                        |
 | POST       | /admin/pegawai/sinkron                 | Trigger sinkronisasi manual dari WORKA/BKD                                      |
 | GET        | /admin/pegawai/{pegawai}/wajah         | Sajikan foto referensi lewat route terautentikasi (NFR-04)                      |
 | POST       | /admin/pegawai/{pegawai}/wajah         | Daftarkan/perbarui foto referensi beserta embedding dari browser (FR-PEG-05)    |

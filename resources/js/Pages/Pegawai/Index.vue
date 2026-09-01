@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
 import PendaftaranWajah from '@/Components/PendaftaranWajah.vue'
+import PendaftaranKartu from '@/Components/PendaftaranKartu.vue'
 
 const props = defineProps({
   pegawai: { type: Object, required: true },
@@ -14,6 +15,7 @@ const props = defineProps({
 
 const filter = reactive({ ...props.filter })
 const wajahDikelola = ref(null) // pegawai yang sedang didaftarkan wajahnya
+const kartuDikelola = ref(null) // pegawai yang sedang didaftarkan kartunya
 const sedangSinkron = ref(false)
 const koneksi = ref(null) // null = belum diperiksa
 
@@ -218,6 +220,7 @@ const tanggalSingkat = (iso) =>
               <th scope="col" class="px-4 py-3 font-medium">Unit Kerja</th>
               <th scope="col" class="px-4 py-3 font-medium">Jabatan</th>
               <th scope="col" class="px-4 py-3 font-medium">Foto Wajah</th>
+              <th scope="col" class="px-4 py-3 font-medium">Kartu</th>
               <th scope="col" class="px-4 py-3 font-medium">Status</th>
               <th scope="col" class="px-4 py-3 font-medium">Sinkron Terakhir</th>
               <th scope="col" class="px-4 py-3 text-right font-medium">Aksi</th>
@@ -242,6 +245,16 @@ const tanggalSingkat = (iso) =>
                 </span>
               </td>
               <td class="px-4 py-3">
+                <span
+                  v-if="orang.uid_kartu"
+                  class="font-display text-xs tabular-nums text-slate-600"
+                  title="UID kartu terdaftar"
+                >
+                  {{ orang.uid_kartu }}
+                </span>
+                <span v-else class="text-xs text-slate-400">Belum ada</span>
+              </td>
+              <td class="px-4 py-3">
                 <span class="text-xs font-medium" :class="orang.aktif ? 'text-slate-600' : 'text-slate-400'">
                   {{ orang.aktif ? 'Aktif' : 'Nonaktif' }}
                 </span>
@@ -257,10 +270,17 @@ const tanggalSingkat = (iso) =>
                 >
                   {{ orang.wajah_terdaftar ? 'Perbarui wajah' : 'Daftarkan wajah' }}
                 </button>
+                <button
+                  type="button"
+                  class="rounded-md px-2.5 py-1.5 text-xs font-medium text-navy-700 transition hover:bg-navy-50"
+                  @click="kartuDikelola = orang"
+                >
+                  {{ orang.uid_kartu ? 'Ganti kartu' : 'Daftarkan kartu' }}
+                </button>
               </td>
             </tr>
             <tr v-if="pegawai.data.length === 0">
-              <td colspan="8" class="px-6 py-12 text-center text-sm text-slate-500">
+              <td colspan="9" class="px-6 py-12 text-center text-sm text-slate-500">
                 Tidak ada pegawai yang cocok dengan filter ini.
                 <span v-if="status_sinkron.total_pegawai_lokal === 0" class="mt-1 block">
                   Jalankan sinkronisasi dari WORKA untuk menarik data pegawai.
@@ -298,5 +318,6 @@ const tanggalSingkat = (iso) =>
     </div>
 
     <PendaftaranWajah :pegawai="wajahDikelola" @tutup="wajahDikelola = null" />
+    <PendaftaranKartu :pegawai="kartuDikelola" @tutup="kartuDikelola = null" />
   </AdminLayout>
 </template>

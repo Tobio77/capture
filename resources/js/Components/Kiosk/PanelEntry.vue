@@ -75,9 +75,49 @@ function matikanKamera() {
   kamera.value = null
 }
 
-/** NIP dikirim ke induk; penerimaan HID/RFID diperdalam pada S14. */
+/**
+ * Reader RFID 13,56 MHz kelas USB/HID mengetikkan UID kartu ke kolom ini,
+ * biasanya diakhiri Enter — tetapi tidak semua merek mengirimkannya.
+ *
+ * Karena itu ada dua pemicu: Enter, dan jeda ketikan. Bila karakter datang
+ * secepat mesin lalu berhenti, isinya dikirim sendiri tanpa menunggu Enter.
+ * Ketikan manusia jauh lebih lambat sehingga tidak ikut terpicu.
+ */
+const JEDA_KIRIM_MS = 120
+const AMBANG_MESIN_MS = 40
+const PANJANG_MIN_OTOMATIS = 6
+
+let jedaOtomatis = null
+let ketukanTerakhir = 0
+let ketikanMesin = true
+
+function tandaiKetukan() {
+  const sekarang = performance.now()
+  const selisih = sekarang - ketukanTerakhir
+
+  // Karakter pertama tidak memberi informasi kecepatan apa pun.
+  if (ketukanTerakhir !== 0 && selisih > AMBANG_MESIN_MS) {
+    ketikanMesin = false
+  }
+
+  ketukanTerakhir = sekarang
+
+  clearTimeout(jedaOtomatis)
+
+  jedaOtomatis = setTimeout(() => {
+    if (ketikanMesin && idCard.value.trim().length >= PANJANG_MIN_OTOMATIS) {
+      kirim()
+    }
+  }, JEDA_KIRIM_MS)
+}
+
 function kirim() {
+  clearTimeout(jedaOtomatis)
+
   const nilai = idCard.value.trim()
+
+  ketukanTerakhir = 0
+  ketikanMesin = true
 
   if (nilai === '' || !props.aktif) return
 
@@ -97,7 +137,10 @@ onMounted(() => {
   rebutFokus()
 })
 
-onBeforeUnmount(matikanKamera)
+onBeforeUnmount(() => {
+  clearTimeout(jedaOtomatis)
+  matikanKamera()
+})
 
 defineExpose({ rebutFokus })
 </script>
@@ -183,6 +226,7 @@ defineExpose({ rebutFokus })
         :disabled="!aktif"
         :placeholder="aktif ? 'Tap kartu atau ketik NIP lalu tekan Enter' : 'Menunggu event dibuka'"
         class="mt-2 block w-full rounded-md border border-white/15 bg-slate-950/60 px-4 py-3 font-display text-lg tabular-nums text-white placeholder:text-sm placeholder:font-sans placeholder:text-slate-500 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:opacity-50"
+        @keydown="tandaiKetukan"
         @keyup.enter="kirim"
         @blur="rebutFokus"
       />
