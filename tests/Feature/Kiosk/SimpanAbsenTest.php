@@ -335,6 +335,62 @@ class SimpanAbsenTest extends TestCase
     }
 
     #[Test]
+    public function absen_dari_antrian_luring_dicatat_pada_jam_tapnya(): void
+    {
+        /*
+         * NFR-05: tap terjadi 07:35 tetapi baru terkirim 08:10 setelah
+         * jaringan pulih. Mencatatnya pada jam pengiriman akan mengubah
+         * kehadiran yang tepat waktu menjadi terlambat.
+         */
+        $this->travelTo('2026-09-07 08:10:00');
+
+        $this->kirim(['waktu_tap' => '2026-09-07T07:35:00+07:00'])->assertOk();
+
+        $absensi = Absensi::sole();
+
+        $this->assertSame('07:35', $absensi->waktu->format('H:i'));
+        $this->assertSame(StatusKetepatan::Tepat, $absensi->status_ketepatan);
+    }
+
+    #[Test]
+    public function waktu_tap_di_masa_depan_diabaikan(): void
+    {
+        // Jam kiosk yang melenceng jauh tidak boleh menggeser kehadiran.
+        $this->travelTo('2026-09-07 07:40:00');
+
+        $this->kirim(['waktu_tap' => '2026-09-07T23:00:00+07:00'])->assertOk();
+
+        $this->assertSame('07:40', Absensi::sole()->waktu->format('H:i'));
+    }
+
+    #[Test]
+    public function waktu_tap_di_luar_hari_event_diabaikan(): void
+    {
+        $this->travelTo('2026-09-07 07:40:00');
+
+        $this->kirim(['waktu_tap' => '2026-09-06T07:35:00+07:00'])->assertOk();
+
+        $this->assertSame('07:40', Absensi::sole()->waktu->format('H:i'));
+    }
+
+    #[Test]
+    public function pengiriman_ulang_dari_antrian_tidak_menduplikasi_baris(): void
+    {
+        // Antrian luring boleh mengirim ulang berkali-kali; kunci unik
+        // membuat kiriman kembar memperbarui baris yang sama (FR-TAP-05).
+        $this->travelTo('2026-09-07 08:10:00');
+
+        $muatan = ['waktu_tap' => '2026-09-07T07:35:00+07:00'];
+
+        $this->kirim($muatan)->assertOk();
+        $this->kirim($muatan)->assertOk();
+        $this->kirim($muatan)->assertOk();
+
+        $this->assertDatabaseCount('absensi', 1);
+        $this->assertSame('07:35', Absensi::sole()->waktu->format('H:i'));
+    }
+
+    #[Test]
     public function penarikan_berkala_membawa_absen_dari_kiosk_lain(): void
     {
         // FR-TAP-08: daftar bertambah seiring pegawai lain men-tap di kiosk

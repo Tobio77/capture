@@ -27,6 +27,10 @@ class SimpanAbsenRequest extends FormRequest
             'jenis' => ['required', Rule::enum(JenisAbsen::class)],
             'metode' => ['required', Rule::enum(MetodeAbsen::class)],
             'skor' => ['nullable', 'numeric', 'min:0', 'max:100'],
+
+            // Waktu tap sesungguhnya, disertakan saat absen dikirim ulang
+            // dari antrian luring (NFR-05).
+            'waktu_tap' => ['nullable', 'date'],
             'foto' => ['nullable', 'string'],
         ];
     }

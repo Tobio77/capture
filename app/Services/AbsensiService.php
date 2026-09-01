@@ -51,7 +51,7 @@ class AbsensiService
         array $data,
     ): Absensi {
         $jenis = JenisAbsen::from($data['jenis']);
-        $waktu = Carbon::now();
+        $waktu = $this->waktuTap($event, $data['waktu_tap'] ?? null);
 
         $sebelumnya = Absensi::query()
             ->where('event_absen_id', $event->id)
@@ -92,6 +92,44 @@ class AbsensiService
         }
 
         return $absensi;
+    }
+
+    /**
+     * Waktu yang dicatat untuk sebuah tap.
+     *
+     * Absen yang tertahan antrian luring baru sampai ke server beberapa menit
+     * kemudian (NFR-05); mencatatnya pada jam pengiriman akan menggeser
+     * kehadiran — dan bisa mengubah "tepat" menjadi "terlambat". Karena itu
+     * kiosk menyertakan waktu tap yang sesungguhnya.
+     *
+     * Jam kiosk tidak dipercaya begitu saja, hanya diberi batas: waktu tap
+     * ditolak bila berada di masa depan atau di luar hari penyelenggaraan
+     * event, dan pada kedua keadaan itu server memakai jamnya sendiri.
+     */
+    protected function waktuTap(EventAbsen $event, ?string $waktuTap): Carbon
+    {
+        $sekarang = Carbon::now();
+
+        if ($waktuTap === null) {
+            return $sekarang;
+        }
+
+        try {
+            $waktu = Carbon::parse($waktuTap);
+        } catch (\Throwable) {
+            return $sekarang;
+        }
+
+        // Selisih jam kecil antar perangkat wajar; jauh ke depan tidak.
+        if ($waktu->greaterThan($sekarang->copy()->addMinutes(2))) {
+            return $sekarang;
+        }
+
+        if (! $waktu->isSameDay($event->tanggal)) {
+            return $sekarang;
+        }
+
+        return $waktu;
     }
 
     /**

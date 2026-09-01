@@ -75,6 +75,10 @@ class SimpanAbsenController extends Controller
             'metode' => $request->string('metode')->toString(),
             'skor' => $setting['metode_wajah_aktif'] ? $skor : null,
             'foto' => $request->input('foto'),
+
+            // Diisi kiosk agar absen yang tertahan antrian luring tetap
+            // tercatat pada jam tapnya, bukan jam pengirimannya (NFR-05).
+            'waktu_tap' => $request->input('waktu_tap'),
         ]);
 
         return response()->json([

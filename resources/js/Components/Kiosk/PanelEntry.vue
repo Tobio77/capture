@@ -35,7 +35,9 @@ const status = computed(() => {
     menunggu_event: { teks: 'Menunggu event dibuka', warna: 'text-slate-400' },
     menunggu_tap: { teks: 'Silakan tap kartu atau ketik NIP', warna: 'text-slate-300' },
     memindai: { teks: 'Memindai wajah…', warna: 'text-teal-300' },
-    berhasil: { teks: 'Absen berhasil dicatat', warna: 'text-emerald-400' },
+    berhasil: props.hasil?.tertunda
+      ? { teks: 'Absen tersimpan di perangkat, menunggu jaringan pulih', warna: 'text-amber-400' }
+      : { teks: 'Absen berhasil dicatat', warna: 'text-emerald-400' },
     gagal: { teks: props.pesan ?? 'Verifikasi gagal, silakan ulangi', warna: 'text-amber-400' },
   }
 

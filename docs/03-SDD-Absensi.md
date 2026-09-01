@@ -518,6 +518,35 @@ tampil tidak tertimpa di tengah pembacaan pegawai. Karena daftar disusun ulang
 dari basis data setiap kali — satu baris per pegawai, bukan per tap — tidak ada
 peluang baris ganda muncul dari balapan antar kiosk (FR-TAP-05).
 
+### Antrian luring (NFR-05)
+
+Jaringan yang putus di tengah apel tidak boleh menghanguskan absen yang
+wajahnya sudah cocok — pegawai sudah berdiri di depan kamera dan tidak tahu
+bahwa kiriman gagal. Kiriman yang gagal karena jaringan (termasuk jawaban 5xx,
+yang berarti server sedang bermasalah dan bukan kiriman yang keliru) karena itu
+disimpan pada `localStorage` kiosk, lalu dikirim ulang sendiri pada setiap
+penarikan berkala.
+
+`localStorage` dipilih agar antrian bertahan walau layar kiosk dimuat ulang
+atau perangkat sempat mati. Panjangnya dibatasi 60 entri: satu absen berfoto
+menempati ~30–70 KB dalam bentuk base64, sedangkan kuota umumnya ~5 MB.
+
+**Waktu tap ikut dikirim.** Absen yang tertahan antrian baru sampai beberapa
+menit kemudian; mencatatnya pada jam pengiriman akan menggeser kehadiran dan
+dapat mengubah "tepat" menjadi "terlambat". Jam kiosk tidak dipercaya begitu
+saja, hanya diberi batas — waktu tap diabaikan bila berada di masa depan
+(toleransi 2 menit untuk selisih jam antar perangkat) atau di luar hari
+penyelenggaraan event, dan server memakai jamnya sendiri pada kedua keadaan itu.
+
+**Pengiriman ulang aman diulang berapa kali pun** berkat kunci unik
+(event, pegawai, jenis): kiriman kembar memperbarui baris yang sama alih-alih
+menambah baris baru. Kiriman yang ditolak karena alasan yang tidak akan berubah
+— event sudah ditutup, pegawai nonaktif — dikeluarkan dari antrian, karena
+mengulangnya selamanya tidak akan menolong.
+
+Jumlah absen yang menunggu ditampilkan pada header kiosk, sehingga petugas
+mengetahui ada kehadiran yang belum sampai ke server.
+
 ### Foto absen
 
 Disimpan pada disk privat `local` di bawah `foto-absen/{event}/`, tidak pernah

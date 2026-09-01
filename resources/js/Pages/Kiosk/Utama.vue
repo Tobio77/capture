@@ -4,6 +4,7 @@ import { Head, router, usePage } from '@inertiajs/vue3'
 import PanelEntry from '@/Components/Kiosk/PanelEntry.vue'
 import PanelPresensi from '@/Components/Kiosk/PanelPresensi.vue'
 import { useVerifikasiWajah } from '@/Composables/useVerifikasiWajah'
+import { useAntrianAbsen } from '@/Composables/useAntrianAbsen'
 
 /**
  * Layar Utama Kiosk (UIUX §4.2) — header status event dan dua panel yang
@@ -38,6 +39,7 @@ const entryDibuka = computed(() => eventAktif.value !== null)
 const tahap = ref(entryDibuka.value ? 'menunggu_tap' : 'menunggu_event')
 
 const { siapkanModel, verifikasi } = useVerifikasiWajah()
+const { antrian, antrikan, kirimUlang } = useAntrianAbsen()
 
 let jedaPulih = null
 
@@ -80,6 +82,10 @@ onBeforeUnmount(() => {
  */
 async function tarikPresensi() {
   if (tahap.value === 'memindai') return
+
+  // Antrian luring dikosongkan lebih dulu agar daftar yang ditarik sesudahnya
+  // sudah memuat absen yang baru saja tersusul.
+  await kosongkanAntrian()
 
   try {
     const jawaban = await fetch('/kiosk/presensi', { headers: { Accept: 'application/json' } })
@@ -205,24 +211,20 @@ async function verifikasiWajah(data) {
  * sehingga jawaban gagal di sini tetap berarti kehadiran tidak dicatat.
  */
 async function simpanAbsen(data, foto, skor) {
-  try {
-    const jawaban = await fetch('/kiosk/absen', {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'X-XSRF-TOKEN': decodeURIComponent(document.cookie.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? ''),
-      },
-      body: JSON.stringify({
-        id_card: data.nip,
-        jenis: hasil.value.jenis,
-        metode: hasil.value.metode,
-        skor,
-        foto,
-      }),
-    })
+  const muatan = {
+    id_card: data.nip,
+    jenis: hasil.value.jenis,
+    metode: hasil.value.metode,
+    skor,
+    foto,
 
-    const isi = await jawaban.json()
+    // Waktu tap sesungguhnya ikut dikirim, supaya absen yang tertahan
+    // antrian luring tetap tercatat pada jamnya (NFR-05).
+    waktu_tap: new Date().toISOString(),
+  }
+
+  try {
+    const isi = await kirimMuatan(muatan)
 
     if (!isi.success) {
       gagalkan(isi.message ?? 'Absen gagal disimpan.')
@@ -236,8 +238,60 @@ async function simpanAbsen(data, foto, skor) {
     tahap.value = 'berhasil'
     pulihkan()
   } catch {
-    gagalkan('Absen tidak dapat dikirim ke server. Periksa jaringan kiosk.')
+    /*
+     * NFR-05: jaringan putus di tengah apel tidak boleh menghanguskan absen
+     * yang wajahnya sudah cocok. Simpan di antrian lokal dan kirim ulang
+     * sendiri begitu jaringan pulih.
+     */
+    if (antrikan(muatan)) {
+      hasil.value = { ...hasil.value, tertunda: true }
+      tahap.value = 'berhasil'
+      pesan.value = null
+      pulihkan()
+
+      return
+    }
+
+    gagalkan('Antrian luring penuh. Hubungi admin sebelum melanjutkan absen.')
   }
+}
+
+/** Satu perjalanan ke endpoint simpan absen. Melempar bila jaringan gagal. */
+async function kirimMuatan(muatan) {
+  const jawaban = await fetch('/kiosk/absen', {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'X-XSRF-TOKEN': decodeURIComponent(document.cookie.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? ''),
+    },
+    body: JSON.stringify(muatan),
+  })
+
+  // 5xx berarti server sedang bermasalah, bukan kiriman yang keliru —
+  // diperlakukan sebagai kegagalan jaringan supaya masuk antrian.
+  if (jawaban.status >= 500) {
+    throw new Error('server')
+  }
+
+  return jawaban.json()
+}
+
+/**
+ * Kirim ulang antrian luring. Dipanggil pada setiap penarikan berkala,
+ * sehingga pemulihannya terjadi sendiri tanpa campur tangan petugas.
+ */
+async function kosongkanAntrian() {
+  await kirimUlang(async (muatan) => {
+    try {
+      const isi = await kirimMuatan(muatan)
+
+      // Ditolak karena alasan yang tidak akan berubah bila diulang.
+      return isi.success ? 'berhasil' : 'ditolak'
+    } catch {
+      return 'tunda'
+    }
+  })
 }
 
 function gagalkan(teks) {
@@ -287,6 +341,16 @@ const lepas = () => {
         </div>
 
         <div class="flex items-center gap-4">
+          <!-- NFR-05: absen yang tertahan jaringan tetap terlihat petugas. -->
+          <span
+            v-if="antrian.length > 0"
+            class="inline-flex items-center gap-2 rounded-full bg-amber-500/15 px-3 py-1 text-xs font-medium text-amber-300"
+            :title="`${antrian.length} absen tersimpan di perangkat dan menunggu jaringan pulih`"
+          >
+            <span class="h-2 w-2 animate-pulse rounded-full bg-amber-400"></span>
+            {{ antrian.length }} menunggu terkirim
+          </span>
+
           <p v-if="eventAktif" class="text-right text-xs text-navy-200">
             Mulai {{ eventAktif.jam_mulai }} · toleransi {{ eventAktif.toleransi_menit }} menit
           </p>
