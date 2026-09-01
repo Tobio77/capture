@@ -77,6 +77,11 @@ Skema berikut adalah rancangan awal tabel inti; penamaan kolom dapat disesuaikan
 | aktif      | boolean                           | default true                                               |
 | timestamps | \-                                | created_at, updated_at                                     |
 
+> **Catatan sumber data.** Seluruh baris `unit_kerja` berasal dari
+> sinkronisasi WORKA, **kecuali satu**: `DISNAKER`. Lihat
+> "Unit kerja lokal di luar WORKA" di bawah sebelum menulis query, migration,
+> atau seeder yang menyentuh tabel ini.
+
 Hirarki unit kerja mengikuti WORKA (provinsi → dinas → bidang/UPT →
 subbag/seksi) melalui `induk_id` yang menunjuk ke baris `unit_kerja` lain.
 Kolom ini nullable karena unit puncak (Pemerintah Provinsi Jawa Timur) tidak
@@ -103,11 +108,40 @@ lengkap.
 
 ### Unit kerja lokal di luar WORKA
 
-Sebagian unit kerja milik SI-ABSEN tidak pernah dikirim WORKA — misalnya
-`DISNAKER`, tempat kepala dinas, yang menjadi tempat bernaung akun Admin Dinas
-dan kiosk kantor dinas. Induknya karena itu tidak dapat ditarik dari API, dan
-dinyatakan sebagai peta `kode unit lokal => kode unit induk` pada
-`config/services.php`:
+**`DISNAKER` adalah satu-satunya baris `unit_kerja` yang bukan hasil
+sinkronisasi WORKA.** Baris ini dibuat `UnitKerjaSeeder` dan berfungsi sebagai
+*anchor* untuk kepala dinas beserta perangkat tingkat dinas.
+
+Alasannya: WORKA memodelkan struktur organisasi (`PROV-JATIM` → `DISNAKERTRANS`
+→ bidang/UPT → subbag/seksi), sedangkan kepala dinas menduduki jabatan pada
+OPD itu sendiri, bukan pada salah satu bidang di bawahnya. Pada WORKA,
+`DISNAKERTRANS` adalah simpul struktural dengan `total_pegawai_aktif = 0` —
+tidak ada unit yang bisa dipakai SI-ABSEN sebagai tempat absen tingkat dinas.
+`DISNAKER` mengisi celah itu.
+
+Yang bergantung padanya:
+
+| Bergantung             | Sumber                 | Akibat bila baris ini hilang        |
+|------------------------|------------------------|-------------------------------------|
+| Akun Admin Dinas       | `UserSeeder`           | `firstOrFail()` gagal saat seeding  |
+| Kiosk kantor dinas     | `KioskSeeder`          | Titik absen tingkat dinas tak punya unit |
+| Absensi kepala dinas   | operasional            | Tidak ada unit untuk mengabsen      |
+
+Konsekuensi yang perlu diingat:
+
+- **Jangan berharap sinkronisasi memulihkannya.** WORKA tidak pernah
+  mengirimkan `DISNAKER`; `pegawai:sinkron` hanya menegakkan induknya, tidak
+  pernah membuat ulang barisnya. Bila terhapus, harus di-seed kembali.
+- **Jangan disamakan dengan `DISNAKERTRANS`.** Keduanya bernama mirip
+  ("Dinas Tenaga Kerja dan Transmigrasi…") tetapi berbeda peran: yang satu
+  simpul struktur dari WORKA, yang satu unit absen milik SI-ABSEN. `DISNAKER`
+  bernaung **di bawah** `DISNAKERTRANS`.
+- **Pegawai di dalamnya tidak ikut siklus hidup WORKA.** Karena NIP-nya tidak
+  ada pada daftar WORKA, pegawai contoh di unit ini akan dinonaktifkan oleh
+  `sinkronPenuh` — perilaku yang benar, bukan galat.
+
+Induk `DISNAKER` tidak dapat ditarik dari API, sehingga dinyatakan sebagai peta
+`kode unit lokal => kode unit induk` pada `config/services.php`:
 
 ```php
 'induk_unit_lokal' => [
