@@ -49,16 +49,16 @@ class SimpanEventRequest extends FormRequest
     }
 
     /**
-     * FR-EVT-06: tidak boleh ada dua event aktif yang cakupan dan rentang
-     * waktunya bertumpang tindih — kiosk tidak akan tahu tap milik event mana.
+     * FR-EVT-06: tidak boleh ada dua event aktif yang cakupan unit kerjanya
+     * beririsan — kiosk pada unit itu tidak akan tahu tap milik event mana.
+     *
+     * Jadwal tidak ikut menentukan; menutup event yang lebih dulu berjalan
+     * adalah satu-satunya jalan keluar.
      */
     protected function periksaBentrok(Validator $validator): void
     {
         $bentrok = app(EventAbsenService::class)->eventBentrok(
             [
-                'tanggal' => $this->input('tanggal'),
-                'jam_mulai' => $this->input('jam_mulai'),
-                'toleransi_menit' => $this->input('toleransi_menit'),
                 'cakupan' => $this->input('cakupan'),
                 'unit_kerja_id' => (array) $this->input('unit_kerja_id', []),
             ],
@@ -73,10 +73,10 @@ class SimpanEventRequest extends FormRequest
             ? 'seluruh unit kerja'
             : $bentrok->unitKerja->pluck('kode')->implode(', ');
 
-        $validator->errors()->add('tanggal', sprintf(
-            'Bentrok dengan event aktif "%s" (%s, mencakup %s). Tutup event tersebut lebih dulu atau geser jadwalnya.',
+        $validator->errors()->add('cakupan', sprintf(
+            'Event "%s" (%s, mencakup %s) masih aktif dan cakupannya beririsan. Tutup event tersebut lebih dulu.',
             $bentrok->nama,
-            substr((string) $bentrok->jam_mulai, 0, 5),
+            $bentrok->tanggal->format('d-m-Y'),
             $cakupan,
         ));
     }

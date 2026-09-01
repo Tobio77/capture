@@ -332,23 +332,27 @@ diubah oleh peran mana pun, karena absensi yang terlanjur tercatat menautnya.
 
 ### Tumpang tindih event aktif (FR-EVT-06)
 
-Dua event **aktif** tidak boleh bertumpang tindih pada cakupan dan rentang
-waktu yang sama — kiosk tidak akan tahu sebuah tap milik event yang mana.
-Pemeriksaan berjalan saat pembuatan maupun perubahan event, dan pesan
-kesalahannya menyebut nama, jam, serta cakupan event yang bentrok.
+**Tidak boleh ada dua event berstatus `aktif` dengan cakupan unit kerja yang
+beririsan.** Selama keduanya aktif, kiosk pada unit itu menghadapi lebih dari
+satu event dan tidak dapat memutuskan sebuah tap milik yang mana.
 
-*Rentang waktu* sebuah event dihitung dari `jam_mulai` sampai
-`jam_mulai + toleransi_menit`, yaitu jendela ketika tap masih dianggap tepat
-waktu. Skema tidak menyimpan jam selesai, sehingga jendela inilah definisi
-kerja yang dipakai; konsekuensinya apel pagi dan apel sore pada unit dan hari
-yang sama tetap boleh berdampingan.
+Tanggal dan jam **tidak ikut diperiksa sama sekali** — yang menentukan hanyalah
+status. Konsekuensinya:
+
+- Apel pagi dan apel sore pada unit yang sama **tidak** dapat dibuat bersamaan;
+  apel pagi harus ditutup lebih dulu.
+- Event untuk tanggal mendatang pada unit yang sama juga tertahan selama event
+  berjalan belum ditutup.
+- Menutup event yang lebih dulu berjalan adalah satu-satunya jalan keluar.
 
 *Cakupan* dinilai beririsan bila salah satu pihak bercakupan "semua unit" —
 yang menurut definisi mencakup segalanya — atau bila pivot unit keduanya
-bersinggungan.
+bersinggungan. Unit yang berbeda tetap boleh punya event aktif masing-masing.
 
-Event berstatus `ditutup` tidak diperhitungkan: hanya event aktif yang
-menimbulkan ambiguitas saat tap.
+Pemeriksaan berjalan saat pembuatan maupun perubahan event; sebuah event tidak
+dihitung bentrok dengan dirinya sendiri. Pesan kesalahannya menyebut nama,
+tanggal, dan cakupan event yang bentrok agar admin tahu persis apa yang harus
+ditutup.
 
 ### Penghapusan event
 

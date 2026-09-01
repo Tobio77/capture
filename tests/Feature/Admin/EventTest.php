@@ -5,6 +5,7 @@ namespace Tests\Feature\Admin;
 use App\Enums\AksiLog;
 use App\Enums\CakupanEvent;
 use App\Enums\PeranPengguna;
+use App\Enums\StatusEvent;
 use App\Models\EventAbsen;
 use App\Models\LogAktivitas;
 use App\Models\UnitKerja;
@@ -325,19 +326,16 @@ class EventTest extends TestCase
             'nama' => 'Apel Pagi Gabungan',
             'tanggal' => '2026-09-07',
             'jam_mulai' => '07:30',
-            'toleransi_menit' => 15,
         ]);
         $sudahAda->unitKerja()->attach([$upt->id, $lain->id]);
 
-        // Irisan pivot pada BLK-SGS, jendela 07:35–07:45 menyentuh 07:30–07:45.
+        // Irisan pivot pada BLK-SGS; pesan menyebut event yang bentrok.
         $this->actingAs(User::factory()->superadmin()->create())
             ->post(self::URL, $this->isian([
                 'nama' => 'Apel Susulan',
-                'jam_mulai' => '07:35',
-                'toleransi_menit' => 10,
                 'unit_kerja_id' => [$upt->id],
             ]))
-            ->assertSessionHasErrors(['tanggal' => 'Bentrok dengan event aktif "Apel Pagi Gabungan" (07:30, mencakup BLK-SGS, BLK-SBY). Tutup event tersebut lebih dulu atau geser jadwalnya.']);
+            ->assertSessionHasErrors(['cakupan' => 'Event "Apel Pagi Gabungan" (07-09-2026, mencakup BLK-SGS, BLK-SBY) masih aktif dan cakupannya beririsan. Tutup event tersebut lebih dulu.']);
 
         $this->assertDatabaseCount('event_absen', 1);
     }
@@ -360,7 +358,7 @@ class EventTest extends TestCase
                 'jam_mulai' => '07:40',
                 'unit_kerja_id' => [$upt->id],
             ]))
-            ->assertSessionHasErrors('tanggal');
+            ->assertSessionHasErrors('cakupan');
 
         $this->assertDatabaseCount('event_absen', 1);
     }
@@ -383,23 +381,38 @@ class EventTest extends TestCase
                 'cakupan' => 'semua_unit',
                 'jam_mulai' => '07:35',
             ]))
-            ->assertSessionHasErrors('tanggal');
+            ->assertSessionHasErrors('cakupan');
     }
 
     #[Test]
-    public function event_pada_jam_berbeda_di_hari_sama_tidak_dianggap_bentrok(): void
+    public function unit_sama_ditolak_selama_event_lama_belum_ditutup(): void
     {
         ['upt' => $upt] = $this->hirarki();
+        $admin = User::factory()->superadmin()->create();
 
         $sudahAda = EventAbsen::factory()->create([
+            'nama' => 'Apel Pagi',
             'tanggal' => '2026-09-07',
             'jam_mulai' => '07:30',
-            'toleransi_menit' => 15,
         ]);
         $sudahAda->unitKerja()->attach($upt);
 
-        // Apel pagi dan apel sore pada unit yang sama tetap sah.
-        $this->actingAs(User::factory()->superadmin()->create())
+        // Jadwal berbeda tidak menolong: selama keduanya aktif, kiosk pada
+        // unit itu tetap menghadapi dua event sekaligus.
+        $this->actingAs($admin)
+            ->post(self::URL, $this->isian([
+                'nama' => 'Apel Sore',
+                'jam_mulai' => '16:00',
+                'unit_kerja_id' => [$upt->id],
+            ]))
+            ->assertSessionHasErrors('cakupan');
+
+        $this->assertDatabaseCount('event_absen', 1);
+
+        // Menutup event yang lebih dulu berjalan membuka jalan.
+        $sudahAda->update(['status' => StatusEvent::Ditutup, 'ditutup_pada' => now()]);
+
+        $this->actingAs($admin)
             ->post(self::URL, $this->isian([
                 'nama' => 'Apel Sore',
                 'jam_mulai' => '16:00',
@@ -411,19 +424,22 @@ class EventTest extends TestCase
     }
 
     #[Test]
-    public function unit_berbeda_pada_jam_sama_tidak_dianggap_bentrok(): void
+    public function unit_berbeda_tidak_dianggap_bentrok(): void
     {
         ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
 
         $sudahAda = EventAbsen::factory()->create(['tanggal' => '2026-09-07', 'jam_mulai' => '07:30']);
         $sudahAda->unitKerja()->attach($upt);
 
+        // Cakupan tidak beririsan, jadi dua event aktif berdampingan tetap sah.
         $this->actingAs(User::factory()->superadmin()->create())
             ->post(self::URL, $this->isian([
                 'jam_mulai' => '07:30',
                 'unit_kerja_id' => [$lain->id],
             ]))
             ->assertSessionHas('sukses');
+
+        $this->assertDatabaseCount('event_absen', 2);
     }
 
     #[Test]

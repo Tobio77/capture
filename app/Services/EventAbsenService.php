@@ -177,14 +177,15 @@ class EventAbsenService
     }
 
     /**
-     * Event aktif lain yang cakupan dan rentang waktunya bertumpang tindih
-     * dengan data yang hendak disimpan (FR-EVT-06).
+     * Event aktif lain yang cakupan unit kerjanya beririsan dengan data yang
+     * hendak disimpan (FR-EVT-06).
      *
-     * Rentang waktu sebuah event diambil dari `jam_mulai` sampai
-     * `jam_mulai + toleransi_menit` — jendela ketika tap masih dianggap tepat
-     * waktu. Skema tidak menyimpan jam selesai, sehingga jendela inilah
-     * definisi kerja "rentang waktu yang sama"; dua apel pada pagi dan sore
-     * hari yang sama tetap boleh berdampingan.
+     * Tanggal dan jam sengaja tidak ikut diperiksa: yang menentukan adalah
+     * status. Selama dua event sama-sama berstatus aktif dan cakupannya
+     * bersinggungan, kiosk pada unit itu menghadapi lebih dari satu event dan
+     * tidak dapat memutuskan sebuah tap milik yang mana. Menutup event yang
+     * lebih dulu berjalan adalah satu-satunya cara membuka jalan bagi event
+     * berikutnya di unit yang sama.
      *
      * Cakupan dinilai beririsan bila salah satu pihak bercakupan "semua unit"
      * — yang menurut definisi mencakup segalanya — atau bila pivot unitnya
@@ -196,43 +197,19 @@ class EventAbsenService
     {
         $semuaUnit = $data['cakupan'] === CakupanEvent::SemuaUnit->value;
         $unitBaru = $semuaUnit ? [] : array_map('intval', $data['unit_kerja_id'] ?? []);
-        [$mulaiBaru, $selesaiBaru] = $this->jendela($data['jam_mulai'], (int) $data['toleransi_menit']);
 
         return EventAbsen::query()
             ->aktif()
             ->with('unitKerja:id,kode')
-            ->whereDate('tanggal', $data['tanggal'])
             ->when($kecuali !== null, fn ($query) => $query->whereKeyNot($kecuali->getKey()))
             ->get()
-            ->first(function (EventAbsen $lain) use ($semuaUnit, $unitBaru, $mulaiBaru, $selesaiBaru) {
-                [$mulaiLain, $selesaiLain] = $this->jendela(
-                    (string) $lain->jam_mulai,
-                    $lain->toleransi_menit,
-                );
-
-                if ($mulaiBaru > $selesaiLain || $mulaiLain > $selesaiBaru) {
-                    return false;
-                }
-
+            ->first(function (EventAbsen $lain) use ($semuaUnit, $unitBaru) {
                 if ($semuaUnit || $lain->berlakuUntukSemuaUnit()) {
                     return true;
                 }
 
                 return $lain->unitKerja->pluck('id')->intersect($unitBaru)->isNotEmpty();
             });
-    }
-
-    /**
-     * Jendela waktu event dalam menit sejak tengah malam.
-     *
-     * @return array{0: int, 1: int}
-     */
-    protected function jendela(string $jamMulai, int $toleransiMenit): array
-    {
-        [$jam, $menit] = array_map('intval', explode(':', substr($jamMulai, 0, 5)));
-        $mulai = $jam * 60 + $menit;
-
-        return [$mulai, $mulai + $toleransiMenit];
     }
 
     /**
