@@ -9,9 +9,11 @@ use App\Http\Controllers\Admin\SettingWorkaController;
 use App\Http\Controllers\Admin\UnitKerjaController;
 use App\Http\Controllers\Auth\SesiController;
 use App\Http\Controllers\Kiosk\AktivasiController;
+use App\Http\Controllers\Kiosk\FotoAbsenController;
 use App\Http\Controllers\Kiosk\FotoPegawaiController;
 use App\Http\Controllers\Kiosk\IdentifikasiTapController;
 use App\Http\Controllers\Kiosk\LayarKioskController;
+use App\Http\Controllers\Kiosk\SimpanAbsenController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/admin/dashboard')->name('beranda');
@@ -44,6 +46,20 @@ Route::prefix('kiosk')->name('kiosk.')->group(function () {
         Route::post('tap/identifikasi', IdentifikasiTapController::class)
             ->middleware('throttle:120,1')
             ->name('tap.identifikasi');
+
+        /*
+         * Penyimpanan hasil absen (FR-TAP-05 s.d. FR-TAP-07). Seluruh syarat
+         * diperiksa ulang di server; keputusan kiosk tidak dipercaya sendirian.
+         */
+        Route::post('absen', SimpanAbsenController::class)
+            ->middleware('throttle:120,1')
+            ->name('absen.simpan');
+
+        // Foto absen disajikan lewat route terautentikasi, tidak pernah dari
+        // disk publik (NFR-04).
+        Route::get('absen/{absensi}/foto', FotoAbsenController::class)
+            ->middleware('throttle:300,1')
+            ->name('absen.foto');
 
         Route::get('pegawai/{nip}/foto', FotoPegawaiController::class)
             ->where('nip', '[0-9]{8,20}')

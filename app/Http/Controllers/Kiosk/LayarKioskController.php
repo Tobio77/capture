@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Kiosk;
 
 use App\Http\Controllers\Controller;
+use App\Services\AbsensiService;
 use App\Services\EventAbsenService;
 use App\Services\SettingAbsenService;
 use Illuminate\Http\Request;
@@ -14,6 +15,7 @@ class LayarKioskController extends Controller
     public function __construct(
         protected EventAbsenService $event,
         protected SettingAbsenService $setting,
+        protected AbsensiService $absensi,
     ) {}
 
     /**
@@ -57,9 +59,11 @@ class LayarKioskController extends Controller
             'ambang_kecocokan_wajah' => $setting['ambang_kecocokan_wajah'],
             'kompresi' => $this->setting->kompresi()->rincian(),
 
-            // Daftar e-Presensi diisi setelah tabel absensi ada (S16) dan
-            // diperbarui berkala pada S21.
-            'daftar_presensi' => [],
+            // Satu baris per pegawai; jam masuk dan pulang mengisi kolom
+            // berbeda pada baris yang sama (FR-TAP-05).
+            'daftar_presensi' => $event === null
+                ? []
+                : $this->absensi->daftarPresensi($event),
 
             // Null berarti tidak ada entry yang dibuka untuk unit ini, dan
             // layar kiosk menampilkan keadaan itu alih-alih menerima tap.

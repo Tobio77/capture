@@ -6,6 +6,7 @@ use App\Enums\AksiLog;
 use App\Enums\CakupanEvent;
 use App\Enums\PeranPengguna;
 use App\Enums\StatusEvent;
+use App\Models\Absensi;
 use App\Models\EventAbsen;
 use App\Models\Kiosk;
 use App\Models\LogAktivitas;
@@ -13,10 +14,8 @@ use App\Models\UnitKerja;
 use App\Models\User;
 use App\Services\EventAbsenService;
 use App\Services\SettingAbsenService;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -692,19 +691,6 @@ class EventTest extends TestCase
      * Hapus keras — hanya selama belum ada absensi tertaut.
      * ------------------------------------------------------------------- */
 
-    /**
-     * Tabel absensi baru dibuat pada S16; bentuk minimalnya disiapkan di sini
-     * hanya untuk menguji penguncian, bukan sebagai skema final.
-     */
-    protected function siapkanTabelAbsensi(): void
-    {
-        Schema::create('absensi', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('event_absen_id')->constrained('event_absen')->cascadeOnDelete();
-            $table->timestamps();
-        });
-    }
-
     #[Test]
     public function event_tanpa_absensi_dapat_dihapus_permanen(): void
     {
@@ -742,17 +728,11 @@ class EventTest extends TestCase
     #[Test]
     public function event_yang_sudah_punya_absensi_tidak_dapat_dihapus(): void
     {
-        $this->siapkanTabelAbsensi();
-
         ['upt' => $upt] = $this->hirarki();
         $event = EventAbsen::factory()->create();
         $event->unitKerja()->attach($upt);
 
-        DB::table('absensi')->insert([
-            'event_absen_id' => $event->id,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        Absensi::factory()->create(['event_absen_id' => $event->id]);
 
         $this->actingAs(User::factory()->superadmin()->create())
             ->delete(self::URL."/{$event->id}")
@@ -764,17 +744,11 @@ class EventTest extends TestCase
     #[Test]
     public function daftar_menandai_event_yang_terkunci_karena_absensi(): void
     {
-        $this->siapkanTabelAbsensi();
-
         ['upt' => $upt] = $this->hirarki();
         $terkunci = EventAbsen::factory()->create(['tanggal' => '2026-09-07', 'jam_mulai' => '07:30']);
         $terkunci->unitKerja()->attach($upt);
 
-        DB::table('absensi')->insert([
-            'event_absen_id' => $terkunci->id,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        Absensi::factory()->create(['event_absen_id' => $terkunci->id]);
 
         $this->actingAs(User::factory()->superadmin()->create())
             ->get(self::URL)

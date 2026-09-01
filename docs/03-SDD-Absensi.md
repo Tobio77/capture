@@ -470,6 +470,48 @@ semua unit, walau tidak dapat mengubahnya.
 
 > *Catatan: Kombinasi (event_absen_id, pegawai_id, jenis) bersifat unik agar tap berulang untuk jenis yang sama memperbarui data, bukan menduplikasi baris — sesuai FR-TAP-05.*
 
+Keunikan itu ditegakkan **di basis data**, bukan hanya di kode, supaya dua
+kiosk yang men-tap orang yang sama bersamaan tidak dapat menyelinapkan baris
+kembar. `kiosk_id` memakai `nullOnDelete` agar perangkat dapat dilepas tanpa
+menghapus riwayat absensinya.
+
+### Validasi ulang di server (FR-TAP-05, FR-TAP-06)
+
+Kiosk sudah memutuskan cocok/tidaknya wajah di sisi klien, tetapi keputusan itu
+datang dari peramban yang dapat dimanipulasi. `POST /kiosk/absen` karena itu
+memeriksa ulang seluruh syaratnya sebelum menyimpan:
+
+| Yang diperiksa ulang | Jawaban bila gagal |
+|----------------------|--------------------|
+| Event masih dibuka dan mencakup kiosk | `409 EVENT_TIDAK_AKTIF` |
+| Kartu/NIP dikenal | `404 ID_TIDAK_DIKENAL` |
+| Pegawai aktif | `403 PEGAWAI_TIDAK_AKTIF` |
+| Skor disertakan saat verifikasi wajah menyala | `422 WAJAH_BELUM_DIVERIFIKASI` |
+| Skor ≥ ambang Setting Absen | `422 WAJAH_TIDAK_COCOK` |
+| Foto berupa data URI JPEG di bawah batas | `422` galat validasi |
+
+**Ambang dibaca ulang dari Setting Absen, bukan dari kiriman kiosk**, sehingga
+kiosk tidak dapat menurunkan syaratnya sendiri. Bila verifikasi wajah
+dimatikan admin, skor yang telanjur dikirim kiosk tidak ikut disimpan.
+
+### Status ketepatan (FR-TAP-07)
+
+Tepat waktu selama tap terjadi pada atau sebelum `jam_mulai + toleransi_menit`
+event; setelahnya terlambat. Hanya berlaku untuk jenis Datang — absen Pulang
+menyimpan `null`. Tap berulang menggeser waktu sekaligus menghitung ulang
+ketepatannya.
+
+### Foto absen
+
+Disimpan pada disk privat `local` di bawah `foto-absen/{event}/`, tidak pernah
+pada disk publik (NFR-04), dan disajikan lewat
+`GET /kiosk/absen/{absensi}/foto` yang hanya melayani kiosk yang sedang
+menangani event yang sama. Foto dikirim kiosk sebagai data URI JPEG yang sudah
+disusutkan sesuai preset Setting Absen; server hanya memeriksa bentuk dan
+ukurannya (batas 150 KB, memberi kelonggaran atas selisih encoder peramban
+terhadap batas ~90 KB NFR-06) dan tidak menyusutkan ulang. Tap berulang
+mengganti foto lama setelah baris tersimpan.
+
 ## 3.9 Setting Absen (key-value pada tabel `pengaturan`)
 
 Diimplementasikan sebagai key-value, bukan tabel single-row — memakai tabel
@@ -537,7 +579,8 @@ Ringkasan endpoint inti; daftar lengkap akan dirinci sebagai route Laravel pada 
 | POST       | /kiosk/aktivasi                        | Aktivasi perangkat kiosk, menghasilkan device_token                             |
 | POST       | /kiosk/tap/identifikasi                | Kenali pegawai dari UID kartu RFID atau NIP yang diketik (FR-TAP-03)            |
 | GET        | /kiosk                                 | Layar utama kiosk; membawa event aktif, metode yang menyala, dan daftar presensi |
-| POST       | /kiosk/absen                           | Kirim hasil absen (ID pegawai, jenis, metode, skor kecocokan, foto terkompresi) |
+| POST       | /kiosk/absen                           | Kirim hasil absen; seluruh syarat diperiksa ulang di server (FR-TAP-05)          |
+| GET        | /kiosk/absen/{absensi}/foto            | Foto absen untuk Daftar e-Presensi, terbatas kiosk pada event yang sama (NFR-04) |
 | GET        | /admin/kelola-absen/event              | Daftar event (terfilter sesuai peran)                                           |
 | POST       | /admin/kelola-absen/event              | Buat event baru (FR-EVT-01, FR-EVT-02)                                          |
 | GET        | /admin/kelola-absen/event/{event}/detail| Detail event: kiosk terhubung, jumlah masuk, status (FR-EVT-05)                 |

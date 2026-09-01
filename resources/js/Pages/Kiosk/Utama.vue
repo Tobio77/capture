@@ -27,6 +27,7 @@ const kiosk = computed(() => page.props.kiosk)
 
 const jenis = ref('datang')
 const hasil = ref(null)
+const presensi = ref(props.daftar_presensi)
 const pesan = ref(null)
 const panel = ref(null)
 
@@ -140,12 +141,51 @@ async function verifikasiWajah(data) {
     return
   }
 
-  // Foto hasil capture sudah disusutkan sesuai preset; penyimpanannya
-  // beserta pencatatan absen dikerjakan pada S16.
-  hasil.value = { ...hasil.value, foto: panel.value?.ambilFoto(props.kompresi) }
+  // Foto hasil capture sudah disusutkan sesuai preset Setting Absen sebelum
+  // dikirim, sehingga yang melintasi jaringan sudah berukuran akhir.
+  await simpanAbsen(data, panel.value?.ambilFoto(props.kompresi), hasilVerifikasi.skor)
+}
 
-  tahap.value = 'berhasil'
-  pulihkan()
+/**
+ * Kirim hasil absen ke server (FR-TAP-05).
+ *
+ * Server memeriksa ulang seluruh syaratnya — event, pegawai, dan ambang skor —
+ * sehingga jawaban gagal di sini tetap berarti kehadiran tidak dicatat.
+ */
+async function simpanAbsen(data, foto, skor) {
+  try {
+    const jawaban = await fetch('/kiosk/absen', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-XSRF-TOKEN': decodeURIComponent(document.cookie.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? ''),
+      },
+      body: JSON.stringify({
+        id_card: data.nip,
+        jenis: hasil.value.jenis,
+        metode: hasil.value.metode,
+        skor,
+        foto,
+      }),
+    })
+
+    const isi = await jawaban.json()
+
+    if (!isi.success) {
+      gagalkan(isi.message ?? 'Absen gagal disimpan.')
+
+      return
+    }
+
+    presensi.value = isi.data.daftar_presensi
+    hasil.value = { ...hasil.value, jam: isi.data.waktu, ketepatan: isi.data.status_ketepatan }
+
+    tahap.value = 'berhasil'
+    pulihkan()
+  } catch {
+    gagalkan('Absen tidak dapat dikirim ke server. Periksa jaringan kiosk.')
+  }
 }
 
 function gagalkan(teks) {
@@ -221,7 +261,7 @@ const lepas = () => {
         @tap="tangkapTap"
       />
 
-      <PanelPresensi :daftar="daftar_presensi" :event="event" />
+      <PanelPresensi :daftar="presensi" :event="event" />
     </main>
   </div>
 </template>
