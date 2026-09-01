@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\EventController;
 use App\Http\Controllers\Admin\FotoReferensiWajahController;
 use App\Http\Controllers\Admin\KartuRfidController;
@@ -84,7 +85,7 @@ Route::prefix('kiosk')->name('kiosk.')->group(function () {
  * pada docs/02-SRS-Absensi.md §6 (FR-AUTH-02).
  */
 Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function () {
-    Route::inertia('dashboard', 'Dashboard')->name('dashboard');
+    Route::get('dashboard', DashboardController::class)->name('dashboard');
 
     Route::prefix('kelola-absen')->group(function () {
         /*

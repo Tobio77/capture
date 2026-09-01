@@ -628,6 +628,7 @@ Ringkasan endpoint inti; daftar lengkap akan dirinci sebagai route Laravel pada 
 | POST       | /kiosk/absen                           | Kirim hasil absen; seluruh syarat diperiksa ulang di server (FR-TAP-05)          |
 | GET        | /kiosk/presensi                        | Daftar e-Presensi terkini beserta keadaan event, ditarik berkala (FR-TAP-08)     |
 | GET        | /kiosk/absen/{absensi}/foto            | Foto absen untuk Daftar e-Presensi, terbatas kiosk pada event yang sama (NFR-04) |
+| GET        | /admin/dashboard                       | Kartu statistik dan tren kehadiran, terfilter peran (FR-DASH-01, FR-DASH-02)     |
 | GET        | /admin/kelola-absen/event              | Daftar event (terfilter sesuai peran)                                           |
 | POST       | /admin/kelola-absen/event              | Buat event baru (FR-EVT-01, FR-EVT-02)                                          |
 | GET        | /admin/kelola-absen/event/{event}/detail| Detail event: kiosk terhubung, jumlah masuk, status (FR-EVT-05)                 |
