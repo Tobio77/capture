@@ -85,7 +85,12 @@ Route::prefix('kiosk')->name('kiosk.')->group(function () {
  * pada docs/02-SRS-Absensi.md §6 (FR-AUTH-02).
  */
 Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function () {
-    Route::get('dashboard', DashboardController::class)->name('dashboard');
+    Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // Feed aktivitas menyegarkan dirinya sendiri tanpa memuat ulang grafik.
+    Route::get('dashboard/aktivitas', [DashboardController::class, 'aktivitas'])
+        ->middleware('throttle:60,1')
+        ->name('dashboard.aktivitas');
 
     Route::prefix('kelola-absen')->group(function () {
         /*

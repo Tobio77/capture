@@ -96,6 +96,49 @@ class DashboardService
         return $hasil;
     }
 
+    /** Panjang feed aktivitas absen terbaru. */
+    public const int BATAS_AKTIVITAS = 12;
+
+    /**
+     * Aktivitas absen terbaru (FR-DASH-03).
+     *
+     * Diurutkan menurut waktu tap, bukan waktu penyimpanan: absen yang
+     * tertahan antrian luring (NFR-05) baru sampai belakangan, tetapi
+     * kejadiannya lebih dulu dan harus duduk pada urutan yang benar.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function aktivitasTerbaru(User $pelaku): array
+    {
+        $cakupan = $this->cakupan($pelaku);
+
+        return Absensi::query()
+            ->with(['pegawai:id,nip,nama,unit_kerja_id', 'pegawai.unitKerja:id,kode,nama'])
+            ->when($cakupan !== null, fn ($q) => $q->whereIn(
+                'pegawai_id',
+                $this->pegawaiAktif($cakupan)->select('id'),
+            ))
+            ->orderByDesc('waktu')
+            ->orderByDesc('id')
+            ->limit(self::BATAS_AKTIVITAS)
+            ->get()
+            ->map(fn (Absensi $absensi) => [
+                'id' => $absensi->id,
+                'nama' => $absensi->pegawai?->nama,
+                'nip' => $absensi->pegawai?->nip,
+                'unit_kerja' => $absensi->pegawai?->unitKerja?->nama,
+                'waktu' => $absensi->waktu->toIso8601String(),
+                'jam' => $absensi->waktu->format('H:i'),
+                'jenis' => $absensi->jenis->value,
+                'jenis_label' => $absensi->jenis->label(),
+                'metode' => $absensi->metode->value,
+                'metode_label' => $absensi->metode->label(),
+                'status_ketepatan' => $absensi->status_ketepatan?->value,
+                'status_label' => $absensi->status_ketepatan?->label(),
+            ])
+            ->all();
+    }
+
     /**
      * Id unit kerja yang boleh dilihat pengguna, atau null untuk peran lintas
      * unit yang tidak perlu disaring sama sekali.

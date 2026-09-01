@@ -3,6 +3,7 @@
 namespace Tests\Feature\Admin;
 
 use App\Enums\JenisAbsen;
+use App\Enums\MetodeAbsen;
 use App\Models\Absensi;
 use App\Models\EventAbsen;
 use App\Models\Kiosk;
@@ -193,6 +194,125 @@ class DashboardTest extends TestCase
         $tren = app(DashboardService::class)->tren(User::factory()->superadmin()->create());
 
         $this->assertSame(0, collect($tren)->sum('jumlah'));
+    }
+
+    #[Test]
+    public function aktivitas_terbaru_diurutkan_menurut_waktu_tap(): void
+    {
+        // FR-DASH-03. Absen yang tertahan antrian luring baru tersimpan
+        // belakangan, tetapi kejadiannya lebih dulu — urutan mengikuti waktu
+        // tap, bukan waktu penyimpanan.
+        ['upt' => $upt] = $this->hirarki();
+        $event = EventAbsen::factory()->create();
+
+        $awal = Pegawai::factory()->create(['nama' => 'Ahmad Fauzi', 'unit_kerja_id' => $upt->id]);
+        $akhir = Pegawai::factory()->create(['nama' => 'Dewi Anggraini', 'unit_kerja_id' => $upt->id]);
+
+        // Dibuat terbalik dari urutan kejadiannya.
+        Absensi::factory()->create([
+            'event_absen_id' => $event->id,
+            'pegawai_id' => $awal->id,
+            'waktu' => now()->subMinutes(30),
+        ]);
+        Absensi::factory()->create([
+            'event_absen_id' => $event->id,
+            'pegawai_id' => $akhir->id,
+            'waktu' => now()->subMinutes(5),
+        ]);
+
+        $aktivitas = app(DashboardService::class)
+            ->aktivitasTerbaru(User::factory()->superadmin()->create());
+
+        $this->assertSame('Dewi Anggraini', $aktivitas[0]['nama']);
+        $this->assertSame('Ahmad Fauzi', $aktivitas[1]['nama']);
+    }
+
+    #[Test]
+    public function aktivitas_membawa_metode_dan_status_ketepatan(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        $pegawai = Pegawai::factory()->create(['unit_kerja_id' => $upt->id]);
+
+        Absensi::factory()->terlambat()->create([
+            'event_absen_id' => EventAbsen::factory()->create()->id,
+            'pegawai_id' => $pegawai->id,
+            'metode' => MetodeAbsen::Rfid,
+        ]);
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->get('/admin/dashboard')
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('aktivitas', 1)
+                ->where('aktivitas.0.metode', 'rfid')
+                ->where('aktivitas.0.metode_label', 'Tap RFID')
+                ->where('aktivitas.0.status_ketepatan', 'terlambat')
+                ->etc());
+    }
+
+    #[Test]
+    public function aktivitas_admin_upt_terbatas_pada_unitnya(): void
+    {
+        ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
+        $event = EventAbsen::factory()->create();
+
+        Absensi::factory()->create([
+            'event_absen_id' => $event->id,
+            'pegawai_id' => Pegawai::factory()->create(['unit_kerja_id' => $upt->id])->id,
+        ]);
+        Absensi::factory()->create([
+            'event_absen_id' => $event->id,
+            'pegawai_id' => Pegawai::factory()->create(['unit_kerja_id' => $lain->id])->id,
+        ]);
+
+        $aktivitas = app(DashboardService::class)
+            ->aktivitasTerbaru(User::factory()->adminUpt($upt)->create());
+
+        $this->assertCount(1, $aktivitas);
+    }
+
+    #[Test]
+    public function aktivitas_dibatasi_panjangnya(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        $event = EventAbsen::factory()->create();
+
+        foreach (range(1, DashboardService::BATAS_AKTIVITAS + 5) as $urutan) {
+            Absensi::factory()->create([
+                'event_absen_id' => $event->id,
+                'pegawai_id' => Pegawai::factory()->create(['unit_kerja_id' => $upt->id])->id,
+                'waktu' => now()->subMinutes($urutan),
+            ]);
+        }
+
+        $aktivitas = app(DashboardService::class)
+            ->aktivitasTerbaru(User::factory()->superadmin()->create());
+
+        $this->assertCount(DashboardService::BATAS_AKTIVITAS, $aktivitas);
+    }
+
+    #[Test]
+    public function endpoint_aktivitas_menjawab_json_untuk_pembaruan_berkala(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+
+        Absensi::factory()->create([
+            'event_absen_id' => EventAbsen::factory()->create()->id,
+            'pegawai_id' => Pegawai::factory()->create([
+                'nama' => 'Ahmad Fauzi',
+                'unit_kerja_id' => $upt->id,
+            ])->id,
+        ]);
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->getJson('/admin/dashboard/aktivitas')
+            ->assertOk()
+            ->assertJson(['aktivitas' => [['nama' => 'Ahmad Fauzi']]]);
+    }
+
+    #[Test]
+    public function endpoint_aktivitas_tertutup_bagi_tamu(): void
+    {
+        $this->getJson('/admin/dashboard/aktivitas')->assertUnauthorized();
     }
 
     #[Test]

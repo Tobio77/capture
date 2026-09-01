@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { usePage } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
 
@@ -14,7 +14,47 @@ import AdminLayout from '@/Layouts/AdminLayout.vue'
 const props = defineProps({
   statistik: { type: Object, required: true },
   tren: { type: Array, required: true },
+  aktivitas: { type: Array, required: true },
 })
+
+/*
+ * Feed disegarkan setiap 20 detik. Lebih lambat daripada layar kiosk yang
+ * 10 detik: admin membaca ringkasan, bukan menunggu namanya muncul.
+ */
+const JEDA_SEGAR_MS = 20000
+
+const aktivitasTerkini = ref(props.aktivitas)
+let jedaSegar = null
+
+onMounted(() => {
+  jedaSegar = setInterval(segarkanAktivitas, JEDA_SEGAR_MS)
+})
+
+onBeforeUnmount(() => clearInterval(jedaSegar))
+
+async function segarkanAktivitas() {
+  try {
+    const jawaban = await fetch('/admin/dashboard/aktivitas', {
+      headers: { Accept: 'application/json' },
+    })
+
+    if (!jawaban.ok) return
+
+    aktivitasTerkini.value = (await jawaban.json()).aktivitas
+  } catch {
+    // Gangguan sesaat; percobaan berikutnya menyusul sendiri.
+  }
+}
+
+function waktuRelatif(iso) {
+  const selisih = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
+
+  if (selisih < 1) return 'baru saja'
+  if (selisih < 60) return `${selisih} menit lalu`
+  if (selisih < 1440) return `${Math.floor(selisih / 60)} jam lalu`
+
+  return `${Math.floor(selisih / 1440)} hari lalu`
+}
 
 const page = usePage()
 const pengguna = computed(() => page.props.auth.pengguna)
@@ -102,8 +142,9 @@ const adaKehadiran = computed(() => props.tren.some((t) => t.jumlah > 0))
       </div>
     </div>
 
-    <!-- FR-DASH-02 -->
-    <div class="mt-6 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+    <div class="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
+      <!-- FR-DASH-02 -->
+      <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
       <div class="flex items-baseline justify-between">
         <h2 class="font-display text-base font-semibold text-navy-700">Tren Kehadiran</h2>
         <p class="text-xs text-slate-500">7 hari terakhir</p>
@@ -162,6 +203,55 @@ const adaKehadiran = computed(() => props.tren.some((t) => t.jumlah > 0))
           </text>
         </g>
       </svg>
+      </div>
+
+      <!-- FR-DASH-03 -->
+      <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex items-baseline justify-between">
+          <h2 class="font-display text-base font-semibold text-navy-700">Aktivitas Terbaru</h2>
+          <span class="flex items-center gap-1.5 text-xs text-slate-500">
+            <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"></span>
+            live
+          </span>
+        </div>
+
+        <ol v-if="aktivitasTerkini.length > 0" class="mt-4 space-y-3">
+          <li
+            v-for="baris in aktivitasTerkini"
+            :key="baris.id"
+            class="flex items-start gap-3 border-b border-slate-100 pb-3 last:border-0 last:pb-0"
+          >
+            <span
+              class="mt-1.5 h-2 w-2 shrink-0 rounded-full"
+              :class="baris.status_ketepatan === 'terlambat' ? 'bg-amber-500' : 'bg-emerald-500'"
+            ></span>
+
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm font-medium text-navy-700">{{ baris.nama }}</p>
+              <p class="truncate text-xs text-slate-500">{{ baris.unit_kerja ?? '—' }}</p>
+              <p class="mt-0.5 text-xs text-slate-500">
+                <span class="font-display tabular-nums">{{ baris.jam }}</span>
+                · {{ baris.jenis_label }}
+                · {{ baris.metode_label }}
+                <span
+                  v-if="baris.status_label"
+                  :class="baris.status_ketepatan === 'terlambat' ? 'text-amber-700' : 'text-emerald-700'"
+                >
+                  · {{ baris.status_label }}
+                </span>
+              </p>
+            </div>
+
+            <span class="shrink-0 whitespace-nowrap text-xs text-slate-400">
+              {{ waktuRelatif(baris.waktu) }}
+            </span>
+          </li>
+        </ol>
+
+        <p v-else class="mt-6 rounded-md border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">
+          Belum ada aktivitas absen.
+        </p>
+      </div>
     </div>
   </AdminLayout>
 </template>
