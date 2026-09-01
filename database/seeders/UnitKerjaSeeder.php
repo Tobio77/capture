@@ -28,26 +28,9 @@ class UnitKerjaSeeder extends Seeder
             );
         }
 
-        $this->tautkanDisnakerKeIndukWorka();
-    }
-
-    /**
-     * `DISNAKER` adalah unit lokal (tempat kepala dinas) yang tidak dikirim
-     * WORKA, jadi sinkronisasi tidak pernah mengisi induknya. Tautannya diurus
-     * di sini — dilewati bila WORKA belum pernah disinkronkan, karena unit
-     * `DISNAKERTRANS` baru muncul setelah `pegawai:sinkron` pertama.
-     */
-    protected function tautkanDisnakerKeIndukWorka(): void
-    {
-        $induk = UnitKerja::query()->where('kode', 'DISNAKERTRANS')->first();
-
-        if ($induk === null) {
-            return;
-        }
-
-        UnitKerja::query()
-            ->where('kode', 'DISNAKER')
-            ->whereNull('induk_id')
-            ->update(['induk_id' => $induk->id]);
+        // Induk unit lokal (mis. DISNAKER) sengaja tidak diurus di sini:
+        // `pegawai:sinkron` menegakkannya sendiri lewat peta
+        // `services.worka.induk_unit_lokal`, sehingga hasil akhirnya tidak
+        // bergantung pada urutan seeding terhadap sinkronisasi.
     }
 }

@@ -84,20 +84,50 @@ berinduk, dan karena unit yang dibuat manual oleh admin belum tentu memiliki
 induk. FK menggunakan `nullOnDelete` — selaras dengan kebijakan unit kerja
 dinonaktifkan, bukan dihapus (FR-UNIT-01).
 
-Sinkronisasi unit kerja dari WORKA berjalan **dua tahap** karena urutan baris
+Sinkronisasi unit kerja dari WORKA berjalan **tiga tahap** karena urutan baris
 yang dikirim WORKA tidak menjamin induk muncul lebih dulu daripada anaknya:
 
 1. **Tahap simpan** — seluruh unit dibuat/diperbarui (kode, nama, aktif) tanpa
    menyentuh `induk_id`, sekaligus mencatat kode induk tiap unit.
 2. **Tahap tautkan** — `induk_id` diisi dengan mencocokkan kode induk terhadap
    kolom `kode` setelah semua unit dipastikan ada.
+3. **Tahap unit lokal** — induk unit milik SI-ABSEN sendiri ditegakkan ulang
+   dari peta `services.worka.induk_unit_lokal`.
 
 Induk dibaca dari medan `parent` pada jawaban `GET /api/v1/absen/unit-kerja`
 (objek `{id, kode, nama}`, bernilai null pada unit puncak); kunci `induk` ikut
 dikenali sebagai alias. Bila kode induk tidak ada pada daftar yang dikirim
 WORKA, tautan lama dipertahankan dan kejadiannya dicatat di
 `storage/logs/worka-api.log` — hirarki tidak diputus berdasarkan data tak
-lengkap. Unit lokal di luar daftar WORKA tidak disentuh sama sekali.
+lengkap.
+
+### Unit kerja lokal di luar WORKA
+
+Sebagian unit kerja milik SI-ABSEN tidak pernah dikirim WORKA — misalnya
+`DISNAKER`, tempat kepala dinas, yang menjadi tempat bernaung akun Admin Dinas
+dan kiosk kantor dinas. Induknya karena itu tidak dapat ditarik dari API, dan
+dinyatakan sebagai peta `kode unit lokal => kode unit induk` pada
+`config/services.php`:
+
+```php
+'induk_unit_lokal' => [
+    'DISNAKER' => 'DISNAKERTRANS',
+],
+```
+
+Tahap ketiga menegakkan peta ini **setiap kali `pegawai:sinkron` selesai**, dan
+bersifat idempoten — dijalankan berkali-kali tidak mengubah apa pun setelah
+tautan benar. Konsekuensinya hirarki bersifat *self-healing*: urutan `migrate`,
+`db:seed`, dan sinkronisasi tidak lagi menentukan hasil akhir. Bila unit induk
+belum ada (WORKA belum pernah disinkronkan), penautan ditunda dengan peringatan
+di `storage/logs/worka-api.log` dan pulih sendiri pada sinkronisasi berikutnya.
+
+Dua pengaman berlaku pada tahap ini:
+
+- Unit yang ternyata **ikut dikirim WORKA** dilewati — hirarki dari WORKA yang
+  berlaku, peta tidak boleh menimpanya.
+- Unit lokal **di luar peta** tidak disentuh sama sekali, termasuk nama, status
+  aktif, dan `induk_id`-nya.
 
 ## 3.2 pegawai
 

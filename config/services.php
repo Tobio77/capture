@@ -40,6 +40,20 @@ return [
         'api_token' => env('WORKA_API_TOKEN'),
         'timeout' => env('WORKA_API_TIMEOUT', 30),
         'sync_interval' => env('WORKA_SYNC_INTERVAL', 1440),
+
+        /*
+         * Induk unit kerja milik SI-ABSEN sendiri, dalam bentuk
+         * kode unit lokal => kode unit induk di WORKA.
+         *
+         * Unit di sini tidak dikirim WORKA (mis. DISNAKER, tempat kepala
+         * dinas — tempat bernaung akun Admin Dinas dan kiosk kantor dinas),
+         * sehingga induknya tidak dapat ditarik dari jawaban API. Tautannya
+         * ditegakkan ulang setiap kali `pegawai:sinkron` selesai, jadi
+         * hirarki tetap utuh tanpa bergantung urutan seeding.
+         */
+        'induk_unit_lokal' => [
+            'DISNAKER' => 'DISNAKERTRANS',
+        ],
     ],
 
     'slack' => [

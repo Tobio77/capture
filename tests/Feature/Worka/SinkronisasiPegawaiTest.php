@@ -317,6 +317,91 @@ class SinkronisasiPegawaiTest extends TestCase
     }
 
     #[Test]
+    public function induk_unit_lokal_ditegakkan_setiap_sinkronisasi(): void
+    {
+        config(['services.worka.induk_unit_lokal' => ['DISNAKER' => 'DISNAKERTRANS']]);
+
+        // DISNAKER tidak pernah dikirim WORKA; induknya hanya dapat ditautkan
+        // dari peta, bukan dari jawaban API.
+        $lokal = UnitKerja::factory()->create(['kode' => 'DISNAKER', 'induk_id' => null]);
+
+        $this->palsukanWorka(unitKerja: [
+            ['id' => 2, 'kode' => 'DISNAKERTRANS', 'nama' => 'Dinas Tenaga Kerja dan Transmigrasi', 'aktif' => true, 'parent' => null],
+        ]);
+
+        $this->layanan()->sinkronPenuh();
+
+        $induk = UnitKerja::query()->where('kode', 'DISNAKERTRANS')->sole();
+        $this->assertSame($induk->id, $lokal->refresh()->induk_id);
+    }
+
+    #[Test]
+    public function penautan_unit_lokal_idempoten_saat_sinkronisasi_diulang(): void
+    {
+        config(['services.worka.induk_unit_lokal' => ['DISNAKER' => 'DISNAKERTRANS']]);
+
+        $lokal = UnitKerja::factory()->create(['kode' => 'DISNAKER', 'induk_id' => null]);
+
+        $this->palsukanWorka(unitKerja: [
+            ['id' => 2, 'kode' => 'DISNAKERTRANS', 'nama' => 'Dinas Tenaga Kerja dan Transmigrasi', 'aktif' => true, 'parent' => null],
+        ]);
+
+        $pertama = $this->layanan()->sinkronPenuh();
+        $indukId = $lokal->refresh()->induk_id;
+
+        $kedua = $this->layanan()->sinkronPenuh();
+
+        // Putaran kedua tidak mengubah tautan dan tidak menghitungnya lagi
+        // sebagai perubahan.
+        $this->assertSame($indukId, $lokal->refresh()->induk_id);
+        $this->assertSame(2, $pertama->unitKerjaDiperbarui);
+        $this->assertSame(0, $kedua->unitKerjaDiperbarui);
+    }
+
+    #[Test]
+    public function unit_lokal_menunggu_induknya_muncul_tanpa_menggagalkan_sinkronisasi(): void
+    {
+        config(['services.worka.induk_unit_lokal' => ['DISNAKER' => 'DISNAKERTRANS']]);
+
+        $lokal = UnitKerja::factory()->create(['kode' => 'DISNAKER', 'induk_id' => null]);
+
+        // Sinkronisasi pertama: unit induk belum ada sama sekali.
+        $this->palsukanWorka(
+            unitKerja: [['id' => 7, 'kode' => 'BLK-SBY', 'nama' => 'UPT BLK Surabaya', 'aktif' => true, 'parent' => null]],
+        );
+
+        $this->layanan()->sinkronPenuh();
+        $this->assertNull($lokal->refresh()->induk_id, 'Tanpa induk, tautan ditunda, bukan digagalkan.');
+
+        // Induk kemudian tersedia; sinkronisasi berikutnya memulihkan hirarki
+        // sendiri tanpa perlu seeding ulang atau langkah manual.
+        $induk = UnitKerja::factory()->create(['kode' => 'DISNAKERTRANS']);
+
+        $this->layanan()->sinkronPenuh();
+
+        $this->assertSame($induk->id, $lokal->refresh()->induk_id);
+    }
+
+    #[Test]
+    public function hirarki_worka_menang_atas_peta_unit_lokal(): void
+    {
+        config(['services.worka.induk_unit_lokal' => ['BLK-SBY' => 'DISNAKERTRANS']]);
+
+        // BLK-SBY ternyata dikirim WORKA dengan induk yang berbeda dari peta;
+        // yang berlaku adalah hirarki WORKA.
+        $this->palsukanWorka(unitKerja: [
+            ['id' => 2, 'kode' => 'DISNAKERTRANS', 'nama' => 'Dinas Tenaga Kerja dan Transmigrasi', 'aktif' => true, 'parent' => null],
+            ['id' => 40, 'kode' => 'BID-LAT', 'nama' => 'Bidang Pelatihan', 'aktif' => true, 'parent' => ['id' => 2, 'kode' => 'DISNAKERTRANS', 'nama' => 'Dinas']],
+            ['id' => 7, 'kode' => 'BLK-SBY', 'nama' => 'UPT BLK Surabaya', 'aktif' => true, 'parent' => ['id' => 40, 'kode' => 'BID-LAT', 'nama' => 'Bidang Pelatihan']],
+        ]);
+
+        $this->layanan()->sinkronPenuh();
+
+        $bidang = UnitKerja::query()->where('kode', 'BID-LAT')->sole();
+        $this->assertSame($bidang->id, UnitKerja::query()->where('kode', 'BLK-SBY')->sole()->induk_id);
+    }
+
+    #[Test]
     public function unit_lokal_di_luar_daftar_worka_tidak_disentuh(): void
     {
         $lokal = UnitKerja::factory()->create(['kode' => 'UPT-LOKAL', 'nama' => 'Unit Buatan Admin']);

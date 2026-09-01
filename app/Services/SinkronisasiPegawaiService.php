@@ -143,6 +143,7 @@ class SinkronisasiPegawaiService
 
         [$tersentuh, $kodeInduk] = $this->simpanUnitKerja($daftar);
         $tersentuh = $this->tautkanInduk($kodeInduk, $tersentuh);
+        $tersentuh = $this->tautkanUnitLokal(array_keys($kodeInduk), $tersentuh);
 
         $this->pengaturan->simpan(self::KUNCI_UNIT_SINKRON_TERAKHIR, Carbon::now()->toIso8601String());
 
@@ -244,6 +245,70 @@ class SinkronisasiPegawaiService
             }
 
             $lokal->induk_id = $indukId;
+
+            if ($lokal->isDirty()) {
+                $lokal->save();
+                $tersentuh[$kode] = true;
+            }
+        }
+
+        return $tersentuh;
+    }
+
+    /**
+     * Tahap ketiga: tegakkan induk unit kerja milik SI-ABSEN sendiri.
+     *
+     * Unit lokal seperti DISNAKER (tempat kepala dinas) tidak pernah dikirim
+     * WORKA, jadi induknya tidak dapat ditarik dari jawaban API. Peta
+     * `services.worka.induk_unit_lokal` menyatakan induk yang dikehendaki
+     * dalam bentuk kode, dan tautannya ditegakkan ulang di sini setiap kali
+     * sinkronisasi berjalan.
+     *
+     * Idempoten: menjalankannya berkali-kali tidak mengubah apa pun setelah
+     * tautan benar, dan hirarki pulih sendiri bila unit induk baru muncul
+     * pada sinkronisasi berikutnya — tanpa bergantung urutan seeding.
+     *
+     * @param  array<int, string>  $kodeDariWorka  kode unit yang dikirim WORKA pada putaran ini
+     * @param  array<string, true>  $tersentuh
+     * @return array<string, true>
+     */
+    protected function tautkanUnitLokal(array $kodeDariWorka, array $tersentuh): array
+    {
+        /** @var array<string, string> $peta */
+        $peta = config('services.worka.induk_unit_lokal', []);
+
+        if ($peta === []) {
+            return $tersentuh;
+        }
+
+        $unitPerKode = UnitKerja::query()
+            ->whereIn('kode', array_merge(array_keys($peta), array_values($peta)))
+            ->get()
+            ->keyBy('kode');
+
+        foreach ($peta as $kode => $kodeInduk) {
+            $lokal = $unitPerKode->get($kode);
+
+            // Unit yang ternyata dikirim WORKA bukan lagi urusan peta ini:
+            // hirarki dari WORKA yang berlaku, jangan ditimpa.
+            if ($lokal === null || $kode === $kodeInduk || in_array($kode, $kodeDariWorka, true)) {
+                continue;
+            }
+
+            $induk = $unitPerKode->get($kodeInduk);
+
+            if ($induk === null) {
+                // Induk belum ada — biasanya karena WORKA belum pernah
+                // disinkronkan. Dibiarkan agar putaran berikutnya menautkan.
+                Log::channel('worka')->warning('Induk unit kerja lokal belum tersedia.', [
+                    'unit_kerja_kode' => $kode,
+                    'induk_kode' => $kodeInduk,
+                ]);
+
+                continue;
+            }
+
+            $lokal->induk_id = $induk->id;
 
             if ($lokal->isDirty()) {
                 $lokal->save();
