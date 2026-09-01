@@ -697,6 +697,13 @@ Ringkasan endpoint inti; daftar lengkap akan dirinci sebagai route Laravel pada 
 | PATCH      | /admin/kelola-absen/event/{event}      | Ubah event yang masih aktif                                                     |
 | DELETE     | /admin/kelola-absen/event/{event}      | Hapus permanen event yang belum menautkan absensi                               |
 | POST       | /admin/kelola-absen/event/{event}/tutup| Tutup entry event (FR-EVT-04)                                                   |
+| GET        | /admin/perangkat                       | Kelola perangkat absen (FR-USR-02, FR-USR-03)                                    |
+| POST       | /admin/perangkat                       | Daftarkan perangkat beserta kode aktivasinya                                     |
+| PATCH      | /admin/perangkat/{perangkat}           | Ubah nama titik atau unit kerja perangkat                                        |
+| PATCH      | /admin/perangkat/{perangkat}/status    | Aktifkan/nonaktifkan perangkat; menonaktifkan ikut mencabut aksesnya             |
+| POST       | /admin/perangkat/{perangkat}/kode      | Terbitkan kode aktivasi baru                                                     |
+| DELETE     | /admin/perangkat/{perangkat}/token     | Cabut device token dari panel admin                                              |
+| GET        | /admin/perangkat/{perangkat}/riwayat   | Riwayat aktivasi dan pencabutan perangkat (FR-USR-03)                            |
 | GET        | /admin/pengguna                        | Kelola akun admin, khusus Superadmin (FR-USR-01)                                 |
 | POST       | /admin/pengguna                        | Buat akun admin beserta kata sandi sementaranya                                 |
 | PATCH      | /admin/pengguna/{pengguna}             | Ubah akun admin beserta cakupan unitnya                                          |

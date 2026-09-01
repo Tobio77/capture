@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\KartuRfidController;
 use App\Http\Controllers\Admin\LaporanController;
 use App\Http\Controllers\Admin\PegawaiController;
 use App\Http\Controllers\Admin\PenggunaController;
+use App\Http\Controllers\Admin\PerangkatAbsenController;
 use App\Http\Controllers\Admin\RekapController;
 use App\Http\Controllers\Admin\SettingAbsenController;
 use App\Http\Controllers\Admin\SettingWorkaController;
@@ -187,6 +188,27 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
         Route::get('setting/worka', [SettingWorkaController::class, 'edit'])->name('setting-worka.edit');
         Route::post('setting/worka', [SettingWorkaController::class, 'update'])->name('setting-worka.update');
         Route::post('setting/worka/test', [SettingWorkaController::class, 'uji'])->name('setting-worka.uji');
+    });
+
+    /*
+     * Kelola perangkat absen (FR-USR-02, FR-USR-03). Terbuka bagi Superadmin
+     * dan Admin Dinas — matriks SRS §6 memberi Admin Dinas hak
+     * "Ya (kiosk saja)" pada Kelola User/Role.
+     */
+    Route::middleware('peran:superadmin,admin_dinas')->group(function () {
+        Route::get('perangkat', [PerangkatAbsenController::class, 'index'])->name('perangkat.index');
+        Route::post('perangkat', [PerangkatAbsenController::class, 'store'])->name('perangkat.store');
+        Route::patch('perangkat/{perangkat}', [PerangkatAbsenController::class, 'update'])
+            ->name('perangkat.update');
+        Route::patch('perangkat/{perangkat}/status', [PerangkatAbsenController::class, 'ubahStatus'])
+            ->name('perangkat.status');
+        Route::post('perangkat/{perangkat}/kode', [PerangkatAbsenController::class, 'terbitkanKode'])
+            ->middleware('throttle:20,1')
+            ->name('perangkat.kode');
+        Route::delete('perangkat/{perangkat}/token', [PerangkatAbsenController::class, 'cabutToken'])
+            ->name('perangkat.cabut-token');
+        Route::get('perangkat/{perangkat}/riwayat', [PerangkatAbsenController::class, 'riwayat'])
+            ->name('perangkat.riwayat');
     });
 
     /*

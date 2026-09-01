@@ -59,6 +59,12 @@ class MenuNavigasi
                 'peran' => [PeranPengguna::Superadmin],
             ],
             [
+                'label' => 'Perangkat Absen',
+                'ikon' => 'pengguna',
+                'rute' => 'perangkat.index',
+                'peran' => $lintasUnit,
+            ],
+            [
                 'label' => 'Laporan',
                 'ikon' => 'laporan',
                 'rute' => 'laporan.index',

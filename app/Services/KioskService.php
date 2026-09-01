@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\AksiLog;
 use App\Enums\StatusKiosk;
 use App\Models\Kiosk;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -105,9 +106,14 @@ class KioskService
     }
 
     /**
-     * Lepaskan perangkat: token dicabut sehingga kiosk harus diaktifkan ulang.
+     * Lepaskan perangkat: token dicabut sehingga perangkat harus diaktifkan
+     * ulang dengan kode baru.
+     *
+     * `$pelaku` diisi ketika pencabutan datang dari panel admin (FR-USR-02),
+     * sehingga audit trail menyebut siapa yang mencabut. Pelepasan dari
+     * perangkat itu sendiri tidak punya pelaku berupa akun admin.
      */
-    public function lepas(Kiosk $kiosk): void
+    public function lepas(Kiosk $kiosk, ?User $pelaku = null): void
     {
         $kiosk->forceFill([
             'device_token' => null,
@@ -116,7 +122,10 @@ class KioskService
 
         $this->log->catat(
             AksiLog::LepasKiosk,
-            "Perangkat kiosk \"{$kiosk->nama_titik}\" dilepaskan dan device_token dicabut.",
+            $pelaku === null
+                ? "Perangkat absen \"{$kiosk->nama_titik}\" dilepaskan dan device_token dicabut."
+                : "Akses perangkat absen \"{$kiosk->nama_titik}\" dicabut dari panel admin.",
+            user: $pelaku,
             kiosk: $kiosk,
             subjek: $kiosk,
         );

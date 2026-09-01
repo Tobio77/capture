@@ -79,6 +79,10 @@ class HandleInertiaRequests extends Middleware
                  * setelah halaman berpindah.
                  */
                 'sandi_sementara' => fn () => $request->session()->get('sandi_sementara'),
+
+                // Kode aktivasi perangkat absen (FR-USR-02), sama alasannya:
+                // hanya sempat terlihat sekali setelah diterbitkan.
+                'kode_aktivasi' => fn () => $request->session()->get('kode_aktivasi'),
             ],
         ];
     }
