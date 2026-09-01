@@ -21,7 +21,7 @@ sesi tersebut di `05-TASK-Absensi.md`, lalu baca detail kebutuhannya di
 
 - **Backend:** Laravel 13 (PHP 8.2+)
 - **Frontend:** Inertia.js + Vue 3, Tailwind CSS 4
-- **Verifikasi wajah:** face-api.js (TensorFlow.js) — berjalan di sisi klien (browser kiosk), bukan di server
+- **Verifikasi wajah:** `@vladmandic/face-api` (fork face-api.js yang masih dirawat, TensorFlow.js 4.x) — berjalan di sisi klien (browser kiosk/admin), bukan di server. Paket asli `face-api.js` ditinggalkan sejak S08 karena berhenti dirawat sejak 2020 dan menyeret kerentanan `node-fetch` lewat tfjs 1.7; API dan bobot modelnya sama, deskriptor tetap 128 dimensi
 - **Database:** MySQL 8 (lokal via DBngin)
 - **Auth admin:** Laravel session/Sanctum
 - **Auth kiosk:** device token per perangkat (bukan akun personal pegawai)

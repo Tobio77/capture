@@ -26,7 +26,15 @@ Tanggal: 30 Agustus 2026
 
 # 1. Gambaran Arsitektur
 
-SI-ABSEN dibangun sebagai monolith Laravel dengan Inertia.js + Vue 3, selaras dengan stack WORKA/SIMPEG yang sudah berjalan di lingkungan Disnakertrans, sehingga memudahkan pemeliharaan oleh tim yang sama. Modul verifikasi wajah berjalan di sisi klien (browser kiosk) menggunakan face-api.js (TensorFlow.js) agar beban komputasi tidak dipikul server.
+SI-ABSEN dibangun sebagai monolith Laravel dengan Inertia.js + Vue 3, selaras dengan stack WORKA/SIMPEG yang sudah berjalan di lingkungan Disnakertrans, sehingga memudahkan pemeliharaan oleh tim yang sama. Modul verifikasi wajah berjalan di sisi klien (browser kiosk) menggunakan `@vladmandic/face-api` (TensorFlow.js) agar beban komputasi tidak dipikul server.
+
+> **Catatan pustaka.** Sejak S08 dipakai `@vladmandic/face-api`, fork face-api.js
+> yang masih dirawat dan berjalan di atas TensorFlow.js 4.x. Paket asli
+> `face-api.js` berhenti dirawat sejak 2020 dan mem-*pin* tfjs 1.7 yang
+> menyeret kerentanan `node-fetch` berseverity *high*. API keduanya sama, dan
+> bobot pengenalan wajahnya berkas yang sama — hanya digabung dari dua shard
+> menjadi satu `.bin` — sehingga deskriptor tetap 128 dimensi dan validasi di
+> sisi server tidak berubah.
 
 ### 1.1 Komponen Utama
 
@@ -36,7 +44,7 @@ SI-ABSEN dibangun sebagai monolith Laravel dengan Inertia.js + Vue 3, selaras de
 
 - Backend Laravel 13 — autentikasi, otorisasi berbasis peran, REST/Inertia endpoints, penjadwalan sinkronisasi pegawai, penyimpanan foto terkompresi.
 
-- Modul Face Matching (client-side) — face-api.js memuat model ringan (~6 MB) di browser kiosk, menghasilkan embedding wajah, dan membandingkannya dengan embedding referensi yang diambil dari server saat kiosk memuat data event.
+- Modul Face Matching (client-side) — `@vladmandic/face-api` memuat model ringan (~6 MB) di browser kiosk, menghasilkan embedding wajah, dan membandingkannya dengan embedding referensi yang diambil dari server saat kiosk memuat data event.
 
 - MySQL — penyimpanan data transaksional (event, absensi, pegawai tersinkron, user, kiosk).
 
@@ -54,7 +62,7 @@ Admin membuat event pada Panel Admin → data event tersimpan di MySQL → Kiosk
 |-------------------|---------------------------------------------------------------------------------------------|
 | Backend           | Laravel 13 (PHP 8.2+), pola Thin Controller + Fat Service/Action Class                      |
 | Frontend          | Inertia.js + Vue 3, Tailwind CSS 4                                                          |
-| Verifikasi Wajah  | face-api.js (TensorFlow.js) — dijalankan di browser kiosk                                   |
+| Verifikasi Wajah  | `@vladmandic/face-api` (fork face-api.js, TensorFlow.js 4.x) — dijalankan di browser         |
 | Database          | MySQL 8                                                                                     |
 | Autentikasi Admin | Laravel session/Sanctum                                                                     |
 | Autentikasi Kiosk | Token perangkat (device token) tersimpan lokal di browser kiosk, terikat ke satu unit kerja |
@@ -206,7 +214,7 @@ Dua pengaman berlaku pada tahap ini:
 | unit_kerja_id           | bigint, FK → unit_kerja |                                            |
 | jabatan                 | varchar(150)            | sumber: WORKA/BKD                          |
 | foto_referensi_path     | varchar(255), nullable  | path foto referensi wajah pada disk privat |
-| embedding_wajah         | json, nullable          | deskriptor wajah 128 dimensi (face-api.js) |
+| embedding_wajah         | json, nullable          | deskriptor wajah 128 dimensi (face-api)          |
 | wajah_terdaftar         | boolean                 | default false                              |
 | wajah_didaftarkan_at    | timestamp, nullable     | waktu pendaftaran/pembaruan wajah terakhir |
 | sumber_sinkron_terakhir | timestamp               | waktu sinkronisasi terakhir dari WORKA/BKD |
@@ -226,7 +234,7 @@ Wajah referensi disimpan dalam dua bentuk yang saling melengkapi:
 | Embedding | kolom `embedding_wajah`    | pencocokan wajah di kiosk (S15)        |
 
 **Embedding dihitung di browser, bukan di server.** Saat admin mengunggah foto,
-face-api.js di halaman Kelola Pegawai mendeteksi wajah dan menghasilkan
+face-api di halaman Kelola Pegawai mendeteksi wajah dan menghasilkan
 deskriptor 128 dimensi, lalu foto dan deskriptor dikirim bersama dalam satu
 permintaan. Server hanya memeriksa bentuk deskriptor (panjang 128, seluruhnya
 angka berhingga) dan menyimpannya — tidak ada pustaka pengenalan wajah di sisi
@@ -238,7 +246,7 @@ Konsekuensi yang disengaja:
 - Foto yang tidak berisi wajah, atau berisi lebih dari satu wajah, **ditolak di
   browser sebelum terkirim** — tidak ada foto referensi tanpa embedding yang
   sah, sehingga S15 tidak perlu menangani data setengah jadi.
-- Model face-api.js (~6,7 MB, `public/models/`) dimuat **malas**: hanya ketika
+- Model face-api (~6,8 MB, `public/models/`) dimuat **malas**: hanya ketika
   admin membuka dialog pendaftaran wajah, bukan pada setiap kunjungan halaman.
 - Foto tidak pernah diletakkan pada disk publik. Penyajiannya melalui route
   terautentikasi `GET /admin/pegawai/{pegawai}/wajah`, dengan Admin UPT
@@ -320,7 +328,7 @@ Konsekuensi yang disengaja:
 | metode               | enum                 | manual \| rfid                                  |
 | waktu                | datetime             |                                                 |
 | status_ketepatan     | enum, nullable       | tepat \| terlambat (berlaku untuk jenis datang) |
-| skor_kecocokan_wajah | decimal(5,2)         | hasil similarity dari face-api.js               |
+| skor_kecocokan_wajah | decimal(5,2)         | hasil similarity dari face-api                         |
 | foto_path            | varchar(255)         | path foto hasil capture, terkompresi            |
 | timestamps           | \-                   | created_at, updated_at                          |
 
@@ -363,11 +371,11 @@ Ringkasan endpoint inti; daftar lengkap akan dirinci sebagai route Laravel pada 
 
 # 5. Desain Modul Verifikasi Wajah (Client-Side)
 
-1.  Saat kiosk aktif untuk suatu event, browser memuat model face-api.js (satu kali per sesi, di-cache oleh browser).
+1.  Saat kiosk aktif untuk suatu event, browser memuat model face-api (satu kali per sesi, di-cache oleh browser).
 
 1.  Browser mengambil daftar embedding wajah referensi pegawai pada unit kerja kiosk (bukan foto mentah) dari server melalui endpoint /kiosk/embedding-wajah.
 
-2.  Saat pegawai tap ID, kamera menangkap satu frame; face-api.js mendeteksi wajah dan menghasilkan embedding 128 dimensi.
+2.  Saat pegawai tap ID, kamera menangkap satu frame; face-api mendeteksi wajah dan menghasilkan embedding 128 dimensi.
 
 3.  Embedding hasil capture dibandingkan (cosine/Euclidean distance) hanya dengan embedding milik ID yang di-tap (verifikasi 1:1, bukan pencarian 1:banyak).
 

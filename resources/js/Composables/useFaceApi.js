@@ -1,15 +1,23 @@
 import { ref } from 'vue'
 
 /**
- * Pembungkus face-api.js untuk menghitung embedding wajah di sisi klien.
+ * Pembungkus face-api untuk menghitung embedding wajah di sisi klien.
+ *
+ * Memakai @vladmandic/face-api — fork face-api.js yang masih dirawat dan
+ * berjalan di atas TensorFlow.js 4.x. API-nya sama dengan paket asli, dan
+ * bobot pengenalan wajahnya berkas yang sama (hanya digabung dari dua shard
+ * menjadi satu .bin), sehingga deskriptor tetap 128 dimensi.
  *
  * Verifikasi maupun pendaftaran wajah berjalan di browser, bukan di server
- * (lihat SDD §3). Modul face-api.js beserta bobotnya berat (~6,7 MB), jadi
- * keduanya dimuat malas — hanya ketika admin benar-benar membuka pendaftaran
- * wajah, bukan pada setiap kunjungan halaman Kelola Pegawai.
+ * (lihat SDD §3). Modul beserta bobotnya berat (~6,8 MB), jadi keduanya dimuat
+ * malas — hanya ketika admin benar-benar membuka pendaftaran wajah, bukan pada
+ * setiap kunjungan halaman Kelola Pegawai.
  */
 
 const JALUR_MODEL = '/models'
+
+/** Panjang deskriptor yang divalidasi server (FotoReferensiWajahService). */
+const DIMENSI_EMBEDDING = 128
 
 let faceapi = null
 let pemuatan = null
@@ -21,7 +29,7 @@ async function muatSekali() {
 
     if (! pemuatan) {
         pemuatan = (async () => {
-            const modul = await import('face-api.js')
+            const modul = await import('@vladmandic/face-api')
 
             await Promise.all([
                 modul.nets.tinyFaceDetector.loadFromUri(JALUR_MODEL),
@@ -81,7 +89,16 @@ export function useFaceApi() {
             return { galat: `Terdeteksi ${wajah.length} wajah pada foto. Gunakan foto berisi satu orang saja.` }
         }
 
-        return { embedding: Array.from(wajah[0].descriptor) }
+        const embedding = Array.from(wajah[0].descriptor)
+
+        // Penjaga terhadap pergantian model: server menolak apa pun yang
+        // bukan 128 dimensi, jadi gagalkan lebih awal dengan pesan yang jelas
+        // daripada menabrak validasi setelah foto terkirim.
+        if (embedding.length !== DIMENSI_EMBEDDING) {
+            return { galat: `Model menghasilkan ${embedding.length} dimensi, seharusnya ${DIMENSI_EMBEDDING}. Hubungi pengelola sistem.` }
+        }
+
+        return { embedding }
     }
 
     return { siap, memuat, siapkan, hitungEmbedding }
