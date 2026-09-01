@@ -33,7 +33,7 @@ const keluar = () => router.post('/keluar')
     <!-- Sidebar tidak ikut tercetak; lembar cetak hanya memuat isinya (FR-REK-03). -->
     <aside class="flex flex-col bg-navy-700 text-navy-100 lg:min-h-screen lg:w-72 lg:shrink-0 print:hidden">
       <div class="border-b border-white/10 px-6 py-5">
-        <p class="font-display text-lg font-semibold text-white">SI-ABSEN</p>
+        <p class="font-display text-lg font-semibold text-white">Capture</p>
         <p class="mt-0.5 text-xs text-navy-200">Absensi Kegiatan Berbasis Event</p>
       </div>
 

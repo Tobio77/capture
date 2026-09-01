@@ -50,7 +50,7 @@ const ubahStatus = (unit) => {
   const aksi = unit.aktif ? 'menonaktifkan' : 'mengaktifkan'
   const peringatan =
     unit.aktif && (unit.jumlah_pegawai > 0 || unit.jumlah_kiosk > 0)
-      ? `\n\nUnit ini masih menaungi ${unit.jumlah_pegawai} pegawai dan ${unit.jumlah_kiosk} kiosk. Data lama tetap tersimpan.`
+      ? `\n\nUnit ini masih menaungi ${unit.jumlah_pegawai} pegawai dan ${unit.jumlah_kiosk} perangkat absen. Data lama tetap tersimpan.`
       : ''
 
   if (window.confirm(`Yakin ${aksi} unit kerja ${unit.kode}?${peringatan}`)) {
@@ -66,7 +66,7 @@ const ubahStatus = (unit) => {
 <template>
   <AdminLayout
     judul="Setting Unit Kerja"
-    deskripsi="Unit kerja yang berpartisipasi dalam SI-ABSEN beserta jumlah pegawai dan kiosk terdaftar."
+    deskripsi="Unit kerja yang berpartisipasi dalam Capture beserta jumlah pegawai dan perangkat absen terdaftar."
   >
     <template v-if="dapat_mengubah" #aksi>
       <button
@@ -86,7 +86,7 @@ const ubahStatus = (unit) => {
               <th scope="col" class="px-6 py-3 font-medium">Kode</th>
               <th scope="col" class="px-6 py-3 font-medium">Nama Unit Kerja</th>
               <th scope="col" class="px-6 py-3 text-right font-medium">Pegawai</th>
-              <th scope="col" class="px-6 py-3 text-right font-medium">Kiosk</th>
+              <th scope="col" class="px-6 py-3 text-right font-medium">Perangkat</th>
               <th scope="col" class="px-6 py-3 font-medium">Status</th>
               <th v-if="dapat_mengubah" scope="col" class="px-6 py-3 text-right font-medium">Aksi</th>
             </tr>

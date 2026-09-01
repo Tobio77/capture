@@ -85,7 +85,7 @@ class EventController extends Controller
 
         return back()->with(
             'sukses',
-            "Entry event {$event->nama} ditutup. Tap baru pada kiosk akan ditolak.",
+            "Entry event {$event->nama} ditutup. Tap baru pada perangkat absen akan ditolak.",
         );
     }
 

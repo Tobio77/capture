@@ -109,7 +109,7 @@ function waktuSingkat(iso) {
 function tutup(event) {
   const pesan =
     `Tutup entry event "${event.nama}"?\n\n` +
-    'Tap baru pada kiosk untuk event ini akan ditolak, dan event tidak dapat dibuka kembali.'
+    'Tap baru pada perangkat absen untuk event ini akan ditolak, dan event tidak dapat dibuka kembali.'
 
   if (window.confirm(pesan)) {
     form.post(`/admin/kelola-absen/event/${event.id}/tutup`, { preserveScroll: true })
@@ -136,7 +136,7 @@ function tanggalPanjang(iso) {
 <template>
   <AdminLayout
     judul="Daftar Event"
-    deskripsi="Event absensi beserta cakupan unit kerjanya. Kiosk hanya melayani tap untuk event yang masih aktif."
+    deskripsi="Event absensi beserta cakupan unit kerjanya. Perangkat absen hanya melayani tap untuk event yang masih aktif."
   >
     <div class="mb-4 flex justify-end">
       <button
@@ -157,7 +157,7 @@ function tanggalPanjang(iso) {
               <th scope="col" class="px-4 py-3 font-medium">Cakupan</th>
               <th scope="col" class="px-4 py-3 font-medium">Tanggal &amp; Jam</th>
               <th scope="col" class="px-4 py-3 text-right font-medium">Toleransi</th>
-              <th scope="col" class="px-4 py-3 text-right font-medium">Kiosk</th>
+              <th scope="col" class="px-4 py-3 text-right font-medium">Perangkat</th>
               <th scope="col" class="px-4 py-3 text-right font-medium">Masuk</th>
               <th scope="col" class="px-4 py-3 font-medium">Status</th>
               <th scope="col" class="px-4 py-3 text-right font-medium">Aksi</th>
@@ -274,7 +274,7 @@ function tanggalPanjang(iso) {
         <div class="grid grid-cols-3 gap-3 text-center">
           <div class="rounded-lg border border-slate-200 px-3 py-3">
             <p class="font-display text-xl font-semibold tabular-nums text-navy-700">{{ detail.kiosk.length }}</p>
-            <p class="mt-0.5 text-xs text-slate-500">Kiosk terhubung</p>
+            <p class="mt-0.5 text-xs text-slate-500">Perangkat terhubung</p>
           </div>
           <div class="rounded-lg border border-slate-200 px-3 py-3">
             <p class="font-display text-xl font-semibold tabular-nums text-navy-700">{{ detail.jumlah_absensi }}</p>
@@ -294,10 +294,10 @@ function tanggalPanjang(iso) {
         </div>
 
         <div>
-          <p class="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Kiosk Terhubung</p>
+          <p class="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Perangkat Absen Terhubung</p>
 
           <div v-if="detail.kiosk.length === 0" class="rounded-md border border-dashed border-slate-300 px-4 py-6 text-center text-xs text-slate-500">
-            Belum ada kiosk yang aktif pada event ini.
+            Belum ada perangkat absen yang aktif pada event ini.
           </div>
 
           <table v-else class="min-w-full text-sm">

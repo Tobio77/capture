@@ -24,7 +24,7 @@ const kirim = () => {
   <div class="flex min-h-screen items-center justify-center bg-navy-700 px-4 py-12">
     <div class="w-full max-w-md">
       <div class="text-center">
-        <h1 class="font-display text-3xl font-semibold text-white">SI-ABSEN</h1>
+        <h1 class="font-display text-3xl font-semibold text-white">Capture</h1>
         <p class="mt-1 text-sm text-navy-200">
           Sistem Informasi Absensi Kegiatan<br />
           Disnakertrans Provinsi Jawa Timur
@@ -34,7 +34,7 @@ const kirim = () => {
       <div class="mt-8 rounded-lg bg-white p-8 shadow-lg">
         <h2 class="font-display text-lg font-semibold text-navy-700">Masuk Panel Admin</h2>
         <p class="mt-1 text-sm text-slate-500">
-          Gunakan akun admin Anda. Perangkat kiosk memakai alur aktivasi terpisah.
+          Gunakan akun admin Anda. Perangkat absen memakai alur aktivasi terpisah.
         </p>
 
         <div
@@ -98,7 +98,7 @@ const kirim = () => {
       </div>
 
       <p class="mt-6 text-center text-xs text-navy-300">
-        Kesulitan masuk? Hubungi Superadmin SI-ABSEN.
+        Kesulitan masuk? Hubungi Superadmin Capture.
       </p>
     </div>
   </div>

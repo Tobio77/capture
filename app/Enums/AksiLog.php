@@ -27,9 +27,9 @@ enum AksiLog: string
             self::Buat => 'Membuat Data',
             self::Ubah => 'Mengubah Data',
             self::Hapus => 'Menghapus Data',
-            self::AktivasiKiosk => 'Aktivasi Perangkat Kiosk',
-            self::AktivasiKioskGagal => 'Aktivasi Kiosk Gagal',
-            self::LepasKiosk => 'Pelepasan Perangkat Kiosk',
+            self::AktivasiKiosk => 'Aktivasi Perangkat Absen',
+            self::AktivasiKioskGagal => 'Aktivasi Perangkat Absen Gagal',
+            self::LepasKiosk => 'Pelepasan Perangkat Absen',
         };
     }
 

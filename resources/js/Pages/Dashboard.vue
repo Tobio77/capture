@@ -73,9 +73,9 @@ const kartu = computed(() => [
     warna: 'text-navy-700',
   },
   {
-    label: 'Kiosk Aktif',
+    label: 'Perangkat Aktif',
     nilai: props.statistik.kiosk_aktif,
-    keterangan: 'perangkat melayani event hari ini',
+    keterangan: 'perangkat absen melayani event hari ini',
     warna: 'text-teal-700',
   },
   {

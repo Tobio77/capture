@@ -190,7 +190,7 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
 
     Route::inertia('pengguna', 'Segera', [
         'judul' => 'Kelola User / Role',
-        'deskripsi' => 'Akun admin dan akun kiosk beserta penerbitan kode aktivasi. Dikerjakan pada Sesi S23 dan S24.',
+        'deskripsi' => 'Akun admin dan perangkat absen beserta penerbitan kode aktivasi. Dikerjakan pada Sesi S23 dan S24.',
     ])->middleware('peran:superadmin,admin_dinas')->name('pengguna.index');
 
     /*

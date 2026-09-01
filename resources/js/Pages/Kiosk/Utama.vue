@@ -316,7 +316,7 @@ const lepas = () => {
 </script>
 
 <template>
-  <Head title="Layar Kiosk" />
+  <Head title="Layar Perangkat Absen" />
 
   <div class="flex min-h-screen flex-col bg-slate-900 text-slate-100">
     <header class="border-b border-white/10 bg-navy-700">
