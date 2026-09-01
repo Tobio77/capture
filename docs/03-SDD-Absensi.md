@@ -543,6 +543,42 @@ pemilih event, tombol, dan kolom foto disembunyikan sehingga lembar berisi kop
 event beserta tabelnya saja. Foto sengaja tidak ikut tercetak — rekap cetak
 dipakai sebagai lampiran administratif, bukan bukti visual.
 
+### Laporan kehadiran (FR-LAP-01 s.d. FR-LAP-03)
+
+Rekap per pegawai untuk rentang tanggal dan unit kerja terpilih; tanpa rentang
+yang disebutkan, laporan menampilkan bulan berjalan.
+
+**"Tanpa keterangan" tidak dapat dihitung dari baris absensi.** Angka itu
+memerlukan pembandingnya: berapa event yang sebenarnya *berlaku* bagi seorang
+pegawai. Karena itu laporan lebih dulu menentukan, untuk setiap event dalam
+rentang, unit kerja mana saja yang tercakup — cakupan event diperluas ke
+seluruh turunannya karena pegawai menaut ke seksi/subbag, sedangkan event
+dinyatakan pada unit level teratas — lalu:
+
+```
+tanpa_keterangan = event_yang_berlaku − event_yang_dihadiri
+```
+
+Event bercakupan "semua unit" berlaku bagi setiap pegawai; event unit lain
+tidak pernah dihitung sebagai kemangkiran, karena pegawai tidak dapat dianggap
+mangkir dari kegiatan yang memang bukan untuknya. `terlambat` adalah bagian
+dari `hadir`, bukan kategori terpisah.
+
+**Cakupan penyaring adalah irisan** antara hak peran pengguna dan unit yang
+dipilih (FR-LAP-01): Admin UPT yang memaksa unit lain lewat kueri tetap tidak
+melihat apa pun.
+
+Rentang tanggal terbalik dibetulkan sendiri, bukan ditolak — salah ketik urutan
+lebih mungkin daripada disengaja, dan kedua kolom dikembalikan ke layar dalam
+keadaan sudah tertukar sehingga admin melihat rentang yang benar-benar dipakai.
+Panjang rentang dibatasi 366 hari.
+
+**Ekspor (FR-LAP-03)** menghasilkan CSV, bukan `.xlsx`: pemisahnya titik koma
+karena Excel berlokal Indonesia membaca koma sebagai pemisah desimal dan akan
+menggabungkan seluruh kolom menjadi satu, dan berkasnya diawali BOM UTF-8 agar
+nama ber-diakritik tidak rusak. Pencetakan memakai gaya cetak lanskap seperti
+rekap event.
+
 ### Antrian luring (NFR-05)
 
 Jaringan yang putus di tengah apel tidak boleh menghanguskan absen yang
@@ -661,6 +697,8 @@ Ringkasan endpoint inti; daftar lengkap akan dirinci sebagai route Laravel pada 
 | PATCH      | /admin/kelola-absen/event/{event}      | Ubah event yang masih aktif                                                     |
 | DELETE     | /admin/kelola-absen/event/{event}      | Hapus permanen event yang belum menautkan absensi                               |
 | POST       | /admin/kelola-absen/event/{event}/tutup| Tutup entry event (FR-EVT-04)                                                   |
+| GET        | /admin/laporan                         | Laporan kehadiran per pegawai, terfilter rentang dan unit (FR-LAP-01, FR-LAP-02) |
+| GET        | /admin/laporan/ekspor                  | Unduh laporan sebagai CSV siap Excel (FR-LAP-03)                                |
 | GET        | /admin/kelola-absen/rekap              | Rekap absen per event, terfilter cakupan unit (FR-REK-01, FR-REK-02)             |
 | GET        | /admin/kelola-absen/rekap/{event}/data | Rekap terkini sebagai JSON untuk pembaruan berkala                               |
 | GET        | /admin/absensi/{absensi}/foto          | Foto absen untuk panel admin, dibatasi cakupan unit (NFR-04)                     |

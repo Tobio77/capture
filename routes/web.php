@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\EventController;
 use App\Http\Controllers\Admin\FotoReferensiWajahController;
 use App\Http\Controllers\Admin\KartuRfidController;
+use App\Http\Controllers\Admin\LaporanController;
 use App\Http\Controllers\Admin\PegawaiController;
 use App\Http\Controllers\Admin\RekapController;
 use App\Http\Controllers\Admin\SettingAbsenController;
@@ -192,8 +193,10 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
         'deskripsi' => 'Akun admin dan akun kiosk beserta penerbitan kode aktivasi. Dikerjakan pada Sesi S23 dan S24.',
     ])->middleware('peran:superadmin,admin_dinas')->name('pengguna.index');
 
-    Route::inertia('laporan', 'Segera', [
-        'judul' => 'Laporan',
-        'deskripsi' => 'Laporan kehadiran per periode dan unit kerja beserta ekspor. Dikerjakan pada Sesi S22.',
-    ])->name('laporan.index');
+    /*
+     * Laporan kehadiran (FR-LAP-01 s.d. FR-LAP-03). Cakupan unitnya mengikuti
+     * peran, sama seperti rekap.
+     */
+    Route::get('laporan', [LaporanController::class, 'index'])->name('laporan.index');
+    Route::get('laporan/ekspor', [LaporanController::class, 'ekspor'])->name('laporan.ekspor');
 });
