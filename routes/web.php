@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\EventController;
 use App\Http\Controllers\Admin\FotoReferensiWajahController;
 use App\Http\Controllers\Admin\PegawaiController;
 use App\Http\Controllers\Admin\SettingAbsenController;
@@ -58,10 +59,15 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
     Route::inertia('dashboard', 'Dashboard')->name('dashboard');
 
     Route::prefix('kelola-absen')->group(function () {
-        Route::inertia('event', 'Segera', [
-            'judul' => 'Daftar Event',
-            'deskripsi' => 'Pembuatan dan pengelolaan event absensi. Dikerjakan pada Sesi S10.',
-        ])->name('event.index');
+        /*
+         * Daftar Event (FR-EVT-01, FR-EVT-02). Admin UPT boleh membuat event
+         * untuk unitnya sendiri, sehingga tidak dibatasi peran lintas unit —
+         * pembatasan cakupannya ditegakkan SimpanEventRequest.
+         */
+        Route::get('event', [EventController::class, 'index'])->name('event.index');
+        Route::post('event', [EventController::class, 'store'])->name('event.store');
+        Route::patch('event/{event}', [EventController::class, 'update'])->name('event.update');
+        Route::delete('event/{event}', [EventController::class, 'destroy'])->name('event.destroy');
 
         Route::inertia('rekap', 'Segera', [
             'judul' => 'Rekap Absen',

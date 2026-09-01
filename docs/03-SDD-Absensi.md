@@ -291,7 +291,7 @@ Konsekuensi yang disengaja:
 | nama            | varchar(150)        |                                              |
 | tanggal         | date                |                                              |
 | jam_mulai       | time                |                                              |
-| toleransi_menit | int                 | default dari Setting Absen, dapat dioverride |
+| toleransi_menit | smallint unsigned   | disalin dari Setting Absen saat dibuat, lalu berdiri sendiri |
 | cakupan         | enum                | unit \| semua_unit                           |
 | status          | enum                | aktif \| ditutup                             |
 | dibuat_oleh     | bigint, FK → users  |                                              |
@@ -299,12 +299,68 @@ Konsekuensi yang disengaja:
 | catatan         | text, nullable      |                                              |
 | timestamps      | \-                  | created_at, updated_at                       |
 
+`dibuat_oleh` memakai `nullOnDelete` agar event tidak ikut hilang bila akun
+pembuatnya dihapus; `toleransi_menit` sengaja disalin, bukan dirujuk, sehingga
+mengubah Setting Absen tidak menggeser event yang sudah berjalan (FR-SET-02).
+
 ## 3.6 event_unit_kerja (pivot)
 
-| **Kolom**      | **Tipe**   | **Keterangan** |
-|----------------|------------|----------------|
-| event_absen_id | bigint, FK |                |
-| unit_kerja_id  | bigint, FK |                |
+| **Kolom**      | **Tipe**   | **Keterangan**                    |
+|----------------|------------|-----------------------------------|
+| id             | bigint, PK |                                   |
+| event_absen_id | bigint, FK | cascade on delete                 |
+| unit_kerja_id  | bigint, FK | cascade on delete                 |
+|                |            | unik per pasangan event × unit    |
+
+**Cakupan event memakai unit level teratas.** Unit yang boleh dipilih adalah
+unit level teratas yang aktif (lihat §3.1) — UPT, bidang, sekretariat, dan
+DISNAKER. Seksi/subbag tidak dapat dipilih karena absensi diselenggarakan pada
+tingkat UPT/bidang; pegawai di bawahnya tetap tercakup lewat
+`UnitKerja::idsDenganTurunan()`.
+
+**Cakupan "semua unit" tidak menyimpan baris pivot sama sekali.** Menyalin
+seluruh unit ke pivot akan basi begitu unit baru masuk dari sinkronisasi WORKA,
+sehingga event bercakupan semua unit dikenali dari kolom `cakupan` saja dan
+otomatis mencakup unit yang lahir setelahnya.
+
+**Batasan peran (FR-EVT-02).** Admin UPT hanya dapat memilih unit level teratas
+yang menaunginya — termasuk bila akunnya menempel pada seksi di bawahnya — dan
+tidak dapat memakai cakupan "semua unit". Pada daftar event, Admin UPT melihat
+event yang menyentuh unitnya beserta event bercakupan semua unit, tetapi hanya
+dapat mengubah event miliknya sendiri. Event yang sudah ditutup tidak dapat
+diubah oleh peran mana pun, karena absensi yang terlanjur tercatat menautnya.
+
+### Tumpang tindih event aktif (FR-EVT-06)
+
+Dua event **aktif** tidak boleh bertumpang tindih pada cakupan dan rentang
+waktu yang sama — kiosk tidak akan tahu sebuah tap milik event yang mana.
+Pemeriksaan berjalan saat pembuatan maupun perubahan event, dan pesan
+kesalahannya menyebut nama, jam, serta cakupan event yang bentrok.
+
+*Rentang waktu* sebuah event dihitung dari `jam_mulai` sampai
+`jam_mulai + toleransi_menit`, yaitu jendela ketika tap masih dianggap tepat
+waktu. Skema tidak menyimpan jam selesai, sehingga jendela inilah definisi
+kerja yang dipakai; konsekuensinya apel pagi dan apel sore pada unit dan hari
+yang sama tetap boleh berdampingan.
+
+*Cakupan* dinilai beririsan bila salah satu pihak bercakupan "semua unit" —
+yang menurut definisi mencakup segalanya — atau bila pivot unit keduanya
+bersinggungan.
+
+Event berstatus `ditutup` tidak diperhitungkan: hanya event aktif yang
+menimbulkan ambiguitas saat tap.
+
+### Penghapusan event
+
+Event dapat dihapus permanen **selama belum menautkan satu pun baris
+`absensi`**. Statusnya tidak menentukan: event salah-buat yang terlanjur
+ditutup pun masih dapat dibersihkan, sedangkan event yang sudah menerima satu
+tap terkunci selamanya. Baris `event_unit_kerja` ikut terhapus lewat cascade,
+dan penghapusan tercatat pada audit trail.
+
+Pemeriksaannya menoleransi keadaan tabel `absensi` belum ada — tabel itu
+dibuat pada S16 — dengan menganggap jumlah absensi nol, sehingga tidak perlu
+diubah lagi setelah tabelnya lahir.
 
 ## 3.7 event_kiosk (log kiosk aktif per event)
 
@@ -402,10 +458,12 @@ Ringkasan endpoint inti; daftar lengkap akan dirinci sebagai route Laravel pada 
 | GET        | /kiosk/event-aktif                     | Kiosk mengambil event aktif untuk unit kerjanya                                 |
 | GET        | /kiosk/embedding-wajah/{unit_kerja_id} | Kiosk mengambil daftar embedding wajah pegawai unit terkait (di-cache di klien) |
 | POST       | /kiosk/absen                           | Kirim hasil absen (ID pegawai, jenis, metode, skor kecocokan, foto terkompresi) |
-| GET        | /admin/event                           | Daftar event (terfilter sesuai peran)                                           |
-| POST       | /admin/event                           | Buat event baru                                                                 |
-| POST       | /admin/event/{id}/tutup                | Tutup event                                                                     |
-| GET        | /admin/event/{id}/rekap                | Rekap absen live per event                                                      |
+| GET        | /admin/kelola-absen/event              | Daftar event (terfilter sesuai peran)                                           |
+| POST       | /admin/kelola-absen/event              | Buat event baru (FR-EVT-01, FR-EVT-02)                                          |
+| PATCH      | /admin/kelola-absen/event/{event}      | Ubah event yang masih aktif                                                     |
+| DELETE     | /admin/kelola-absen/event/{event}      | Hapus permanen event yang belum menautkan absensi                               |
+| POST       | /admin/kelola-absen/event/{event}/tutup| Tutup event (S11)                                                               |
+| GET        | /admin/kelola-absen/event/{event}/rekap| Rekap absen live per event (S21)                                                |
 | GET        | /admin/kelola-absen/setting            | Form Setting Absen (Superadmin & Admin Dinas)                                   |
 | POST       | /admin/kelola-absen/setting            | Simpan Setting Absen (FR-SET-01 s.d. FR-SET-04)                                 |
 | GET        | /admin/pegawai                         | Daftar pegawai (terfilter sesuai peran)                                         |
