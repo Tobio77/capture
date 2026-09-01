@@ -241,6 +241,77 @@ class RekapTest extends TestCase
     }
 
     #[Test]
+    public function rekap_dapat_diunduh_sebagai_csv_dan_pdf(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        $event = EventAbsen::factory()->create(['nama' => 'Apel Pagi', 'tanggal' => '2026-09-07']);
+        $event->unitKerja()->attach($upt);
+
+        Absensi::factory()->create([
+            'event_absen_id' => $event->id,
+            'pegawai_id' => Pegawai::factory()->create([
+                'nama' => 'Ahmad Fauzi',
+                'unit_kerja_id' => $upt->id,
+            ])->id,
+        ]);
+
+        $admin = User::factory()->superadmin()->create();
+
+        $csv = $this->actingAs($admin)
+            ->get(self::URL."/{$event->id}/ekspor")
+            ->assertOk()
+            ->streamedContent();
+
+        $this->assertStringContainsString('"NIP";"Nama"', $csv);
+        $this->assertStringContainsString('Ahmad Fauzi', $csv);
+
+        $pdf = $this->actingAs($admin)
+            ->get(self::URL."/{$event->id}/ekspor?format=pdf")
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringStartsWith('%PDF-', $pdf);
+    }
+
+    #[Test]
+    public function ekspor_rekap_mengikuti_cakupan_peran(): void
+    {
+        // FR-REK-02 berlaku pada berkas unduhan juga, bukan hanya di layar.
+        ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
+        $event = EventAbsen::factory()->semuaUnit()->create();
+
+        foreach ([['Ahmad', $upt], ['Citra', $lain]] as [$nama, $unit]) {
+            Absensi::factory()->create([
+                'event_absen_id' => $event->id,
+                'pegawai_id' => Pegawai::factory()->create([
+                    'nama' => $nama,
+                    'unit_kerja_id' => $unit->id,
+                ])->id,
+            ]);
+        }
+
+        $isi = $this->actingAs(User::factory()->adminUpt($upt)->create())
+            ->get(self::URL."/{$event->id}/ekspor")
+            ->assertOk()
+            ->streamedContent();
+
+        $this->assertStringContainsString('Ahmad', $isi);
+        $this->assertStringNotContainsString('Citra', $isi);
+    }
+
+    #[Test]
+    public function ekspor_rekap_ditolak_untuk_event_di_luar_cakupan(): void
+    {
+        ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
+        $event = EventAbsen::factory()->create();
+        $event->unitKerja()->attach($lain);
+
+        $this->actingAs(User::factory()->adminUpt($upt)->create())
+            ->get(self::URL."/{$event->id}/ekspor")
+            ->assertForbidden();
+    }
+
+    #[Test]
     public function event_yang_sudah_ditutup_tetap_dapat_direkap(): void
     {
         ['upt' => $upt] = $this->hirarki();

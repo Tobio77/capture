@@ -171,10 +171,10 @@ class PerangkatAbsenTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Perangkat/Index')
-                ->has('daftar', 1)
-                ->where('daftar.0.nama_titik', 'Aula Utama')
-                ->where('daftar.0.ip_terakhir', '10.10.4.21')
-                ->where('daftar.0.terpasang', true)
+                ->has('daftar.data', 1)
+                ->where('daftar.data.0.nama_titik', 'Aula Utama')
+                ->where('daftar.data.0.ip_terakhir', '10.10.4.21')
+                ->where('daftar.data.0.terpasang', true)
                 ->etc());
     }
 

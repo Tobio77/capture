@@ -9,6 +9,8 @@ use App\Models\EventAbsen;
 use App\Models\Kiosk;
 use App\Models\UnitKerja;
 use App\Models\User;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -44,9 +46,72 @@ class EventAbsenService
      *
      * @return Collection<int, array<string, mixed>>
      */
-    public function daftar(User $pelaku): Collection
+    /** Jumlah baris per halaman pada Daftar Event. */
+    public const int PER_HALAMAN = 15;
+
+    /**
+     * @param  array<string, mixed>  $filter  cari, status, unit_kerja_id, dari, sampai
+     * @return LengthAwarePaginator<int, array<string, mixed>>
+     */
+    public function daftar(User $pelaku, array $filter = []): LengthAwarePaginator
     {
-        $event = EventAbsen::query()
+        $halaman = $this->kueriDaftar($pelaku, $filter)
+            ->paginate(self::PER_HALAMAN)
+            ->withQueryString();
+
+        $absensi = $this->jumlahAbsensi($halaman->getCollection()->pluck('id')->all());
+
+        return $halaman->through(fn (EventAbsen $satu) => $this->untukLayar(
+            $satu,
+            $absensi[$satu->id] ?? 0,
+        ));
+    }
+
+    /**
+     * Seluruh event hasil penyaringan, tanpa paginasi — dipakai ekspor, yang
+     * harus memuat semuanya, bukan halaman yang sedang dibuka.
+     *
+     * @param  array<string, mixed>  $filter
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function semua(User $pelaku, array $filter = []): Collection
+    {
+        $event = $this->kueriDaftar($pelaku, $filter)->get();
+        $absensi = $this->jumlahAbsensi($event->pluck('id')->all());
+
+        return $event->map(fn (EventAbsen $satu) => $this->untukLayar(
+            $satu,
+            $absensi[$satu->id] ?? 0,
+        ));
+    }
+
+    /**
+     * Seluruh event dalam cakupan pengguna sebagai pilihan ringkas — dipakai
+     * penyaring Rekap Absen, yang membutuhkan daftar utuh, bukan satu halaman.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function opsiEvent(User $pelaku): Collection
+    {
+        return $this->kueriDaftar($pelaku)
+            ->get()
+            ->map(fn (EventAbsen $event) => [
+                'id' => $event->id,
+                'nama' => $event->nama,
+                'tanggal' => $event->tanggal->toDateString(),
+                'jam_mulai' => substr((string) $event->jam_mulai, 0, 5),
+                'status' => $event->status->value,
+                'status_label' => $event->status->label(),
+            ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $filter
+     * @return Builder<EventAbsen>
+     */
+    protected function kueriDaftar(User $pelaku, array $filter = []): Builder
+    {
+        return EventAbsen::query()
             ->with(['unitKerja:id,kode,nama', 'pembuat:id,nama'])
             ->withCount('kiosk')
             ->when(
@@ -55,16 +120,35 @@ class EventAbsenService
                     UnitKerja::idsDenganTurunan($pelaku->unit_kerja_id),
                 ),
             )
+            ->when(
+                filled($filter['cari'] ?? null),
+                fn ($query) => $query->where(function ($q) use ($filter) {
+                    $q->where('nama', 'like', '%'.$filter['cari'].'%')
+                        ->orWhere('catatan', 'like', '%'.$filter['cari'].'%');
+                }),
+            )
+            ->when(
+                filled($filter['status'] ?? null),
+                fn ($query) => $query->where('status', $filter['status']),
+            )
+            ->when(
+                filled($filter['unit_kerja_id'] ?? null),
+                // Event bercakupan "semua unit" ikut, karena secara definisi
+                // mencakup unit yang sedang disaring juga.
+                fn ($query) => $query->menyentuhUnit(
+                    UnitKerja::idsDenganTurunan((int) $filter['unit_kerja_id']),
+                ),
+            )
+            ->when(
+                filled($filter['dari'] ?? null),
+                fn ($query) => $query->whereDate('tanggal', '>=', $filter['dari']),
+            )
+            ->when(
+                filled($filter['sampai'] ?? null),
+                fn ($query) => $query->whereDate('tanggal', '<=', $filter['sampai']),
+            )
             ->orderByDesc('tanggal')
-            ->orderByDesc('jam_mulai')
-            ->get();
-
-        $absensi = $this->jumlahAbsensi($event->pluck('id')->all());
-
-        return $event->map(fn (EventAbsen $satu) => $this->untukLayar(
-            $satu,
-            $absensi[$satu->id] ?? 0,
-        ));
+            ->orderByDesc('jam_mulai');
     }
 
     /**

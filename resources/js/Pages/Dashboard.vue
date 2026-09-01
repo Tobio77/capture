@@ -1,26 +1,40 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { usePage } from '@inertiajs/vue3'
+import { Link, usePage } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
+import Ikon from '@/Components/Ikon.vue'
+import Lencana from '@/Components/UI/Lencana.vue'
+import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
 
 /**
- * Dashboard ringkasan kehadiran (FR-DASH-01, FR-DASH-02).
+ * Dashboard ringkasan kehadiran (FR-DASH-01 s.d. FR-DASH-03).
  *
- * Grafik tren digambar sebagai SVG inline, bukan lewat pustaka chart: satu
- * grafik area tujuh titik tidak sepadan dengan tambahan berat bundel, dan
- * warnanya jadi mengikuti palet proyek apa adanya.
+ * Grafik digambar sebagai SVG inline, bukan lewat pustaka chart: bentuknya
+ * sederhana dan tetap, sehingga satu pustaka lagi tidak sepadan — dan
+ * warnanya mengikuti palet proyek apa adanya.
  */
 
 const props = defineProps({
   statistik: { type: Object, required: true },
   tren: { type: Array, required: true },
   aktivitas: { type: Array, required: true },
+  ketepatan: { type: Object, required: true },
+  kesiapan: { type: Object, required: true },
+  peringkat_unit: { type: Array, required: true },
+  event_berjalan: { type: Array, required: true },
 })
 
-/*
- * Feed disegarkan setiap 20 detik. Lebih lambat daripada layar kiosk yang
- * 10 detik: admin membaca ringkasan, bukan menunggu namanya muncul.
- */
+const page = usePage()
+const pengguna = computed(() => page.props.auth.pengguna)
+
+const cakupan = computed(() =>
+  pengguna.value.lintas_unit
+    ? 'seluruh unit kerja'
+    : (pengguna.value.unit_kerja?.nama ?? 'tanpa unit kerja'),
+)
+
+/* Feed disegarkan tiap 20 detik — admin membaca ringkasan, bukan menunggu
+   namanya muncul seperti pegawai di perangkat absen. */
 const JEDA_SEGAR_MS = 20000
 
 const aktivitasTerkini = ref(props.aktivitas)
@@ -46,56 +60,54 @@ async function segarkanAktivitas() {
   }
 }
 
-function waktuRelatif(iso) {
-  const selisih = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
-
-  if (selisih < 1) return 'baru saja'
-  if (selisih < 60) return `${selisih} menit lalu`
-  if (selisih < 1440) return `${Math.floor(selisih / 60)} jam lalu`
-
-  return `${Math.floor(selisih / 1440)} hari lalu`
-}
-
-const page = usePage()
-const pengguna = computed(() => page.props.auth.pengguna)
-
-const cakupan = computed(() =>
-  pengguna.value.lintas_unit
-    ? 'seluruh unit kerja'
-    : (pengguna.value.unit_kerja?.nama ?? 'tanpa unit kerja'),
-)
-
 const kartu = computed(() => [
   {
     label: 'Total Pegawai',
     nilai: props.statistik.total_pegawai,
     keterangan: 'pegawai aktif dalam cakupan Anda',
+    ikon: 'pegawai',
     warna: 'text-navy-700',
+    latar: 'bg-navy-50 text-navy-600',
   },
   {
     label: 'Perangkat Aktif',
     nilai: props.statistik.kiosk_aktif,
-    keterangan: 'perangkat absen melayani event hari ini',
+    keterangan: `dari ${props.kesiapan.perangkat} perangkat terdaftar`,
+    ikon: 'perangkat',
     warna: 'text-teal-700',
+    latar: 'bg-teal-50 text-teal-600',
   },
   {
     label: 'Event Berlangsung',
     nilai: props.statistik.event_berlangsung,
     keterangan: 'entry masih dibuka',
+    ikon: 'absen',
     warna: 'text-teal-700',
+    latar: 'bg-teal-50 text-teal-600',
   },
   {
     label: 'Kehadiran Hari Ini',
     nilai: `${props.statistik.persentase_kehadiran}%`,
     keterangan: `${props.statistik.hadir_hari_ini} dari ${props.statistik.total_pegawai} pegawai`,
+    ikon: props.statistik.persentase_kehadiran >= 75 ? 'naik' : 'turun',
     warna: props.statistik.persentase_kehadiran >= 75 ? 'text-emerald-700' : 'text-amber-700',
+    latar:
+      props.statistik.persentase_kehadiran >= 75
+        ? 'bg-emerald-50 text-emerald-600'
+        : 'bg-amber-50 text-amber-600',
   },
 ])
 
+const totalKetepatan = computed(() => props.ketepatan.tepat + props.ketepatan.terlambat)
+
+const bagianTepat = computed(() =>
+  totalKetepatan.value === 0 ? 0 : Math.round((props.ketepatan.tepat / totalKetepatan.value) * 100),
+)
+
 /* Geometri grafik area. */
 const LEBAR = 720
-const TINGGI = 200
-const PADDING = 28
+const TINGGI = 190
+const PADDING = 30
 
 const puncak = computed(() => Math.max(1, ...props.tren.map((t) => t.jumlah)))
 
@@ -123,96 +135,240 @@ const area = computed(() => {
 })
 
 const adaKehadiran = computed(() => props.tren.some((t) => t.jumlah > 0))
+
+function waktuRelatif(iso) {
+  const selisih = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
+
+  if (selisih < 1) return 'baru saja'
+  if (selisih < 60) return `${selisih} menit lalu`
+  if (selisih < 1440) return `${Math.floor(selisih / 60)} jam lalu`
+
+  return `${Math.floor(selisih / 1440)} hari lalu`
+}
 </script>
 
 <template>
   <AdminLayout judul="Dashboard" :deskripsi="`Ringkasan kehadiran untuk ${cakupan}.`">
     <!-- FR-DASH-01 -->
-    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <div
         v-for="item in kartu"
         :key="item.label"
-        class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
+        class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md"
       >
-        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ item.label }}</p>
-        <p class="mt-2 font-display text-3xl font-semibold tabular-nums" :class="item.warna">
-          {{ item.nilai }}
-        </p>
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ item.label }}</p>
+            <p class="mt-2 font-display text-3xl font-semibold tabular-nums" :class="item.warna">
+              {{ item.nilai }}
+            </p>
+          </div>
+          <span class="rounded-lg p-2" :class="item.latar">
+            <Ikon :nama="item.ikon" ukuran="h-5 w-5" />
+          </span>
+        </div>
         <p class="mt-1 text-xs text-slate-500">{{ item.keterangan }}</p>
       </div>
     </div>
 
-    <div class="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
-      <!-- FR-DASH-02 -->
-      <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-      <div class="flex items-baseline justify-between">
-        <h2 class="font-display text-base font-semibold text-navy-700">Tren Kehadiran</h2>
-        <p class="text-xs text-slate-500">7 hari terakhir</p>
+    <!-- Event berjalan -->
+    <div
+      v-if="event_berjalan.length > 0"
+      class="mt-6 rounded-lg border border-emerald-200 bg-emerald-50/50 p-5"
+    >
+      <div class="flex items-center gap-2">
+        <span class="h-2 w-2 animate-pulse rounded-full bg-emerald-600"></span>
+        <h2 class="font-display text-sm font-semibold text-navy-700">Sedang Berlangsung</h2>
       </div>
 
-      <div v-if="!adaKehadiran" class="mt-6 rounded-md border border-dashed border-slate-300 px-4 py-12 text-center text-sm text-slate-500">
-        Belum ada kehadiran tercatat pada rentang ini.
+      <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <Link
+          v-for="event in event_berjalan"
+          :key="event.id"
+          :href="`/admin/kelola-absen/rekap?event_absen_id=${event.id}`"
+          class="rounded-lg border border-emerald-200 bg-white px-4 py-3 transition hover:border-emerald-400 hover:shadow-sm"
+        >
+          <p class="truncate font-medium text-navy-700">{{ event.nama }}</p>
+          <p class="mt-0.5 truncate text-xs text-slate-500">
+            {{ event.jam_mulai }} · {{ event.cakupan }}
+          </p>
+          <p class="mt-2 font-display text-lg font-semibold tabular-nums text-emerald-700">
+            {{ event.hadir }}
+            <span class="text-xs font-normal text-slate-500">sudah absen</span>
+          </p>
+        </Link>
       </div>
+    </div>
 
-      <svg
-        v-else
-        :viewBox="`0 0 ${LEBAR} ${TINGGI}`"
-        class="mt-4 w-full"
-        role="img"
-        aria-label="Grafik tren kehadiran tujuh hari terakhir"
-      >
-        <defs>
-          <linearGradient id="gradienTren" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#0D9488" stop-opacity="0.28" />
-            <stop offset="100%" stop-color="#0D9488" stop-opacity="0" />
-          </linearGradient>
-        </defs>
+    <div class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
+      <div class="space-y-6">
+        <!-- FR-DASH-02 -->
+        <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+          <div class="flex items-baseline justify-between">
+            <h2 class="font-display text-base font-semibold text-navy-700">Tren Kehadiran</h2>
+            <p class="text-xs text-slate-500">7 hari terakhir</p>
+          </div>
 
-        <!-- Garis bantu horizontal -->
-        <line
-          v-for="bagian in [0, 0.5, 1]"
-          :key="bagian"
-          :x1="PADDING"
-          :x2="LEBAR - PADDING"
-          :y1="TINGGI - PADDING - bagian * (TINGGI - PADDING * 2)"
-          :y2="TINGGI - PADDING - bagian * (TINGGI - PADDING * 2)"
-          stroke="#e2e8f0"
-          stroke-width="1"
-        />
+          <KeadaanKosong
+            v-if="!adaKehadiran"
+            ikon="absen"
+            judul="Belum ada kehadiran"
+            keterangan="Grafik terisi begitu ada absensi tercatat pada rentang ini."
+          />
 
-        <polygon :points="area" fill="url(#gradienTren)" />
-        <polyline :points="garis" fill="none" stroke="#0D9488" stroke-width="2.5" stroke-linejoin="round" />
-
-        <g v-for="t in titik" :key="t.tanggal">
-          <circle :cx="t.x" :cy="t.y" r="4" fill="#0D9488" />
-          <text
-            :x="t.x"
-            :y="t.y - 12"
-            text-anchor="middle"
-            class="fill-navy-700 font-display text-[13px] tabular-nums"
+          <svg
+            v-else
+            :viewBox="`0 0 ${LEBAR} ${TINGGI}`"
+            class="mt-4 w-full"
+            role="img"
+            aria-label="Grafik tren kehadiran tujuh hari terakhir"
           >
-            {{ t.jumlah }}
-          </text>
-          <text
-            :x="t.x"
-            :y="TINGGI - 6"
-            text-anchor="middle"
-            class="fill-slate-500 text-[12px]"
-          >
-            {{ t.label }}
-          </text>
-        </g>
-      </svg>
+            <defs>
+              <linearGradient id="gradienTren" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#0D9488" stop-opacity="0.28" />
+                <stop offset="100%" stop-color="#0D9488" stop-opacity="0" />
+              </linearGradient>
+            </defs>
+
+            <line
+              v-for="bagian in [0, 0.5, 1]"
+              :key="bagian"
+              :x1="PADDING"
+              :x2="LEBAR - PADDING"
+              :y1="TINGGI - PADDING - bagian * (TINGGI - PADDING * 2)"
+              :y2="TINGGI - PADDING - bagian * (TINGGI - PADDING * 2)"
+              stroke="#e2e8f0"
+              stroke-width="1"
+            />
+
+            <polygon :points="area" fill="url(#gradienTren)" />
+            <polyline
+              :points="garis"
+              fill="none"
+              stroke="#0D9488"
+              stroke-width="2.5"
+              stroke-linejoin="round"
+              stroke-linecap="round"
+            />
+
+            <g v-for="t in titik" :key="t.tanggal">
+              <circle :cx="t.x" :cy="t.y" r="4.5" fill="#fff" stroke="#0D9488" stroke-width="2.5" />
+              <text
+                :x="t.x"
+                :y="t.y - 13"
+                text-anchor="middle"
+                class="fill-navy-700 font-display text-[13px] tabular-nums"
+              >
+                {{ t.jumlah }}
+              </text>
+              <text :x="t.x" :y="TINGGI - 8" text-anchor="middle" class="fill-slate-500 text-[12px]">
+                {{ t.label }}
+              </text>
+            </g>
+          </svg>
+        </div>
+
+        <!-- Ketepatan & kesiapan -->
+        <div class="grid gap-6 md:grid-cols-2">
+          <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 class="font-display text-base font-semibold text-navy-700">Ketepatan Hari Ini</h2>
+
+            <p v-if="totalKetepatan === 0" class="mt-4 text-sm text-slate-500">
+              Belum ada absen masuk hari ini.
+            </p>
+
+            <template v-else>
+              <div class="mt-4 flex h-3 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  class="bg-emerald-500 transition-all duration-500"
+                  :style="{ width: `${bagianTepat}%` }"
+                ></div>
+                <div class="flex-1 bg-amber-500 transition-all duration-500"></div>
+              </div>
+
+              <div class="mt-4 grid grid-cols-2 gap-4">
+                <div>
+                  <p class="font-display text-2xl font-semibold tabular-nums text-emerald-700">
+                    {{ ketepatan.tepat }}
+                  </p>
+                  <p class="text-xs text-slate-500">tepat waktu ({{ bagianTepat }}%)</p>
+                </div>
+                <div>
+                  <p class="font-display text-2xl font-semibold tabular-nums text-amber-700">
+                    {{ ketepatan.terlambat }}
+                  </p>
+                  <p class="text-xs text-slate-500">terlambat</p>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 class="font-display text-base font-semibold text-navy-700">Kesiapan Sistem</h2>
+            <p class="mt-1 text-xs text-slate-500">
+              Yang biasanya menjelaskan kegagalan absen di lapangan.
+            </p>
+
+            <div class="mt-4 space-y-3">
+              <div v-for="baris in [
+                { label: 'Wajah terdaftar', nilai: kesiapan.wajah_terdaftar, total: kesiapan.pegawai, persen: kesiapan.wajah_persen },
+                { label: 'Kartu RFID terdaftar', nilai: kesiapan.kartu_terdaftar, total: kesiapan.pegawai, persen: kesiapan.kartu_persen },
+              ]" :key="baris.label">
+                <div class="flex items-baseline justify-between text-xs">
+                  <span class="text-slate-600">{{ baris.label }}</span>
+                  <span class="font-display tabular-nums text-slate-700">
+                    {{ baris.nilai }}/{{ baris.total }} · {{ baris.persen }}%
+                  </span>
+                </div>
+                <div class="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    class="h-full rounded-full transition-all duration-500"
+                    :class="baris.persen >= 80 ? 'bg-emerald-500' : baris.persen >= 40 ? 'bg-teal-500' : 'bg-amber-500'"
+                    :style="{ width: `${Math.max(baris.persen, 2)}%` }"
+                  ></div>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between border-t border-slate-100 pt-3 text-xs">
+                <span class="text-slate-600">Perangkat terpasang</span>
+                <Lencana :warna="kesiapan.perangkat_terpasang === kesiapan.perangkat ? 'emerald' : 'amber'">
+                  {{ kesiapan.perangkat_terpasang }} dari {{ kesiapan.perangkat }}
+                </Lencana>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Peringkat unit -->
+        <div v-if="peringkat_unit.length > 0" class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 class="font-display text-base font-semibold text-navy-700">Kehadiran per Unit Kerja</h2>
+          <p class="mt-1 text-xs text-slate-500">Hari ini, diurutkan menurut persentase kehadiran.</p>
+
+          <div class="mt-4 space-y-3">
+            <div v-for="unit in peringkat_unit" :key="unit.kode">
+              <div class="flex items-baseline justify-between gap-3 text-sm">
+                <span class="truncate text-slate-700">{{ unit.nama }}</span>
+                <span class="shrink-0 font-display text-xs tabular-nums text-slate-500">
+                  {{ unit.hadir }}/{{ unit.pegawai }} · {{ unit.persen }}%
+                </span>
+              </div>
+              <div class="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  class="h-full rounded-full transition-all duration-700"
+                  :class="unit.persen >= 75 ? 'bg-emerald-500' : unit.persen >= 40 ? 'bg-teal-500' : 'bg-amber-500'"
+                  :style="{ width: `${Math.max(unit.persen, 2)}%` }"
+                ></div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- FR-DASH-03 -->
       <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
         <div class="flex items-baseline justify-between">
           <h2 class="font-display text-base font-semibold text-navy-700">Aktivitas Terbaru</h2>
-          <span class="flex items-center gap-1.5 text-xs text-slate-500">
-            <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"></span>
-            live
-          </span>
+          <Lencana warna="emerald" denyut>live</Lencana>
         </div>
 
         <ol v-if="aktivitasTerkini.length > 0" class="mt-4 space-y-3">
@@ -222,17 +378,20 @@ const adaKehadiran = computed(() => props.tren.some((t) => t.jumlah > 0))
             class="flex items-start gap-3 border-b border-slate-100 pb-3 last:border-0 last:pb-0"
           >
             <span
-              class="mt-1.5 h-2 w-2 shrink-0 rounded-full"
-              :class="baris.status_ketepatan === 'terlambat' ? 'bg-amber-500' : 'bg-emerald-500'"
-            ></span>
+              class="mt-0.5 rounded-full p-1.5"
+              :class="baris.status_ketepatan === 'terlambat'
+                ? 'bg-amber-50 text-amber-600'
+                : 'bg-emerald-50 text-emerald-600'"
+            >
+              <Ikon :nama="baris.metode === 'rfid' ? 'kartu' : 'pegawai'" ukuran="h-3.5 w-3.5" />
+            </span>
 
             <div class="min-w-0 flex-1">
               <p class="truncate text-sm font-medium text-navy-700">{{ baris.nama }}</p>
               <p class="truncate text-xs text-slate-500">{{ baris.unit_kerja ?? '—' }}</p>
               <p class="mt-0.5 text-xs text-slate-500">
                 <span class="font-display tabular-nums">{{ baris.jam }}</span>
-                · {{ baris.jenis_label }}
-                · {{ baris.metode_label }}
+                · {{ baris.jenis_label }} · {{ baris.metode_label }}
                 <span
                   v-if="baris.status_label"
                   :class="baris.status_ketepatan === 'terlambat' ? 'text-amber-700' : 'text-emerald-700'"
@@ -248,9 +407,12 @@ const adaKehadiran = computed(() => props.tren.some((t) => t.jumlah > 0))
           </li>
         </ol>
 
-        <p v-else class="mt-6 rounded-md border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">
-          Belum ada aktivitas absen.
-        </p>
+        <KeadaanKosong
+          v-else
+          ikon="jam"
+          judul="Belum ada aktivitas"
+          keterangan="Daftar terisi otomatis setiap ada tap berhasil di perangkat absen."
+        />
       </div>
     </div>
   </AdminLayout>

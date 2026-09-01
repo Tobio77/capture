@@ -1,15 +1,22 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { router, useForm, usePage } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
 import Modal from '@/Components/Modal.vue'
+import Ikon from '@/Components/Ikon.vue'
+import Paginasi from '@/Components/UI/Paginasi.vue'
+import KolomCari from '@/Components/UI/KolomCari.vue'
+import Lencana from '@/Components/UI/Lencana.vue'
+import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
+import TombolAksi from '@/Components/UI/TombolAksi.vue'
 
 /**
  * Kelola akun admin (FR-USR-01).
  */
 
 const props = defineProps({
-  daftar: { type: Array, required: true },
+  daftar: { type: Object, required: true },
+  filter: { type: Object, required: true },
   unit_kerja: { type: Array, required: true },
   peran: { type: Array, required: true },
 })
@@ -17,6 +24,33 @@ const props = defineProps({
 const page = usePage()
 const sayaId = computed(() => page.props.auth.pengguna.id)
 const sandiSementara = computed(() => page.props.flash.sandi_sementara ?? null)
+
+/* ------------------------------------------------------------------ filter */
+
+const filter = reactive({ ...props.filter })
+
+const kueri = computed(() =>
+  Object.fromEntries(Object.entries(filter).filter(([, nilai]) => nilai !== '' && nilai !== null)),
+)
+
+const adaPenyaring = computed(() => Object.keys(kueri.value).length > 0)
+
+function terapkan() {
+  router.get('/admin/pengguna', kueri.value, {
+    preserveState: true,
+    preserveScroll: true,
+    replace: true,
+  })
+}
+
+function bersihkan() {
+  filter.cari = ''
+  filter.role = ''
+  filter.status = ''
+  terapkan()
+}
+
+/* -------------------------------------------------------------------- form */
 
 const modalTerbuka = ref(false)
 const sedangDiubah = ref(null)
@@ -91,9 +125,15 @@ function resetSandi(pengguna) {
   router.post(`/admin/pengguna/${pengguna.id}/reset-sandi`, {}, { preserveScroll: true })
 }
 
+const tersalin = ref(false)
+
 function salin(teks) {
   navigator.clipboard?.writeText(teks)
+  tersalin.value = true
+  setTimeout(() => (tersalin.value = false), 2000)
 }
+
+const warnaPeran = (role) => (role === 'superadmin' ? 'navy' : role === 'admin_dinas' ? 'teal' : 'slate')
 </script>
 
 <template>
@@ -104,43 +144,114 @@ function salin(teks) {
     <template #aksi>
       <button
         type="button"
-        class="rounded-md bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700"
+        class="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 active:scale-95"
         @click="bukaTambah"
       >
-        Tambah Akun Admin
+        <Ikon nama="tambah" ukuran="h-4 w-4" /> Tambah Akun Admin
       </button>
     </template>
 
     <!-- Kata sandi sementara hanya tampil sekali, tepat setelah diterbitkan. -->
-    <div
-      v-if="sandiSementara"
-      class="mb-5 rounded-lg border border-amber-300 bg-amber-50 px-5 py-4"
+    <Transition
+      enter-active-class="transition duration-200 ease-out"
+      enter-from-class="-translate-y-2 opacity-0"
+      enter-to-class="translate-y-0 opacity-100"
     >
-      <p class="text-sm font-medium text-amber-900">Kata sandi sementara</p>
-      <p class="mt-1 text-xs text-amber-800">
-        Catat sekarang — kata sandi ini tidak dapat ditampilkan lagi setelah halaman berpindah.
-      </p>
-      <div class="mt-3 flex flex-wrap items-center gap-3">
-        <code class="rounded bg-white px-3 py-1.5 font-display text-sm text-navy-700">
-          {{ sandiSementara.email }}
-        </code>
-        <code class="rounded bg-white px-3 py-1.5 font-display text-sm font-semibold text-navy-700">
-          {{ sandiSementara.sandi }}
-        </code>
-        <button
-          type="button"
-          class="rounded-md border border-amber-400 px-3 py-1.5 text-xs font-medium text-amber-900 transition hover:bg-amber-100"
-          @click="salin(sandiSementara.sandi)"
-        >
-          Salin
-        </button>
+      <div
+        v-if="sandiSementara"
+        class="mb-5 rounded-lg border border-amber-300 bg-amber-50 px-5 py-4"
+      >
+        <p class="flex items-center gap-1.5 text-sm font-medium text-amber-900">
+          <Ikon nama="kunci" ukuran="h-4 w-4" /> Kata sandi sementara
+        </p>
+        <p class="mt-1 text-xs text-amber-800">
+          Catat sekarang — kata sandi ini tidak dapat ditampilkan lagi setelah halaman berpindah.
+        </p>
+        <div class="mt-3 flex flex-wrap items-center gap-3">
+          <code class="rounded bg-white px-3 py-1.5 font-display text-sm text-navy-700">
+            {{ sandiSementara.email }}
+          </code>
+          <code
+            class="rounded bg-white px-3 py-1.5 font-display text-sm font-semibold text-navy-700"
+          >
+            {{ sandiSementara.sandi }}
+          </code>
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 rounded-md border border-amber-400 px-3 py-1.5 text-xs font-medium text-amber-900 transition hover:bg-amber-100 active:scale-95"
+            @click="salin(sandiSementara.sandi)"
+          >
+            <Ikon :nama="tersalin ? 'cek' : 'detail'" ukuran="h-3.5 w-3.5" />
+            {{ tersalin ? 'Tersalin' : 'Salin' }}
+          </button>
+        </div>
+      </div>
+    </Transition>
+
+    <div class="mb-5 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div>
+          <span class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-slate-500">
+            Cari Akun
+          </span>
+          <KolomCari v-model="filter.cari" placeholder="Nama atau surel…" @cari="terapkan" />
+        </div>
+        <div>
+          <label
+            for="peran"
+            class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-slate-500"
+          >
+            Peran
+          </label>
+          <select
+            id="peran"
+            v-model="filter.role"
+            class="block w-full rounded-md border-slate-300 text-sm shadow-sm focus:border-teal-500 focus:ring-teal-500"
+            @change="terapkan"
+          >
+            <option value="">Semua peran</option>
+            <option v-for="item in peran" :key="item.nilai" :value="item.nilai">
+              {{ item.label }}
+            </option>
+          </select>
+        </div>
+        <div>
+          <label
+            for="status"
+            class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-slate-500"
+          >
+            Status
+          </label>
+          <select
+            id="status"
+            v-model="filter.status"
+            class="block w-full rounded-md border-slate-300 text-sm shadow-sm focus:border-teal-500 focus:ring-teal-500"
+            @change="terapkan"
+          >
+            <option value="">Semua status</option>
+            <option value="aktif">Aktif</option>
+            <option value="nonaktif">Nonaktif</option>
+          </select>
+        </div>
+        <div class="flex items-end">
+          <button
+            v-if="adaPenyaring"
+            type="button"
+            class="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 active:scale-95"
+            @click="bersihkan"
+          >
+            <Ikon nama="tutup" ukuran="h-4 w-4" /> Bersihkan filter
+          </button>
+        </div>
       </div>
     </div>
 
     <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
       <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-slate-200 text-sm">
-          <thead class="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+          <thead
+            class="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wider text-slate-500"
+          >
             <tr>
               <th scope="col" class="px-4 py-3 text-left font-medium">Nama</th>
               <th scope="col" class="px-4 py-3 text-left font-medium">Alamat Surel</th>
@@ -151,54 +262,72 @@ function salin(teks) {
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
-            <tr v-for="item in daftar" :key="item.id" :class="{ 'bg-slate-50/60': !item.aktif }">
+            <tr
+              v-for="item in daftar.data"
+              :key="item.id"
+              class="transition-colors hover:bg-slate-50/70"
+              :class="{ 'bg-slate-50/60': !item.aktif }"
+            >
               <td class="px-4 py-3 font-medium text-navy-700">
                 {{ item.nama }}
-                <span v-if="item.id === sayaId" class="ml-1.5 text-xs font-normal text-slate-500">(Anda)</span>
+                <span v-if="item.id === sayaId" class="ml-1.5 text-xs font-normal text-slate-500">
+                  (Anda)
+                </span>
               </td>
               <td class="px-4 py-3 text-slate-600">{{ item.email }}</td>
-              <td class="px-4 py-3 text-slate-600">{{ item.role_label }}</td>
+              <td class="px-4 py-3">
+                <Lencana :warna="warnaPeran(item.role)" :titik="false">
+                  {{ item.role_label }}
+                </Lencana>
+              </td>
               <td class="px-4 py-3 text-slate-600">
                 {{ item.unit_kerja?.nama ?? 'Seluruh unit kerja' }}
               </td>
               <td class="px-4 py-3">
-                <span
-                  class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
-                  :class="item.aktif ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'"
-                >
-                  <span class="h-1.5 w-1.5 rounded-full" :class="item.aktif ? 'bg-emerald-600' : 'bg-slate-400'"></span>
+                <Lencana :warna="item.aktif ? 'emerald' : 'slate'">
                   {{ item.aktif ? 'Aktif' : 'Nonaktif' }}
-                </span>
+                </Lencana>
               </td>
               <td class="whitespace-nowrap px-4 py-3 text-right">
-                <button
-                  type="button"
-                  class="rounded-md px-2.5 py-1.5 text-xs font-medium text-teal-700 transition hover:bg-teal-50"
-                  @click="bukaUbah(item)"
-                >
-                  Ubah
-                </button>
-                <button
-                  type="button"
-                  class="rounded-md px-2.5 py-1.5 text-xs font-medium text-navy-700 transition hover:bg-navy-50"
-                  @click="resetSandi(item)"
-                >
+                <TombolAksi ikon="ubah" warna="teal" @click="bukaUbah(item)">Ubah</TombolAksi>
+                <TombolAksi ikon="kunci" warna="navy" @click="resetSandi(item)">
                   Reset Sandi
-                </button>
-                <button
+                </TombolAksi>
+                <TombolAksi
                   v-if="item.id !== sayaId"
-                  type="button"
-                  class="rounded-md px-2.5 py-1.5 text-xs font-medium transition"
-                  :class="item.aktif ? 'text-amber-700 hover:bg-amber-50' : 'text-emerald-700 hover:bg-emerald-50'"
+                  :ikon="item.aktif ? 'cabut' : 'cek'"
+                  :warna="item.aktif ? 'amber' : 'emerald'"
                   @click="ubahStatus(item)"
                 >
                   {{ item.aktif ? 'Nonaktifkan' : 'Aktifkan' }}
-                </button>
+                </TombolAksi>
               </td>
             </tr>
           </tbody>
         </table>
       </div>
+
+      <KeadaanKosong
+        v-if="daftar.data.length === 0"
+        ikon="pengguna"
+        :judul="adaPenyaring ? 'Tidak ada akun yang cocok' : 'Belum ada akun admin'"
+        :keterangan="
+          adaPenyaring
+            ? 'Ubah kata kunci, peran, atau status pada penyaring di atas.'
+            : 'Tambahkan akun admin pertama melalui tombol di kanan atas.'
+        "
+      >
+        <button
+          v-if="adaPenyaring"
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+          @click="bersihkan"
+        >
+          <Ikon nama="tutup" ukuran="h-3.5 w-3.5" /> Bersihkan filter
+        </button>
+      </KeadaanKosong>
+
+      <Paginasi :data="daftar" />
     </div>
 
     <Modal :terbuka="modalTerbuka" :judul="judulForm" @tutup="tutup">
@@ -209,7 +338,7 @@ function salin(teks) {
             id="nama"
             v-model="form.nama"
             type="text"
-            class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+            class="mt-1 block w-full rounded-md border-slate-300 shadow-sm transition focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
           />
           <p v-if="form.errors.nama" class="mt-1.5 text-xs text-amber-700">{{ form.errors.nama }}</p>
         </div>
@@ -220,9 +349,11 @@ function salin(teks) {
             id="email"
             v-model="form.email"
             type="email"
-            class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+            class="mt-1 block w-full rounded-md border-slate-300 shadow-sm transition focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
           />
-          <p v-if="form.errors.email" class="mt-1.5 text-xs text-amber-700">{{ form.errors.email }}</p>
+          <p v-if="form.errors.email" class="mt-1.5 text-xs text-amber-700">
+            {{ form.errors.email }}
+          </p>
         </div>
 
         <div>
@@ -230,9 +361,11 @@ function salin(teks) {
           <select
             id="role"
             v-model="form.role"
-            class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+            class="mt-1 block w-full rounded-md border-slate-300 shadow-sm transition focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
           >
-            <option v-for="item in peran" :key="item.nilai" :value="item.nilai">{{ item.label }}</option>
+            <option v-for="item in peran" :key="item.nilai" :value="item.nilai">
+              {{ item.label }}
+            </option>
           </select>
           <p v-if="form.errors.role" class="mt-1.5 text-xs text-amber-700">{{ form.errors.role }}</p>
         </div>
@@ -242,10 +375,12 @@ function salin(teks) {
           <select
             id="unit"
             v-model="form.unit_kerja_id"
-            class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+            class="mt-1 block w-full rounded-md border-slate-300 shadow-sm transition focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
           >
             <option value="" disabled>Pilih unit kerja…</option>
-            <option v-for="unit in unit_kerja" :key="unit.id" :value="unit.id">{{ unit.nama }}</option>
+            <option v-for="unit in unit_kerja" :key="unit.id" :value="unit.id">
+              {{ unit.nama }}
+            </option>
           </select>
           <p class="mt-1.5 text-xs text-slate-500">
             Cakupannya meliputi unit ini beserta seluruh seksi/subbag di bawahnya.
@@ -255,11 +390,19 @@ function salin(teks) {
           </p>
         </div>
 
-        <p v-else class="rounded-md bg-navy-50 px-3 py-2 text-xs text-navy-700">
+        <p
+          v-else
+          class="flex items-start gap-2 rounded-md bg-navy-50 px-3 py-2 text-xs text-navy-700"
+        >
+          <Ikon nama="info" ukuran="h-4 w-4 shrink-0" />
           Peran ini mencakup seluruh unit kerja, sehingga tidak terikat pada satu unit.
         </p>
 
-        <p v-if="!sedangDiubah" class="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
+        <p
+          v-if="!sedangDiubah"
+          class="flex items-start gap-2 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600"
+        >
+          <Ikon nama="kunci" ukuran="h-4 w-4 shrink-0" />
           Kata sandi sementara diterbitkan otomatis dan ditampilkan sekali setelah akun tersimpan.
         </p>
       </div>
@@ -267,17 +410,18 @@ function salin(teks) {
       <template #aksi>
         <button
           type="button"
-          class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+          class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 active:scale-95"
           @click="tutup"
         >
           Batal
         </button>
         <button
           type="button"
-          class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
+          class="inline-flex items-center gap-1.5 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-teal-700 active:scale-95 disabled:opacity-50"
           :disabled="form.processing"
           @click="simpan"
         >
+          <Ikon v-if="form.processing" nama="segarkan" ukuran="h-4 w-4 animate-spin" />
           {{ form.processing ? 'Menyimpan…' : 'Simpan Akun' }}
         </button>
       </template>

@@ -2,6 +2,10 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { router, usePage } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
+import Ikon from '@/Components/Ikon.vue'
+import KolomCari from '@/Components/UI/KolomCari.vue'
+import Lencana from '@/Components/UI/Lencana.vue'
+import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
 
 /**
  * Rekap Absen per event (FR-REK-01 s.d. FR-REK-03).
@@ -26,10 +30,27 @@ const barisRekap = ref(props.rekap)
 const angka = ref(props.ringkasan)
 const statusEvent = ref(props.event?.status ?? null)
 const eventTerpilih = ref(props.event?.id ?? '')
+const cari = ref('')
 
 let jedaSegar = null
 
 const masihDibuka = computed(() => statusEvent.value === 'aktif')
+
+/* Pencarian dilakukan di sisi klien: satu event paling banyak berisi ratusan
+   baris yang sudah ada di layar, sehingga menyaringnya tidak perlu perjalanan
+   ke server dan tetap terasa seketika. */
+const barisTampil = computed(() => {
+  const kunci = cari.value.trim().toLowerCase()
+
+  if (kunci === '') return barisRekap.value
+
+  return barisRekap.value.filter(
+    (b) =>
+      b.nama.toLowerCase().includes(kunci) ||
+      b.nip.includes(kunci) ||
+      (b.unit_kerja ?? '').toLowerCase().includes(kunci),
+  )
+})
 
 watch(
   () => props.rekap,
@@ -48,15 +69,14 @@ onMounted(() => {
 onBeforeUnmount(() => clearInterval(jedaSegar))
 
 function pilihEvent() {
-  router.get('/admin/kelola-absen/rekap', { event_absen_id: eventTerpilih.value }, {
-    preserveState: true,
-    preserveScroll: true,
-    replace: true,
-  })
+  router.get(
+    '/admin/kelola-absen/rekap',
+    { event_absen_id: eventTerpilih.value },
+    { preserveState: true, preserveScroll: true, replace: true },
+  )
 }
 
 async function segarkan() {
-  // Event yang sudah ditutup tidak akan bertambah barisnya.
   if (!props.event || !masihDibuka.value) return
 
   try {
@@ -76,6 +96,12 @@ async function segarkan() {
   }
 }
 
+function unduh(format) {
+  if (!props.event) return
+
+  window.location.href = `/admin/kelola-absen/rekap/${props.event.id}/ekspor?format=${format}`
+}
+
 function cetak() {
   window.print()
 }
@@ -90,6 +116,13 @@ function tanggalPanjang(iso) {
     year: 'numeric',
   })
 }
+
+const kartu = computed(() => [
+  { label: 'Hadir', nilai: angka.value.hadir, warna: 'text-navy-700', ikon: 'pegawai', latar: 'bg-navy-50 text-navy-600' },
+  { label: 'Tepat Waktu', nilai: angka.value.tepat, warna: 'text-emerald-700', ikon: 'cek', latar: 'bg-emerald-50 text-emerald-600' },
+  { label: 'Terlambat', nilai: angka.value.terlambat, warna: 'text-amber-700', ikon: 'jam', latar: 'bg-amber-50 text-amber-600' },
+  { label: 'Sudah Pulang', nilai: angka.value.sudah_pulang, warna: 'text-slate-600', ikon: 'keluar', latar: 'bg-slate-100 text-slate-500' },
+])
 </script>
 
 <template>
@@ -97,14 +130,42 @@ function tanggalPanjang(iso) {
     judul="Rekap Absen"
     deskripsi="Daftar e-presensi per event. Tabel diperbarui sendiri selama event masih dibuka."
   >
-    <!-- Pemilih event dan aksi cetak -->
-    <div class="mb-5 flex flex-wrap items-end justify-between gap-4 print:hidden">
-      <div class="min-w-72">
-        <label for="event" class="block text-sm font-medium text-slate-700">Event</label>
+    <template v-if="event" #aksi>
+      <div class="flex flex-wrap items-center gap-2 print:hidden">
+        <button
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 active:scale-95"
+          @click="cetak"
+        >
+          <Ikon nama="cetak" ukuran="h-4 w-4" /> Cetak
+        </button>
+        <button
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 active:scale-95"
+          @click="unduh('csv')"
+        >
+          <Ikon nama="unduh" ukuran="h-4 w-4" /> CSV
+        </button>
+        <button
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 active:scale-95"
+          @click="unduh('pdf')"
+        >
+          <Ikon nama="unduh" ukuran="h-4 w-4" /> Unduh PDF
+        </button>
+      </div>
+    </template>
+
+    <!-- Pemilih event dan pencarian -->
+    <div class="mb-5 grid gap-3 sm:grid-cols-2 print:hidden">
+      <div>
+        <label for="event" class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-slate-500">
+          Event
+        </label>
         <select
           id="event"
           v-model="eventTerpilih"
-          class="mt-1.5 block w-full rounded-md border-slate-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+          class="block w-full rounded-md border-slate-300 text-sm shadow-sm focus:border-teal-500 focus:ring-teal-500"
           @change="pilihEvent"
         >
           <option value="" disabled>Pilih event…</option>
@@ -114,23 +175,23 @@ function tanggalPanjang(iso) {
         </select>
       </div>
 
-      <button
-        v-if="event"
-        type="button"
-        class="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-        @click="cetak"
-      >
-        Cetak Rekap
-      </button>
+      <div v-if="event">
+        <span class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-slate-500">
+          Cari Peserta
+        </span>
+        <KolomCari v-model="cari" placeholder="Nama, NIP, atau unit kerja…" :jeda="0" />
+      </div>
     </div>
 
-    <div v-if="!event" class="rounded-lg border border-dashed border-slate-300 bg-white px-6 py-16 text-center text-sm text-slate-500">
-      Belum ada event yang dapat direkap.
-    </div>
+    <KeadaanKosong
+      v-if="!event"
+      ikon="absen"
+      judul="Belum ada event yang dapat direkap"
+      keterangan="Buat event pada menu Daftar Event untuk mulai mencatat kehadiran."
+    />
 
     <template v-else>
-      <!-- Kepala rekap; ikut tercetak sebagai kop lembar -->
-      <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm print:border-0 print:shadow-none">
+      <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm print:border-0 print:p-0 print:shadow-none">
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 class="font-display text-lg font-semibold text-navy-700">{{ event.nama }}</h2>
@@ -139,30 +200,29 @@ function tanggalPanjang(iso) {
               toleransi {{ event.toleransi_menit }} menit
             </p>
             <p class="mt-0.5 text-xs text-slate-500">
-              Cakupan tampilan: {{ pengguna.lintas_unit ? 'seluruh unit kerja' : pengguna.unit_kerja?.nama }}
+              Cakupan tampilan:
+              {{ pengguna.lintas_unit ? 'seluruh unit kerja' : pengguna.unit_kerja?.nama }}
             </p>
           </div>
 
-          <span
-            class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium print:hidden"
-            :class="masihDibuka ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'"
-          >
-            <span class="h-1.5 w-1.5 rounded-full" :class="masihDibuka ? 'animate-pulse bg-emerald-600' : 'bg-slate-400'"></span>
+          <Lencana :warna="masihDibuka ? 'emerald' : 'slate'" :denyut="masihDibuka" class="print:hidden">
             {{ masihDibuka ? 'Entry dibuka — diperbarui otomatis' : 'Entry ditutup' }}
-          </span>
+          </Lencana>
         </div>
 
         <dl class="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <div v-for="item in [
-            { label: 'Hadir', nilai: angka.hadir, warna: 'text-navy-700' },
-            { label: 'Tepat Waktu', nilai: angka.tepat, warna: 'text-emerald-700' },
-            { label: 'Terlambat', nilai: angka.terlambat, warna: 'text-amber-700' },
-            { label: 'Sudah Pulang', nilai: angka.sudah_pulang, warna: 'text-slate-600' },
-          ]" :key="item.label" class="rounded-md border border-slate-200 px-4 py-3">
-            <dt class="text-xs uppercase tracking-wider text-slate-500">{{ item.label }}</dt>
-            <dd class="mt-1 font-display text-2xl font-semibold tabular-nums" :class="item.warna">
-              {{ item.nilai }}
-            </dd>
+          <div v-for="item in kartu" :key="item.label" class="rounded-md border border-slate-200 px-4 py-3">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <dt class="text-xs uppercase tracking-wider text-slate-500">{{ item.label }}</dt>
+                <dd class="mt-1 font-display text-2xl font-semibold tabular-nums" :class="item.warna">
+                  {{ item.nilai }}
+                </dd>
+              </div>
+              <span class="rounded-md p-1.5 print:hidden" :class="item.latar">
+                <Ikon :nama="item.ikon" ukuran="h-4 w-4" />
+              </span>
+            </div>
           </div>
         </dl>
       </div>
@@ -185,24 +245,29 @@ function tanggalPanjang(iso) {
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
-              <tr v-for="(baris, urutan) in barisRekap" :key="baris.pegawai_id">
+              <tr
+                v-for="(baris, urutan) in barisTampil"
+                :key="baris.pegawai_id"
+                class="transition-colors hover:bg-slate-50/70"
+              >
                 <td class="px-4 py-2.5 font-display tabular-nums text-slate-500">{{ urutan + 1 }}</td>
                 <td class="px-4 py-2.5 font-display tabular-nums text-slate-600">{{ baris.nip }}</td>
                 <td class="px-4 py-2.5 font-medium text-navy-700">{{ baris.nama }}</td>
                 <td class="px-4 py-2.5 text-slate-600">{{ baris.unit_kerja ?? '—' }}</td>
-                <td class="px-4 py-2.5 font-display tabular-nums text-slate-700">{{ baris.jam_masuk ?? '—' }}</td>
-                <td class="px-4 py-2.5 font-display tabular-nums text-slate-700">{{ baris.jam_pulang ?? '—' }}</td>
+                <td class="px-4 py-2.5 font-display tabular-nums text-slate-700">
+                  {{ baris.jam_masuk ?? '—' }}
+                </td>
+                <td class="px-4 py-2.5 font-display tabular-nums text-slate-700">
+                  {{ baris.jam_pulang ?? '—' }}
+                </td>
                 <td class="px-4 py-2.5 text-slate-600">{{ baris.metode }}</td>
                 <td class="px-4 py-2.5">
-                  <span
+                  <Lencana
                     v-if="baris.status_label"
-                    class="rounded-full px-2.5 py-0.5 text-xs font-medium"
-                    :class="baris.status_ketepatan === 'terlambat'
-                      ? 'bg-amber-50 text-amber-700'
-                      : 'bg-emerald-50 text-emerald-700'"
+                    :warna="baris.status_ketepatan === 'terlambat' ? 'amber' : 'emerald'"
                   >
                     {{ baris.status_label }}
-                  </span>
+                  </Lencana>
                   <span v-else class="text-xs text-slate-400">—</span>
                 </td>
                 <td class="px-4 py-2.5 print:hidden">
@@ -210,20 +275,36 @@ function tanggalPanjang(iso) {
                     v-if="baris.foto_url"
                     :src="baris.foto_url"
                     :alt="`Foto absen ${baris.nama}`"
-                    class="h-9 w-9 rounded object-cover"
+                    class="h-9 w-9 rounded object-cover ring-1 ring-slate-200"
                   />
                   <span v-else class="text-xs text-slate-400">—</span>
-                </td>
-              </tr>
-
-              <tr v-if="barisRekap.length === 0">
-                <td colspan="9" class="px-6 py-14 text-center text-sm text-slate-500">
-                  Belum ada kehadiran tercatat pada event ini.
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
+
+        <KeadaanKosong
+          v-if="barisTampil.length === 0"
+          ikon="pegawai"
+          :judul="cari ? 'Tidak ada peserta yang cocok' : 'Belum ada kehadiran'"
+          :keterangan="
+            cari
+              ? 'Coba kata kunci lain, atau bersihkan pencarian.'
+              : 'Baris bertambah otomatis setiap ada tap berhasil pada perangkat absen.'
+          "
+        />
+
+        <p
+          v-else-if="cari"
+          class="border-t border-slate-200 px-4 py-3 text-xs text-slate-500 print:hidden"
+        >
+          Menampilkan
+          <span class="font-display tabular-nums text-slate-700">{{ barisTampil.length }}</span>
+          dari
+          <span class="font-display tabular-nums text-slate-700">{{ barisRekap.length }}</span>
+          peserta
+        </p>
       </div>
     </template>
   </AdminLayout>
@@ -231,9 +312,9 @@ function tanggalPanjang(iso) {
 
 <style>
 /*
- * FR-REK-03. Sidebar, tombol, dan kolom foto disembunyikan saat mencetak
- * supaya lembar rekap berisi tabelnya saja; foto tidak ikut karena rekap
- * cetak dipakai sebagai lampiran administratif, bukan bukti visual.
+ * FR-REK-03. Sidebar, pemilih event, tombol, dan kolom foto disembunyikan saat
+ * mencetak supaya lembar rekap berisi tabelnya saja; foto tidak ikut karena
+ * rekap cetak dipakai sebagai lampiran administratif, bukan bukti visual.
  */
 @media print {
   @page {

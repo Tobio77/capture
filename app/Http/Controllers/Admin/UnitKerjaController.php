@@ -23,8 +23,11 @@ class UnitKerjaController extends Controller
      */
     public function index(Request $request): Response
     {
+        $filter = $request->only(['cari', 'status']);
+
         return Inertia::render('UnitKerja/Index', [
-            'daftar' => $this->unitKerja->daftar($request->user()),
+            'daftar' => $this->unitKerja->daftar($request->user(), $filter),
+            'filter' => ['cari' => '', 'status' => ''] + array_filter($filter, fn ($n) => $n !== null),
             'dapat_mengubah' => $request->user()->lintasUnit(),
         ]);
     }

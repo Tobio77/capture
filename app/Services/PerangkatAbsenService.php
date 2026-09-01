@@ -7,6 +7,7 @@ use App\Models\Kiosk;
 use App\Models\LogAktivitas;
 use App\Models\UnitKerja;
 use App\Models\User;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
 /**
@@ -20,6 +21,9 @@ class PerangkatAbsenService
     /** Panjang riwayat aktivasi yang ditampilkan per perangkat. */
     public const int BATAS_RIWAYAT = 10;
 
+    /** Jumlah perangkat per halaman pada daftar Perangkat Absen. */
+    public const int PER_HALAMAN = 15;
+
     public function __construct(
         protected KioskService $kiosk,
         protected LogAktivitasService $log,
@@ -27,16 +31,41 @@ class PerangkatAbsenService
 
     /**
      * @param  array<int, int>|null  $cakupan
-     * @return Collection<int, array<string, mixed>>
+     * @param  array<string, mixed>  $filter  cari, unit_kerja_id, status
+     * @return LengthAwarePaginator<int, array<string, mixed>>
      */
-    public function daftar(?array $cakupan = null): Collection
+    public function daftar(?array $cakupan = null, array $filter = []): LengthAwarePaginator
     {
         return Kiosk::query()
             ->with('unitKerja:id,kode,nama')
             ->when($cakupan !== null, fn ($q) => $q->whereIn('unit_kerja_id', $cakupan))
+            ->when(
+                filled($filter['cari'] ?? null),
+                fn ($q) => $q->where('nama_titik', 'like', '%'.$filter['cari'].'%'),
+            )
+            ->when(
+                filled($filter['unit_kerja_id'] ?? null),
+                fn ($q) => $q->whereIn(
+                    'unit_kerja_id',
+                    UnitKerja::idsDenganTurunan((int) $filter['unit_kerja_id']),
+                ),
+            )
+            ->when(
+                ($filter['status'] ?? '') === 'terpasang',
+                fn ($q) => $q->whereNotNull('device_token'),
+            )
+            ->when(
+                ($filter['status'] ?? '') === 'belum',
+                fn ($q) => $q->whereNull('device_token'),
+            )
+            ->when(
+                ($filter['status'] ?? '') === 'nonaktif',
+                fn ($q) => $q->where('aktif', false),
+            )
             ->orderBy('nama_titik')
-            ->get()
-            ->map(fn (Kiosk $perangkat) => [
+            ->paginate(self::PER_HALAMAN)
+            ->withQueryString()
+            ->through(fn (Kiosk $perangkat) => [
                 'id' => $perangkat->id,
                 'nama_titik' => $perangkat->nama_titik,
                 'unit_kerja' => $perangkat->unitKerja?->only(['id', 'kode', 'nama']),

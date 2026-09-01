@@ -6,6 +6,7 @@ use App\Enums\AksiLog;
 use App\Enums\PeranPengguna;
 use App\Models\UnitKerja;
 use App\Models\User;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -22,18 +23,42 @@ class PenggunaService
     /** Panjang kata sandi sementara yang diterbitkan sistem. */
     public const int PANJANG_SANDI = 12;
 
+    /** Jumlah akun per halaman pada daftar Kelola User. */
+    public const int PER_HALAMAN = 15;
+
     public function __construct(protected LogAktivitasService $log) {}
 
     /**
-     * @return Collection<int, array<string, mixed>>
+     * @param  array<string, mixed>  $filter  cari, role, status
+     * @return LengthAwarePaginator<int, array<string, mixed>>
      */
-    public function daftar(): Collection
+    public function daftar(array $filter = []): LengthAwarePaginator
     {
         return User::query()
             ->with('unitKerja:id,kode,nama')
+            ->when(
+                filled($filter['cari'] ?? null),
+                fn ($q) => $q->where(function ($cari) use ($filter) {
+                    $cari->where('nama', 'like', '%'.$filter['cari'].'%')
+                        ->orWhere('email', 'like', '%'.$filter['cari'].'%');
+                }),
+            )
+            ->when(
+                filled($filter['role'] ?? null),
+                fn ($q) => $q->where('role', $filter['role']),
+            )
+            ->when(
+                ($filter['status'] ?? '') === 'aktif',
+                fn ($q) => $q->where('aktif', true),
+            )
+            ->when(
+                ($filter['status'] ?? '') === 'nonaktif',
+                fn ($q) => $q->where('aktif', false),
+            )
             ->orderBy('nama')
-            ->get()
-            ->map(fn (User $pengguna) => [
+            ->paginate(self::PER_HALAMAN)
+            ->withQueryString()
+            ->through(fn (User $pengguna) => [
                 'id' => $pengguna->id,
                 'nama' => $pengguna->nama,
                 'email' => $pengguna->email,

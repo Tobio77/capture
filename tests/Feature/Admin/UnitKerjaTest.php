@@ -34,10 +34,10 @@ class UnitKerjaTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('UnitKerja/Index')
                 ->where('dapat_mengubah', true)
-                ->has('daftar', 1)
-                ->where('daftar.0.kode', 'BLK-SBY')
-                ->where('daftar.0.jumlah_pegawai', 3)
-                ->where('daftar.0.jumlah_kiosk', 2)
+                ->has('daftar.data', 1)
+                ->where('daftar.data.0.kode', 'BLK-SBY')
+                ->where('daftar.data.0.jumlah_pegawai', 3)
+                ->where('daftar.data.0.jumlah_kiosk', 2)
                 ->etc());
     }
 
@@ -66,10 +66,10 @@ class UnitKerjaTest extends TestCase
             ->get('/admin/kelola-absen/unit-kerja')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->has('daftar', 1)
-                ->where('daftar.0.id', $upt->id)
-                ->where('daftar.0.kode', 'BLK-SGS')
-                ->where('daftar.0.jumlah_unit_turunan', 1)
+                ->has('daftar.data', 1)
+                ->where('daftar.data.0.id', $upt->id)
+                ->where('daftar.data.0.kode', 'BLK-SGS')
+                ->where('daftar.data.0.jumlah_unit_turunan', 1)
                 ->etc());
     }
 
@@ -88,9 +88,9 @@ class UnitKerjaTest extends TestCase
         $this->actingAs(User::factory()->superadmin()->create())
             ->get('/admin/kelola-absen/unit-kerja')
             ->assertInertia(fn (Assert $page) => $page
-                ->has('daftar', 1)
-                ->where('daftar.0.jumlah_pegawai', 6)
-                ->where('daftar.0.jumlah_kiosk', 2)
+                ->has('daftar.data', 1)
+                ->where('daftar.data.0.jumlah_pegawai', 6)
+                ->where('daftar.data.0.jumlah_kiosk', 2)
                 ->etc());
     }
 
@@ -110,8 +110,8 @@ class UnitKerjaTest extends TestCase
             ->get('/admin/kelola-absen/unit-kerja')
             ->assertInertia(fn (Assert $page) => $page
                 ->where('dapat_mengubah', false)
-                ->has('daftar', 1)
-                ->where('daftar.0.id', $upt->id)
+                ->has('daftar.data', 1)
+                ->where('daftar.data.0.id', $upt->id)
                 ->etc());
 
         $this->assertNotSame($lain->id, $upt->id);
@@ -137,7 +137,7 @@ class UnitKerjaTest extends TestCase
         // Tanpa induk yang benar, unit baru langsung lenyap dari daftar.
         $this->actingAs(User::factory()->superadmin()->create())
             ->get('/admin/kelola-absen/unit-kerja')
-            ->assertInertia(fn (Assert $page) => $page->has('daftar', 2)->etc());
+            ->assertInertia(fn (Assert $page) => $page->has('daftar.data', 2)->etc());
     }
 
     #[Test]
@@ -150,7 +150,7 @@ class UnitKerjaTest extends TestCase
         $this->actingAs(User::factory()->superadmin()->create())
             ->get('/admin/kelola-absen/unit-kerja')
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->has('daftar', 2)->etc());
+            ->assertInertia(fn (Assert $page) => $page->has('daftar.data', 2)->etc());
     }
 
     #[Test]

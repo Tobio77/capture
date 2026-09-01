@@ -3,16 +3,19 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Enums\CakupanEvent;
+use App\Enums\StatusEvent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SimpanEventRequest;
 use App\Models\EventAbsen;
 use App\Models\UnitKerja;
+use App\Services\EksporService;
 use App\Services\EventAbsenService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 /**
  * Daftar dan pengelolaan event absensi (FR-EVT-01, FR-EVT-02).
@@ -22,14 +25,27 @@ use Inertia\Response;
  */
 class EventController extends Controller
 {
-    public function __construct(protected EventAbsenService $event) {}
+    public function __construct(
+        protected EventAbsenService $event,
+        protected EksporService $ekspor,
+    ) {}
 
     public function index(Request $request): Response
     {
         $pengguna = $request->user();
 
+        $filter = $request->only(['cari', 'status', 'unit_kerja_id', 'dari', 'sampai']);
+
         return Inertia::render('Event/Index', [
-            'daftar' => $this->event->daftar($pengguna),
+            'daftar' => $this->event->daftar($pengguna, $filter),
+            'filter' => array_map(fn ($nilai) => $nilai ?? '', $filter + [
+                'cari' => '', 'status' => '', 'unit_kerja_id' => '', 'dari' => '', 'sampai' => '',
+            ]),
+            'status_pilihan' => collect(StatusEvent::cases())
+                ->map(fn (StatusEvent $status) => [
+                    'nilai' => $status->value,
+                    'label' => $status->label(),
+                ]),
             'unit_kerja' => $this->event->unitKerjaTersedia($pengguna),
             'nilai_awal' => $this->event->nilaiAwal(),
 
@@ -37,6 +53,49 @@ class EventController extends Controller
             'boleh_semua_unit' => $pengguna->lintasUnit(),
             'cakupan_semua_unit' => CakupanEvent::SemuaUnit->value,
         ]);
+    }
+
+    /**
+     * Unduh daftar event sebagai CSV atau PDF, mengikuti penyaringan yang
+     * sedang dipakai — bukan hanya halaman yang sedang dibuka.
+     */
+    public function ekspor(Request $request): SymfonyResponse
+    {
+        $pengguna = $request->user();
+        $filter = $request->only(['cari', 'status', 'unit_kerja_id', 'dari', 'sampai']);
+        $baris = $this->event->semua($pengguna, $filter);
+
+        $nama = 'daftar-event-'.now()->format('Ymd-Hi');
+        $cakupan = $pengguna->lintasUnit()
+            ? 'Seluruh unit kerja'
+            : ($pengguna->unitKerja?->nama ?? 'Tanpa unit kerja');
+
+        if ($request->string('format')->toString() === 'pdf') {
+            return $this->ekspor->unduhPdf('cetak.event', [
+                'baris' => $baris,
+                'cakupan' => $cakupan,
+                'keterangan' => $baris->count().' event pada penyaringan ini',
+            ], "{$nama}.pdf");
+        }
+
+        return $this->ekspor->unduhCsv(
+            $this->ekspor->csv(
+                ['Nama Event', 'Cakupan', 'Tanggal', 'Jam Mulai', 'Toleransi (menit)', 'Perangkat', 'Absen Masuk', 'Status'],
+                $baris->map(fn (array $isi) => [
+                    $isi['nama'],
+                    $isi['cakupan'] === 'semua_unit'
+                        ? 'Semua Unit'
+                        : collect($isi['unit_kerja'])->pluck('kode')->join(', '),
+                    $isi['tanggal'],
+                    $isi['jam_mulai'],
+                    $isi['toleransi_menit'],
+                    $isi['jumlah_kiosk'],
+                    $isi['jumlah_absensi'],
+                    $isi['status_label'],
+                ]),
+            ),
+            "{$nama}.csv",
+        );
     }
 
     public function store(SimpanEventRequest $request): RedirectResponse

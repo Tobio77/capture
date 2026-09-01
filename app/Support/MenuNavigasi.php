@@ -60,7 +60,7 @@ class MenuNavigasi
             ],
             [
                 'label' => 'Perangkat Absen',
-                'ikon' => 'pengguna',
+                'ikon' => 'perangkat',
                 'rute' => 'perangkat.index',
                 'peran' => $lintasUnit,
             ],

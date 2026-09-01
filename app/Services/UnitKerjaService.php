@@ -8,8 +8,7 @@ use App\Models\Pegawai;
 use App\Models\UnitKerja;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Arr;
-use Illuminate\Support\Collection;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Str;
 
 /**
@@ -17,6 +16,9 @@ use Illuminate\Support\Str;
  */
 class UnitKerjaService
 {
+    /** Jumlah unit level teratas per halaman pada daftar Setting Unit Kerja. */
+    public const int PER_HALAMAN = 15;
+
     public function __construct(protected LogAktivitasService $log) {}
 
     /**
@@ -31,16 +33,43 @@ class UnitKerjaService
      *
      * Admin UPT hanya melihat unit level teratas yang menaungi dirinya.
      *
-     * @return Collection<int, array<string, mixed>>
+     * @param  array<string, mixed>  $filter  cari, status
+     * @return LengthAwarePaginator<int, array<string, mixed>>
      */
-    public function daftar(User $pelaku): Collection
+    public function daftar(User $pelaku, array $filter = []): LengthAwarePaginator
     {
-        $teratas = UnitKerja::query()->levelTeratas()->orderBy('kode')->get();
         $pegawaiPerUnit = $this->jumlahPer(Pegawai::query());
         $kioskPerUnit = $this->jumlahPer(Kiosk::query());
 
-        return $teratas
-            ->map(function (UnitKerja $unit) use ($pegawaiPerUnit, $kioskPerUnit) {
+        return UnitKerja::query()
+            ->levelTeratas()
+
+            // Admin UPT hanya melihat unit teratas yang menaungi dirinya.
+            // Penyaringan dilakukan di tingkat kueri agar jumlah baris pada
+            // paginator tetap sesuai dengan yang benar-benar boleh dilihat.
+            ->when(
+                ! $pelaku->lintasUnit(),
+                fn ($q) => $q->whereIn('id', $this->idTeratasYangMenaungi($pelaku->unit_kerja_id)),
+            )
+            ->when(
+                filled($filter['cari'] ?? null),
+                fn ($q) => $q->where(function ($cari) use ($filter) {
+                    $cari->where('nama', 'like', '%'.$filter['cari'].'%')
+                        ->orWhere('kode', 'like', '%'.$filter['cari'].'%');
+                }),
+            )
+            ->when(
+                ($filter['status'] ?? '') === 'aktif',
+                fn ($q) => $q->where('aktif', true),
+            )
+            ->when(
+                ($filter['status'] ?? '') === 'nonaktif',
+                fn ($q) => $q->where('aktif', false),
+            )
+            ->orderBy('kode')
+            ->paginate(self::PER_HALAMAN)
+            ->withQueryString()
+            ->through(function (UnitKerja $unit) use ($pegawaiPerUnit, $kioskPerUnit) {
                 $cakupan = UnitKerja::idsDenganTurunan($unit->id);
 
                 return [
@@ -51,17 +80,28 @@ class UnitKerjaService
                     'jumlah_pegawai' => $this->jumlahDalam($pegawaiPerUnit, $cakupan),
                     'jumlah_kiosk' => $this->jumlahDalam($kioskPerUnit, $cakupan),
                     'jumlah_unit_turunan' => count($cakupan) - 1,
-                    'cakupan' => $cakupan,
                 ];
-            })
-            ->when(
-                ! $pelaku->lintasUnit(),
-                fn (Collection $daftar) => $daftar->filter(
-                    fn (array $unit) => in_array($pelaku->unit_kerja_id, $unit['cakupan'], true),
-                ),
-            )
-            ->map(fn (array $unit) => Arr::except($unit, 'cakupan'))
-            ->values();
+            });
+    }
+
+    /**
+     * Unit level teratas yang menaungi satu unit kerja, ditelusuri lewat
+     * cakupan turunan tiap simpul teratas.
+     *
+     * @return array<int, int>
+     */
+    protected function idTeratasYangMenaungi(?int $unitKerjaId): array
+    {
+        if ($unitKerjaId === null) {
+            return [];
+        }
+
+        return UnitKerja::query()
+            ->levelTeratas()
+            ->pluck('id')
+            ->filter(fn (int $id) => in_array($unitKerjaId, UnitKerja::idsDenganTurunan($id), true))
+            ->values()
+            ->all();
     }
 
     /**

@@ -24,6 +24,10 @@ class DashboardController extends Controller
             'statistik' => $this->dashboard->statistik($pengguna),
             'tren' => $this->dashboard->tren($pengguna),
             'aktivitas' => $this->dashboard->aktivitasTerbaru($pengguna),
+            'ketepatan' => $this->dashboard->ketepatanHariIni($pengguna),
+            'kesiapan' => $this->dashboard->kesiapan($pengguna),
+            'peringkat_unit' => $this->dashboard->peringkatUnit($pengguna),
+            'event_berjalan' => $this->dashboard->eventBerjalan($pengguna),
         ]);
     }
 

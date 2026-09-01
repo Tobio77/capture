@@ -1,20 +1,54 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { router, useForm, usePage } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
 import Modal from '@/Components/Modal.vue'
+import Ikon from '@/Components/Ikon.vue'
+import Paginasi from '@/Components/UI/Paginasi.vue'
+import KolomCari from '@/Components/UI/KolomCari.vue'
+import Lencana from '@/Components/UI/Lencana.vue'
+import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
+import TombolAksi from '@/Components/UI/TombolAksi.vue'
 
 /**
  * Kelola perangkat absen (FR-USR-02, FR-USR-03).
  */
 
-defineProps({
-  daftar: { type: Array, required: true },
+const props = defineProps({
+  daftar: { type: Object, required: true },
+  filter: { type: Object, required: true },
   unit_kerja: { type: Array, required: true },
 })
 
 const page = usePage()
 const kodeAktivasi = computed(() => page.props.flash.kode_aktivasi ?? null)
+
+/* ------------------------------------------------------------------ filter */
+
+const filter = reactive({ ...props.filter })
+
+const kueri = computed(() =>
+  Object.fromEntries(Object.entries(filter).filter(([, nilai]) => nilai !== '' && nilai !== null)),
+)
+
+const adaPenyaring = computed(() => Object.keys(kueri.value).length > 0)
+
+function terapkan() {
+  router.get('/admin/perangkat', kueri.value, {
+    preserveState: true,
+    preserveScroll: true,
+    replace: true,
+  })
+}
+
+function bersihkan() {
+  filter.cari = ''
+  filter.unit_kerja_id = ''
+  filter.status = ''
+  terapkan()
+}
+
+/* -------------------------------------------------------------------- form */
 
 const modalTerbuka = ref(false)
 const sedangDiubah = ref(null)
@@ -103,8 +137,12 @@ async function bukaRiwayat(perangkat) {
   }
 }
 
+const tersalin = ref(false)
+
 function salin(teks) {
   navigator.clipboard?.writeText(teks)
+  tersalin.value = true
+  setTimeout(() => (tersalin.value = false), 2000)
 }
 
 function waktu(iso) {
@@ -112,6 +150,13 @@ function waktu(iso) {
 
   return new Date(iso).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
 }
+
+const pemasangan = (item) =>
+  item.terpasang
+    ? { warna: 'emerald', label: 'Terpasang' }
+    : item.kode_aktivasi_berlaku
+      ? { warna: 'amber', label: 'Menunggu aktivasi' }
+      : { warna: 'slate', label: 'Belum diaktifkan' }
 </script>
 
 <template>
@@ -122,39 +167,110 @@ function waktu(iso) {
     <template #aksi>
       <button
         type="button"
-        class="rounded-md bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700"
+        class="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 active:scale-95"
         @click="bukaTambah"
       >
-        Daftarkan Perangkat
+        <Ikon nama="tambah" ukuran="h-4 w-4" /> Daftarkan Perangkat
       </button>
     </template>
 
     <!-- Kode aktivasi hanya tampil sekali, tepat setelah diterbitkan. -->
-    <div v-if="kodeAktivasi" class="mb-5 rounded-lg border border-amber-300 bg-amber-50 px-5 py-4">
-      <p class="text-sm font-medium text-amber-900">
-        Kode aktivasi — {{ kodeAktivasi.nama_titik }}
-      </p>
-      <p class="mt-1 text-xs text-amber-800">
-        Berlaku 24 jam. Masukkan kode ini pada layar aktivasi perangkat di lokasi.
-      </p>
-      <div class="mt-3 flex flex-wrap items-center gap-3">
-        <code class="rounded bg-white px-4 py-2 font-display text-lg font-semibold tracking-widest text-navy-700">
-          {{ kodeAktivasi.kode }}
-        </code>
-        <button
-          type="button"
-          class="rounded-md border border-amber-400 px-3 py-1.5 text-xs font-medium text-amber-900 transition hover:bg-amber-100"
-          @click="salin(kodeAktivasi.kode)"
-        >
-          Salin
-        </button>
+    <Transition
+      enter-active-class="transition duration-200 ease-out"
+      enter-from-class="-translate-y-2 opacity-0"
+      enter-to-class="translate-y-0 opacity-100"
+    >
+      <div v-if="kodeAktivasi" class="mb-5 rounded-lg border border-amber-300 bg-amber-50 px-5 py-4">
+        <p class="flex items-center gap-1.5 text-sm font-medium text-amber-900">
+          <Ikon nama="perangkat" ukuran="h-4 w-4" />
+          Kode aktivasi — {{ kodeAktivasi.nama_titik }}
+        </p>
+        <p class="mt-1 text-xs text-amber-800">
+          Berlaku 24 jam. Masukkan kode ini pada layar aktivasi perangkat di lokasi.
+        </p>
+        <div class="mt-3 flex flex-wrap items-center gap-3">
+          <code
+            class="rounded bg-white px-4 py-2 font-display text-lg font-semibold tracking-widest text-navy-700"
+          >
+            {{ kodeAktivasi.kode }}
+          </code>
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 rounded-md border border-amber-400 px-3 py-1.5 text-xs font-medium text-amber-900 transition hover:bg-amber-100 active:scale-95"
+            @click="salin(kodeAktivasi.kode)"
+          >
+            <Ikon :nama="tersalin ? 'cek' : 'detail'" ukuran="h-3.5 w-3.5" />
+            {{ tersalin ? 'Tersalin' : 'Salin' }}
+          </button>
+        </div>
+      </div>
+    </Transition>
+
+    <div class="mb-5 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div>
+          <span class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-slate-500">
+            Cari Perangkat
+          </span>
+          <KolomCari v-model="filter.cari" placeholder="Nama titik absen…" @cari="terapkan" />
+        </div>
+        <div>
+          <label
+            for="unit"
+            class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-slate-500"
+          >
+            Unit Kerja
+          </label>
+          <select
+            id="unit"
+            v-model="filter.unit_kerja_id"
+            class="block w-full rounded-md border-slate-300 text-sm shadow-sm focus:border-teal-500 focus:ring-teal-500"
+            @change="terapkan"
+          >
+            <option value="">Semua unit dalam cakupan</option>
+            <option v-for="unit in unit_kerja" :key="unit.id" :value="unit.id">
+              {{ unit.nama }}
+            </option>
+          </select>
+        </div>
+        <div>
+          <label
+            for="status"
+            class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-slate-500"
+          >
+            Status
+          </label>
+          <select
+            id="status"
+            v-model="filter.status"
+            class="block w-full rounded-md border-slate-300 text-sm shadow-sm focus:border-teal-500 focus:ring-teal-500"
+            @change="terapkan"
+          >
+            <option value="">Semua status</option>
+            <option value="terpasang">Terpasang</option>
+            <option value="belum">Belum diaktifkan</option>
+            <option value="nonaktif">Nonaktif</option>
+          </select>
+        </div>
+        <div class="flex items-end">
+          <button
+            v-if="adaPenyaring"
+            type="button"
+            class="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 active:scale-95"
+            @click="bersihkan"
+          >
+            <Ikon nama="tutup" ukuran="h-4 w-4" /> Bersihkan filter
+          </button>
+        </div>
       </div>
     </div>
 
     <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
       <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-slate-200 text-sm">
-          <thead class="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+          <thead
+            class="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wider text-slate-500"
+          >
             <tr>
               <th scope="col" class="px-4 py-3 text-left font-medium">Titik Absen</th>
               <th scope="col" class="px-4 py-3 text-left font-medium">Unit Kerja</th>
@@ -166,120 +282,136 @@ function waktu(iso) {
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
-            <tr v-for="item in daftar" :key="item.id" :class="{ 'bg-slate-50/60': !item.aktif }">
-              <td class="px-4 py-3 font-medium text-navy-700">{{ item.nama_titik }}</td>
+            <tr
+              v-for="item in daftar.data"
+              :key="item.id"
+              class="transition-colors hover:bg-slate-50/70"
+              :class="{ 'bg-slate-50/60': !item.aktif }"
+            >
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-2">
+                  <span
+                    class="rounded-md p-1.5"
+                    :class="
+                      item.terpasang ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'
+                    "
+                  >
+                    <Ikon nama="perangkat" ukuran="h-4 w-4" />
+                  </span>
+                  <span class="font-medium text-navy-700">{{ item.nama_titik }}</span>
+                </div>
+              </td>
               <td class="px-4 py-3 text-slate-600">{{ item.unit_kerja?.nama ?? '—' }}</td>
               <td class="px-4 py-3">
-                <span
-                  v-if="item.terpasang"
-                  class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700"
-                >
-                  Terpasang
-                </span>
-                <span
-                  v-else-if="item.kode_aktivasi_berlaku"
-                  class="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700"
-                >
-                  Menunggu aktivasi
-                </span>
-                <span v-else class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                  Belum diaktifkan
-                </span>
+                <Lencana :warna="pemasangan(item).warna" :titik="false">
+                  {{ pemasangan(item).label }}
+                </Lencana>
               </td>
-              <td class="px-4 py-3 font-display tabular-nums text-slate-600">{{ item.ip_terakhir ?? '—' }}</td>
+              <td class="px-4 py-3 font-display tabular-nums text-slate-600">
+                {{ item.ip_terakhir ?? '—' }}
+              </td>
               <td class="px-4 py-3 text-xs text-slate-500">{{ waktu(item.login_terakhir_at) }}</td>
               <td class="px-4 py-3">
-                <span
-                  class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
-                  :class="item.aktif ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'"
-                >
-                  <span class="h-1.5 w-1.5 rounded-full" :class="item.aktif ? 'bg-emerald-600' : 'bg-slate-400'"></span>
+                <Lencana :warna="item.aktif ? 'emerald' : 'slate'">
                   {{ item.aktif ? 'Aktif' : 'Nonaktif' }}
-                </span>
+                </Lencana>
               </td>
               <td class="whitespace-nowrap px-4 py-3 text-right">
-                <button
-                  type="button"
-                  class="rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100"
-                  @click="bukaRiwayat(item)"
-                >
-                  Riwayat
-                </button>
-                <button
-                  type="button"
-                  class="rounded-md px-2.5 py-1.5 text-xs font-medium text-teal-700 transition hover:bg-teal-50"
-                  @click="bukaUbah(item)"
-                >
-                  Ubah
-                </button>
-                <button
+                <TombolAksi ikon="jam" warna="slate" @click="bukaRiwayat(item)">Riwayat</TombolAksi>
+                <TombolAksi ikon="ubah" warna="teal" @click="bukaUbah(item)">Ubah</TombolAksi>
+                <TombolAksi
                   v-if="!item.terpasang && item.aktif"
-                  type="button"
-                  class="rounded-md px-2.5 py-1.5 text-xs font-medium text-navy-700 transition hover:bg-navy-50"
+                  ikon="kunci"
+                  warna="navy"
                   @click="terbitkanKode(item)"
                 >
                   Kode Aktivasi
-                </button>
-                <button
+                </TombolAksi>
+                <TombolAksi
                   v-if="item.terpasang"
-                  type="button"
-                  class="rounded-md px-2.5 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-50"
+                  ikon="cabut"
+                  warna="amber"
                   @click="cabutToken(item)"
                 >
                   Cabut Akses
-                </button>
-                <button
-                  type="button"
-                  class="rounded-md px-2.5 py-1.5 text-xs font-medium transition"
-                  :class="item.aktif ? 'text-amber-700 hover:bg-amber-50' : 'text-emerald-700 hover:bg-emerald-50'"
+                </TombolAksi>
+                <TombolAksi
+                  :ikon="item.aktif ? 'cabut' : 'cek'"
+                  :warna="item.aktif ? 'amber' : 'emerald'"
                   @click="ubahStatus(item)"
                 >
                   {{ item.aktif ? 'Nonaktifkan' : 'Aktifkan' }}
-                </button>
-              </td>
-            </tr>
-
-            <tr v-if="daftar.length === 0">
-              <td colspan="7" class="px-6 py-14 text-center text-sm text-slate-500">
-                Belum ada perangkat absen terdaftar.
+                </TombolAksi>
               </td>
             </tr>
           </tbody>
         </table>
       </div>
+
+      <KeadaanKosong
+        v-if="daftar.data.length === 0"
+        ikon="perangkat"
+        :judul="adaPenyaring ? 'Tidak ada perangkat yang cocok' : 'Belum ada perangkat absen'"
+        :keterangan="
+          adaPenyaring
+            ? 'Ubah kata kunci, unit kerja, atau status pada penyaring di atas.'
+            : 'Daftarkan titik absen pertama melalui tombol di kanan atas.'
+        "
+      >
+        <button
+          v-if="adaPenyaring"
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+          @click="bersihkan"
+        >
+          <Ikon nama="tutup" ukuran="h-3.5 w-3.5" /> Bersihkan filter
+        </button>
+      </KeadaanKosong>
+
+      <Paginasi :data="daftar" />
     </div>
 
     <!-- Formulir -->
     <Modal :terbuka="modalTerbuka" :judul="judulForm" @tutup="tutup">
       <div class="space-y-4">
         <div>
-          <label for="nama_titik" class="block text-sm font-medium text-slate-700">Nama Titik Absen</label>
+          <label for="nama_titik" class="block text-sm font-medium text-slate-700">
+            Nama Titik Absen
+          </label>
           <input
             id="nama_titik"
             v-model="form.nama_titik"
             type="text"
             placeholder="mis. Aula Utama BLK Singosari"
-            class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+            class="mt-1 block w-full rounded-md border-slate-300 shadow-sm transition focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
           />
-          <p v-if="form.errors.nama_titik" class="mt-1.5 text-xs text-amber-700">{{ form.errors.nama_titik }}</p>
+          <p v-if="form.errors.nama_titik" class="mt-1.5 text-xs text-amber-700">
+            {{ form.errors.nama_titik }}
+          </p>
         </div>
 
         <div>
-          <label for="unit" class="block text-sm font-medium text-slate-700">Unit Kerja</label>
+          <label for="unit_form" class="block text-sm font-medium text-slate-700">Unit Kerja</label>
           <select
-            id="unit"
+            id="unit_form"
             v-model="form.unit_kerja_id"
-            class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+            class="mt-1 block w-full rounded-md border-slate-300 shadow-sm transition focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
           >
             <option value="" disabled>Pilih unit kerja…</option>
-            <option v-for="unit in unit_kerja" :key="unit.id" :value="unit.id">{{ unit.nama }}</option>
+            <option v-for="unit in unit_kerja" :key="unit.id" :value="unit.id">
+              {{ unit.nama }}
+            </option>
           </select>
           <p v-if="form.errors.unit_kerja_id" class="mt-1.5 text-xs text-amber-700">
             {{ form.errors.unit_kerja_id }}
           </p>
         </div>
 
-        <p v-if="!sedangDiubah" class="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
+        <p
+          v-if="!sedangDiubah"
+          class="flex items-start gap-2 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600"
+        >
+          <Ikon nama="info" ukuran="h-4 w-4 shrink-0" />
           Kode aktivasi diterbitkan otomatis setelah perangkat tersimpan, dan berlaku 24 jam.
         </p>
       </div>
@@ -287,17 +419,18 @@ function waktu(iso) {
       <template #aksi>
         <button
           type="button"
-          class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+          class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 active:scale-95"
           @click="tutup"
         >
           Batal
         </button>
         <button
           type="button"
-          class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
+          class="inline-flex items-center gap-1.5 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-teal-700 active:scale-95 disabled:opacity-50"
           :disabled="form.processing"
           @click="simpan"
         >
+          <Ikon v-if="form.processing" nama="segarkan" ukuran="h-4 w-4 animate-spin" />
           {{ form.processing ? 'Menyimpan…' : 'Simpan Perangkat' }}
         </button>
       </template>
@@ -309,14 +442,15 @@ function waktu(iso) {
       :judul="`Riwayat — ${perangkatRiwayat?.nama_titik ?? ''}`"
       @tutup="riwayatTerbuka = false"
     >
-      <p v-if="riwayat === null" class="text-sm text-slate-500">Memuat riwayat…</p>
+      <p v-if="riwayat === null" class="flex items-center gap-2 text-sm text-slate-500">
+        <Ikon nama="segarkan" ukuran="h-4 w-4 animate-spin" /> Memuat riwayat…
+      </p>
 
-      <ol v-else-if="riwayat.length > 0" class="space-y-3">
-        <li
-          v-for="baris in riwayat"
-          :key="baris.id"
-          class="border-b border-slate-100 pb-3 text-sm last:border-0 last:pb-0"
-        >
+      <ol v-else-if="riwayat.length > 0" class="relative space-y-4 border-l border-slate-200 pl-5">
+        <li v-for="baris in riwayat" :key="baris.id" class="relative text-sm">
+          <span
+            class="absolute -left-[1.55rem] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-teal-500"
+          ></span>
           <p class="font-medium text-navy-700">{{ baris.aksi }}</p>
           <p class="mt-0.5 text-xs text-slate-600">{{ baris.deskripsi }}</p>
           <p class="mt-1 text-xs text-slate-500">
@@ -327,14 +461,17 @@ function waktu(iso) {
         </li>
       </ol>
 
-      <p v-else class="rounded-md border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">
-        Belum ada riwayat untuk perangkat ini.
-      </p>
+      <KeadaanKosong
+        v-else
+        ikon="jam"
+        judul="Belum ada riwayat"
+        keterangan="Jejak aktivasi dan koneksi perangkat ini akan muncul di sini."
+      />
 
       <template #aksi>
         <button
           type="button"
-          class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+          class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 active:scale-95"
           @click="riwayatTerbuka = false"
         >
           Tutup

@@ -67,9 +67,9 @@ class LaporanTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Laporan/Index')
-                ->where('baris.0.event_berlaku', 3)
-                ->where('baris.0.hadir', 1)
-                ->where('baris.0.tanpa_keterangan', 2)
+                ->where('baris.data.0.event_berlaku', 3)
+                ->where('baris.data.0.hadir', 1)
+                ->where('baris.data.0.tanpa_keterangan', 2)
                 ->etc());
     }
 
@@ -87,8 +87,8 @@ class LaporanTest extends TestCase
         $this->actingAs(User::factory()->superadmin()->create())
             ->get(self::URL.'?dari=2026-09-01&sampai=2026-09-30')
             ->assertInertia(fn (Assert $page) => $page
-                ->where('baris.0.event_berlaku', 1)
-                ->where('baris.0.tanpa_keterangan', 1)
+                ->where('baris.data.0.event_berlaku', 1)
+                ->where('baris.data.0.tanpa_keterangan', 1)
                 ->etc());
 
         $this->assertSame(1, Pegawai::whereKey($pegawai->id)->count());
@@ -106,9 +106,9 @@ class LaporanTest extends TestCase
         $this->actingAs(User::factory()->superadmin()->create())
             ->get(self::URL.'?dari=2026-09-01&sampai=2026-09-30')
             ->assertInertia(fn (Assert $page) => $page
-                ->has('baris', 2)
-                ->where('baris.0.event_berlaku', 1)
-                ->where('baris.1.event_berlaku', 1)
+                ->has('baris.data', 2)
+                ->where('baris.data.0.event_berlaku', 1)
+                ->where('baris.data.1.event_berlaku', 1)
                 ->etc());
     }
 
@@ -125,7 +125,7 @@ class LaporanTest extends TestCase
         $this->actingAs(User::factory()->superadmin()->create())
             ->get(self::URL.'?dari=2026-09-01&sampai=2026-09-30')
             ->assertInertia(fn (Assert $page) => $page
-                ->where('baris.0.event_berlaku', 1)
+                ->where('baris.data.0.event_berlaku', 1)
                 ->etc());
     }
 
@@ -144,9 +144,9 @@ class LaporanTest extends TestCase
         $this->actingAs(User::factory()->superadmin()->create())
             ->get(self::URL.'?dari=2026-09-01&sampai=2026-09-30')
             ->assertInertia(fn (Assert $page) => $page
-                ->where('baris.0.hadir', 2)
-                ->where('baris.0.terlambat', 1)
-                ->where('baris.0.tanpa_keterangan', 0)
+                ->where('baris.data.0.hadir', 2)
+                ->where('baris.data.0.terlambat', 1)
+                ->where('baris.data.0.tanpa_keterangan', 0)
                 ->etc());
     }
 
@@ -163,7 +163,7 @@ class LaporanTest extends TestCase
             ->get(self::URL.'?dari=2026-09-01&sampai=2026-09-30')
             ->assertInertia(fn (Assert $page) => $page
                 ->where('jumlah_event', 1)
-                ->where('baris.0.event_berlaku', 1)
+                ->where('baris.data.0.event_berlaku', 1)
                 ->etc());
     }
 
@@ -179,7 +179,7 @@ class LaporanTest extends TestCase
         $this->actingAs(User::factory()->adminUpt($upt)->create())
             ->get(self::URL)
             ->assertInertia(fn (Assert $page) => $page
-                ->has('baris', 2)
+                ->has('baris.data', 2)
                 ->where('ringkasan.pegawai', 2)
                 ->etc());
     }
@@ -195,7 +195,7 @@ class LaporanTest extends TestCase
 
         $this->actingAs(User::factory()->adminUpt($upt)->create())
             ->get(self::URL."?unit_kerja_id={$lain->id}")
-            ->assertInertia(fn (Assert $page) => $page->has('baris', 0)->etc());
+            ->assertInertia(fn (Assert $page) => $page->has('baris.data', 0)->etc());
     }
 
     #[Test]
@@ -255,6 +255,73 @@ class LaporanTest extends TestCase
 
         $this->assertStringContainsString('Ahmad Fauzi', $isi);
         $this->assertStringNotContainsString('Citra Dewi', $isi);
+    }
+
+    #[Test]
+    public function ekspor_pdf_menghasilkan_berkas_pdf(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        Pegawai::factory()->create(['nama' => 'Ahmad Fauzi', 'unit_kerja_id' => $upt->id]);
+        $this->eventPada('2026-09-05', $upt);
+
+        $jawaban = $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL.'/ekspor?format=pdf&dari=2026-09-01&sampai=2026-09-30')
+            ->assertOk()
+            ->assertDownload('laporan-kehadiran-20260901-sd-20260930.pdf');
+
+        // Tanda tangan berkas PDF, bukan sekadar nama berkasnya.
+        $this->assertStringStartsWith('%PDF-', $jawaban->getContent());
+    }
+
+    #[Test]
+    public function ekspor_memuat_seluruh_baris_bukan_hanya_satu_halaman(): void
+    {
+        /*
+         * Layar dibatasi 25 baris per halaman; lampiran administratif yang
+         * ikut terpotong halaman tidak ada gunanya.
+         */
+        ['upt' => $upt] = $this->hirarki();
+        Pegawai::factory()->count(30)->create(['unit_kerja_id' => $upt->id]);
+
+        $isi = $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL.'/ekspor')
+            ->assertOk()
+            ->streamedContent();
+
+        // 30 baris data + 1 baris judul.
+        $this->assertSame(31, substr_count(trim($isi), "\r\n") + 1);
+    }
+
+    #[Test]
+    public function pencarian_menyaring_baris_laporan(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        Pegawai::factory()->create(['nama' => 'Ahmad Fauzi', 'unit_kerja_id' => $upt->id]);
+        Pegawai::factory()->create(['nama' => 'Dewi Anggraini', 'unit_kerja_id' => $upt->id]);
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL.'?cari=dewi')
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('baris.data', 1)
+                ->where('baris.data.0.nama', 'Dewi Anggraini')
+                ->etc());
+    }
+
+    #[Test]
+    public function laporan_terpaginasi(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        Pegawai::factory()->count(30)->create(['unit_kerja_id' => $upt->id]);
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL)
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('baris.data', 25)
+                ->where('baris.total', 30)
+                ->where('baris.last_page', 2)
+                // Ringkasan mengikuti hasil penyaringan, bukan halaman.
+                ->where('ringkasan.pegawai', 30)
+                ->etc());
     }
 
     #[Test]

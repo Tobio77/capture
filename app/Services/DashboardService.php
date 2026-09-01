@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\JenisAbsen;
+use App\Enums\StatusKetepatan;
 use App\Models\Absensi;
 use App\Models\EventAbsen;
 use App\Models\Kiosk;
@@ -98,6 +99,173 @@ class DashboardService
 
     /** Panjang feed aktivitas absen terbaru. */
     public const int BATAS_AKTIVITAS = 12;
+
+    /**
+     * Kesiapan operasional: seberapa siap sistem menerima absensi hari ini.
+     *
+     * Angka ini yang biasanya menjelaskan kegagalan di lapangan — pegawai yang
+     * wajahnya belum terdaftar akan ditolak verifikasi, dan perangkat yang
+     * belum terpasang tidak dapat dipakai sama sekali. Lebih berguna diketahui
+     * sebelum apel daripada sesudahnya.
+     *
+     * @return array<string, mixed>
+     */
+    public function kesiapan(User $pelaku): array
+    {
+        $cakupan = $this->cakupan($pelaku);
+        $total = $this->pegawaiAktif($cakupan)->count();
+
+        $wajah = $this->pegawaiAktif($cakupan)->where('wajah_terdaftar', true)->count();
+        $kartu = $this->pegawaiAktif($cakupan)->whereNotNull('uid_kartu')->count();
+
+        $perangkat = Kiosk::query()
+            ->where('aktif', true)
+            ->when($cakupan !== null, fn ($q) => $q->whereIn('unit_kerja_id', $cakupan));
+
+        $terpasang = (clone $perangkat)->whereNotNull('device_token')->count();
+
+        return [
+            'pegawai' => $total,
+            'wajah_terdaftar' => $wajah,
+            'wajah_persen' => $this->persen($wajah, $total),
+            'kartu_terdaftar' => $kartu,
+            'kartu_persen' => $this->persen($kartu, $total),
+            'perangkat' => $perangkat->count(),
+            'perangkat_terpasang' => $terpasang,
+        ];
+    }
+
+    /**
+     * Kehadiran hari ini dipecah menurut ketepatan (FR-DASH-01).
+     *
+     * @return array<string, int>
+     */
+    public function ketepatanHariIni(User $pelaku): array
+    {
+        $cakupan = $this->cakupan($pelaku);
+
+        $dasar = fn () => Absensi::query()
+            ->where('jenis', JenisAbsen::Datang)
+            ->whereDate('waktu', Carbon::today())
+            ->when($cakupan !== null, fn ($q) => $q->whereIn(
+                'pegawai_id',
+                $this->pegawaiAktif($cakupan)->select('id'),
+            ));
+
+        return [
+            'tepat' => (clone $dasar())->where('status_ketepatan', StatusKetepatan::Tepat)->count(),
+            'terlambat' => (clone $dasar())->where('status_ketepatan', StatusKetepatan::Terlambat)->count(),
+        ];
+    }
+
+    /**
+     * Peringkat unit kerja menurut kehadiran hari ini.
+     *
+     * Dihitung pada unit level teratas, bukan seksi: itulah satuan yang
+     * dipimpin seseorang dan karenanya dapat ditindaklanjuti.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function peringkatUnit(User $pelaku, int $batas = 5): array
+    {
+        $cakupan = $this->cakupan($pelaku);
+
+        $unit = UnitKerja::query()
+            ->levelTeratas()
+            ->aktif()
+            ->orderBy('nama')
+            ->get(['id', 'kode', 'nama']);
+
+        $hadirPerPegawai = Absensi::query()
+            ->where('jenis', JenisAbsen::Datang)
+            ->whereDate('waktu', Carbon::today())
+            ->distinct()
+            ->pluck('pegawai_id')
+            ->all();
+
+        $pegawaiPerUnit = Pegawai::query()
+            ->where('aktif', true)
+            ->select('id', 'unit_kerja_id')
+            ->get()
+            ->groupBy('unit_kerja_id');
+
+        return $unit
+            ->map(function (UnitKerja $satu) use ($pegawaiPerUnit, $hadirPerPegawai, $cakupan) {
+                $ids = UnitKerja::idsDenganTurunan($satu->id);
+
+                if ($cakupan !== null && array_intersect($ids, $cakupan) === []) {
+                    return null;
+                }
+
+                $pegawai = collect($ids)
+                    ->flatMap(fn (int $unitId) => $pegawaiPerUnit->get($unitId, collect())->pluck('id'))
+                    ->all();
+
+                $total = count($pegawai);
+                $hadir = count(array_intersect($pegawai, $hadirPerPegawai));
+
+                return $total === 0 ? null : [
+                    'kode' => $satu->kode,
+                    'nama' => $satu->nama,
+                    'pegawai' => $total,
+                    'hadir' => $hadir,
+                    'persen' => $this->persen($hadir, $total),
+                ];
+            })
+            ->filter()
+            ->sortByDesc('persen')
+            ->take($batas)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Event yang entry-nya masih dibuka beserta capaiannya.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function eventBerjalan(User $pelaku): array
+    {
+        $event = EventAbsen::query()
+            ->aktif()
+            ->with('unitKerja:id,kode')
+            ->when(
+                ! $pelaku->lintasUnit(),
+                fn ($q) => $q->menyentuhUnit(UnitKerja::idsDenganTurunan($pelaku->unit_kerja_id)),
+            )
+            ->orderBy('jam_mulai')
+            ->limit(5)
+            ->get();
+
+        if ($event->isEmpty()) {
+            return [];
+        }
+
+        $hadir = Absensi::query()
+            ->where('jenis', JenisAbsen::Datang)
+            ->whereIn('event_absen_id', $event->pluck('id'))
+            ->selectRaw('event_absen_id, count(distinct pegawai_id) as jumlah')
+            ->groupBy('event_absen_id')
+            ->pluck('jumlah', 'event_absen_id');
+
+        return $event
+            ->map(fn (EventAbsen $satu) => [
+                'id' => $satu->id,
+                'nama' => $satu->nama,
+                'jam_mulai' => substr((string) $satu->jam_mulai, 0, 5),
+                'tanggal' => $satu->tanggal->toDateString(),
+                'cakupan' => $satu->berlakuUntukSemuaUnit()
+                    ? 'Semua unit'
+                    : $satu->unitKerja->pluck('kode')->implode(', '),
+                'hadir' => (int) ($hadir[$satu->id] ?? 0),
+            ])
+            ->all();
+    }
+
+    protected function persen(int $bagian, int $total): float
+    {
+        return $total === 0 ? 0.0 : round($bagian / $total * 100, 1);
+    }
 
     /**
      * Aktivitas absen terbaru (FR-DASH-03).

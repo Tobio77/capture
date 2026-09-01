@@ -235,7 +235,7 @@ class EventTest extends TestCase
             ->get(self::URL)
             ->assertInertia(fn (Assert $page) => $page
                 // Event "semua unit" ikut karena mencakup unitnya juga.
-                ->has('daftar', 2)
+                ->has('daftar.data', 2)
                 ->etc());
     }
 
@@ -572,7 +572,7 @@ class EventTest extends TestCase
         $this->actingAs(User::factory()->superadmin()->create())
             ->get(self::URL)
             ->assertInertia(fn (Assert $page) => $page
-                ->where('daftar.0.jumlah_kiosk', 2)
+                ->where('daftar.data.0.jumlah_kiosk', 2)
                 ->etc());
     }
 
@@ -753,9 +753,9 @@ class EventTest extends TestCase
         $this->actingAs(User::factory()->superadmin()->create())
             ->get(self::URL)
             ->assertInertia(fn (Assert $page) => $page
-                ->has('daftar', 1)
-                ->where('daftar.0.dapat_dihapus', false)
-                ->where('daftar.0.jumlah_absensi', 1)
+                ->has('daftar.data', 1)
+                ->where('daftar.data.0.dapat_dihapus', false)
+                ->where('daftar.data.0.jumlah_absensi', 1)
                 ->etc());
     }
 
@@ -787,6 +787,105 @@ class EventTest extends TestCase
 
         $this->assertSame($pelaku->id, $log->user_id);
         $this->assertStringContainsString('Apel Salah Buat', $log->deskripsi);
+    }
+
+    /* ---------------------------------------------------------------------
+     * Penyaringan, paginasi, dan ekspor daftar event.
+     * ------------------------------------------------------------------- */
+
+    #[Test]
+    public function daftar_event_terpaginasi(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+
+        foreach (range(1, 20) as $urutan) {
+            $event = EventAbsen::factory()->ditutup()->create(['nama' => "Apel {$urutan}"]);
+            $event->unitKerja()->attach($upt);
+        }
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL)
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('daftar.data', EventAbsenService::PER_HALAMAN)
+                ->where('daftar.total', 20)
+                ->etc());
+    }
+
+    #[Test]
+    public function pencarian_menyaring_nama_event(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+
+        foreach (['Apel Pagi Senin', 'Rapat Koordinasi'] as $nama) {
+            $event = EventAbsen::factory()->ditutup()->create(['nama' => $nama]);
+            $event->unitKerja()->attach($upt);
+        }
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL.'?cari=rapat')
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('daftar.data', 1)
+                ->where('daftar.data.0.nama', 'Rapat Koordinasi')
+                ->etc());
+    }
+
+    #[Test]
+    public function penyaring_status_dan_rentang_tanggal_bekerja(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+
+        $aktif = EventAbsen::factory()->create(['nama' => 'Masih Aktif', 'tanggal' => '2026-09-07']);
+        $aktif->unitKerja()->attach($upt);
+
+        $lama = EventAbsen::factory()->ditutup()->create(['nama' => 'Sudah Lewat', 'tanggal' => '2026-08-01']);
+        $lama->unitKerja()->attach($upt);
+
+        $admin = User::factory()->superadmin()->create();
+
+        $this->actingAs($admin)
+            ->get(self::URL.'?status=aktif')
+            ->assertInertia(fn (Assert $page) => $page->has('daftar.data', 1)->etc());
+
+        $this->actingAs($admin)
+            ->get(self::URL.'?dari=2026-09-01&sampai=2026-09-30')
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('daftar.data', 1)
+                ->where('daftar.data.0.nama', 'Masih Aktif')
+                ->etc());
+    }
+
+    #[Test]
+    public function ekspor_event_memuat_seluruh_hasil_penyaringan(): void
+    {
+        // Bukan hanya halaman yang sedang dibuka.
+        ['upt' => $upt] = $this->hirarki();
+
+        foreach (range(1, 20) as $urutan) {
+            $event = EventAbsen::factory()->ditutup()->create(['nama' => "Apel {$urutan}"]);
+            $event->unitKerja()->attach($upt);
+        }
+
+        $isi = $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL.'/ekspor')
+            ->assertOk()
+            ->streamedContent();
+
+        $this->assertSame(21, substr_count(trim($isi), "\r\n") + 1);
+    }
+
+    #[Test]
+    public function ekspor_event_pdf_menghasilkan_berkas_pdf(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        $event = EventAbsen::factory()->create(['nama' => 'Apel Pagi']);
+        $event->unitKerja()->attach($upt);
+
+        $isi = $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL.'/ekspor?format=pdf')
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringStartsWith('%PDF-', $isi);
     }
 
     #[Test]

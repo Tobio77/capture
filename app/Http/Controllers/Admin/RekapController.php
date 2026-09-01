@@ -7,6 +7,7 @@ use App\Models\Absensi;
 use App\Models\EventAbsen;
 use App\Models\UnitKerja;
 use App\Services\AbsensiService;
+use App\Services\EksporService;
 use App\Services\EventAbsenService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -24,12 +26,13 @@ class RekapController extends Controller
     public function __construct(
         protected EventAbsenService $event,
         protected AbsensiService $absensi,
+        protected EksporService $ekspor,
     ) {}
 
     public function index(Request $request): Response
     {
         $pengguna = $request->user();
-        $daftarEvent = $this->event->daftar($pengguna);
+        $daftarEvent = $this->event->opsiEvent($pengguna);
 
         // Tanpa pilihan eksplisit, event terbaru yang ditampilkan — admin
         // hampir selalu membuka halaman ini untuk kegiatan yang sedang atau
@@ -43,15 +46,7 @@ class RekapController extends Controller
             : $this->absensi->rekap($terpilih, $this->cakupan($request));
 
         return Inertia::render('Rekap/Index', [
-            'daftar_event' => $daftarEvent->map(fn (array $event) => [
-                'id' => $event['id'],
-                'nama' => $event['nama'],
-                'tanggal' => $event['tanggal'],
-                'jam_mulai' => $event['jam_mulai'],
-                'status' => $event['status'],
-                'status_label' => $event['status_label'],
-                'cakupan_label' => $event['cakupan_label'],
-            ]),
+            'daftar_event' => $daftarEvent,
             'event' => $terpilih === null ? null : [
                 'id' => $terpilih->id,
                 'nama' => $terpilih->nama,
@@ -82,6 +77,53 @@ class RekapController extends Controller
             'status' => $event->status->value,
             'status_label' => $event->status->label(),
         ]);
+    }
+
+    /**
+     * Unduh rekap sebuah event sebagai CSV atau PDF (FR-REK-03).
+     */
+    public function ekspor(Request $request, EventAbsen $event): SymfonyResponse
+    {
+        abort_unless($this->dapatMelihat($request, $event), 403);
+
+        $rekap = $this->absensi->rekap($event, $this->cakupan($request));
+        $pengguna = $request->user();
+
+        $nama = 'rekap-'.str($event->nama)->slug().'-'.$event->tanggal->format('Ymd');
+        $cakupan = $pengguna->lintasUnit()
+            ? 'Seluruh unit kerja'
+            : ($pengguna->unitKerja?->nama ?? 'Tanpa unit kerja');
+
+        if ($request->string('format')->toString() === 'pdf') {
+            return $this->ekspor->unduhPdf('cetak.rekap', [
+                'baris' => $rekap,
+                'ringkasan' => $this->absensi->ringkasanRekap($rekap),
+                'cakupan' => $cakupan,
+                'event' => [
+                    'nama' => $event->nama,
+                    'tanggal' => $event->tanggal->translatedFormat('l, d F Y'),
+                    'jam_mulai' => substr((string) $event->jam_mulai, 0, 5),
+                    'toleransi_menit' => $event->toleransi_menit,
+                    'status_label' => $event->status->label(),
+                ],
+            ], "{$nama}.pdf");
+        }
+
+        return $this->ekspor->unduhCsv(
+            $this->ekspor->csv(
+                ['NIP', 'Nama', 'Unit Kerja', 'Jam Masuk', 'Jam Pulang', 'Metode', 'Status'],
+                $rekap->map(fn (array $isi) => [
+                    $isi['nip'],
+                    $isi['nama'],
+                    $isi['unit_kerja'] ?? '',
+                    $isi['jam_masuk'] ?? '',
+                    $isi['jam_pulang'] ?? '',
+                    $isi['metode'],
+                    $isi['status_label'] ?? '',
+                ]),
+            ),
+            "{$nama}.csv",
+        );
     }
 
     /**

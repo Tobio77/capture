@@ -1,22 +1,30 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { useForm } from '@inertiajs/vue3'
+import { computed, reactive, ref } from 'vue'
+import { router, useForm } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
 import Modal from '@/Components/Modal.vue'
+import Ikon from '@/Components/Ikon.vue'
+import Paginasi from '@/Components/UI/Paginasi.vue'
+import KolomCari from '@/Components/UI/KolomCari.vue'
+import Lencana from '@/Components/UI/Lencana.vue'
+import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
+import TombolAksi from '@/Components/UI/TombolAksi.vue'
 
 /**
- * Daftar Event (FR-EVT-01, FR-EVT-02).
- *
- * Aksi Tutup dan Detail menyusul pada S11 dan S12.
+ * Daftar Event (FR-EVT-01 s.d. FR-EVT-05).
  */
 
 const props = defineProps({
-  daftar: { type: Array, required: true },
+  daftar: { type: Object, required: true },
+  filter: { type: Object, required: true },
+  status_pilihan: { type: Array, required: true },
   unit_kerja: { type: Array, required: true },
   nilai_awal: { type: Object, required: true },
   boleh_semua_unit: { type: Boolean, required: true },
   cakupan_semua_unit: { type: String, required: true },
 })
+
+const filter = reactive({ ...props.filter })
 
 const formTerbuka = ref(false)
 const sedangDiubah = ref(null)
@@ -36,9 +44,33 @@ const form = useForm({
 
 const semuaUnit = computed(() => form.cakupan === props.cakupan_semua_unit)
 const judulForm = computed(() => (sedangDiubah.value ? 'Ubah Event' : 'Buat Event Baru'))
-
-// Admin UPT yang hanya menaungi satu unit tidak perlu memilih apa pun.
 const unitTunggal = computed(() => props.unit_kerja.length === 1)
+
+const adaFilter = computed(() => Object.values(filter).some((n) => n !== '' && n !== null))
+
+const kueri = computed(() =>
+  Object.fromEntries(Object.entries(filter).filter(([, n]) => n !== '' && n !== null)),
+)
+
+function terapkan() {
+  router.get('/admin/kelola-absen/event', kueri.value, {
+    preserveState: true,
+    preserveScroll: true,
+    replace: true,
+  })
+}
+
+function bersihkanFilter() {
+  Object.keys(filter).forEach((kunci) => {
+    filter[kunci] = ''
+  })
+  terapkan()
+}
+
+function unduh(format) {
+  window.location.href =
+    '/admin/kelola-absen/event/ekspor?' + new URLSearchParams({ ...kueri.value, format }).toString()
+}
 
 function bukaBuat() {
   sedangDiubah.value = null
@@ -95,32 +127,19 @@ async function bukaDetail(event) {
   }
 }
 
-function waktuSingkat(iso) {
-  if (!iso) return '—'
-
-  return new Date(iso.replace(' ', 'T')).toLocaleString('id-ID', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
 function tutup(event) {
   const pesan =
     `Tutup entry event "${event.nama}"?\n\n` +
     'Tap baru pada perangkat absen untuk event ini akan ditolak, dan event tidak dapat dibuka kembali.'
 
   if (window.confirm(pesan)) {
-    form.post(`/admin/kelola-absen/event/${event.id}/tutup`, { preserveScroll: true })
+    router.post(`/admin/kelola-absen/event/${event.id}/tutup`, {}, { preserveScroll: true })
   }
 }
 
 function hapus(event) {
-  const pesan = `Hapus event "${event.nama}" secara permanen? Tindakan ini tidak dapat dibatalkan.`
-
-  if (window.confirm(pesan)) {
-    form.delete(`/admin/kelola-absen/event/${event.id}`, { preserveScroll: true })
+  if (window.confirm(`Hapus event "${event.nama}" secara permanen? Tindakan ini tidak dapat dibatalkan.`)) {
+    router.delete(`/admin/kelola-absen/event/${event.id}`, { preserveScroll: true })
   }
 }
 
@@ -131,6 +150,17 @@ function tanggalPanjang(iso) {
     year: 'numeric',
   })
 }
+
+function waktuSingkat(iso) {
+  if (!iso) return '—'
+
+  return new Date(iso.replace(' ', 'T')).toLocaleString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
 </script>
 
 <template>
@@ -138,13 +168,81 @@ function tanggalPanjang(iso) {
     judul="Daftar Event"
     deskripsi="Event absensi beserta cakupan unit kerjanya. Perangkat absen hanya melayani tap untuk event yang masih aktif."
   >
-    <div class="mb-4 flex justify-end">
+    <template #aksi>
+      <div class="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 active:scale-95"
+          @click="unduh('csv')"
+        >
+          <Ikon nama="unduh" ukuran="h-4 w-4" /> CSV
+        </button>
+        <button
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 active:scale-95"
+          @click="unduh('pdf')"
+        >
+          <Ikon nama="cetak" ukuran="h-4 w-4" /> PDF
+        </button>
+        <button
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 active:scale-95"
+          @click="bukaBuat"
+        >
+          <Ikon nama="tambah" ukuran="h-4 w-4" /> Buat Event
+        </button>
+      </div>
+    </template>
+
+    <div class="mb-5 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div class="lg:col-span-2">
+          <KolomCari v-model="filter.cari" placeholder="Cari nama event atau catatan…" @cari="terapkan" />
+        </div>
+        <select
+          v-model="filter.status"
+          aria-label="Saring status"
+          class="rounded-md border-slate-300 text-sm shadow-sm focus:border-teal-500 focus:ring-teal-500"
+          @change="terapkan"
+        >
+          <option value="">Semua status</option>
+          <option v-for="s in status_pilihan" :key="s.nilai" :value="s.nilai">{{ s.label }}</option>
+        </select>
+        <select
+          v-model="filter.unit_kerja_id"
+          aria-label="Saring unit kerja"
+          class="rounded-md border-slate-300 text-sm shadow-sm focus:border-teal-500 focus:ring-teal-500"
+          @change="terapkan"
+        >
+          <option value="">Semua unit kerja</option>
+          <option v-for="unit in unit_kerja" :key="unit.id" :value="unit.id">{{ unit.nama }}</option>
+        </select>
+        <div class="flex items-center gap-2">
+          <input
+            v-model="filter.dari"
+            type="date"
+            aria-label="Tanggal awal"
+            class="w-full rounded-md border-slate-300 text-sm shadow-sm focus:border-teal-500 focus:ring-teal-500"
+            @change="terapkan"
+          />
+          <span class="text-xs text-slate-400">—</span>
+          <input
+            v-model="filter.sampai"
+            type="date"
+            aria-label="Tanggal akhir"
+            class="w-full rounded-md border-slate-300 text-sm shadow-sm focus:border-teal-500 focus:ring-teal-500"
+            @change="terapkan"
+          />
+        </div>
+      </div>
+
       <button
+        v-if="adaFilter"
         type="button"
-        class="rounded-md bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700"
-        @click="bukaBuat"
+        class="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 transition hover:text-slate-700"
+        @click="bersihkanFilter"
       >
-        Buat Event Baru
+        <Ikon nama="tutup" ukuran="h-3.5 w-3.5" /> Bersihkan penyaringan
       </button>
     </div>
 
@@ -153,36 +251,41 @@ function tanggalPanjang(iso) {
         <table class="min-w-full divide-y divide-slate-200 text-sm">
           <thead class="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
             <tr>
-              <th scope="col" class="px-4 py-3 font-medium">Nama Event</th>
-              <th scope="col" class="px-4 py-3 font-medium">Cakupan</th>
-              <th scope="col" class="px-4 py-3 font-medium">Tanggal &amp; Jam</th>
+              <th scope="col" class="px-4 py-3 text-left font-medium">Nama Event</th>
+              <th scope="col" class="px-4 py-3 text-left font-medium">Cakupan</th>
+              <th scope="col" class="px-4 py-3 text-left font-medium">Jadwal</th>
               <th scope="col" class="px-4 py-3 text-right font-medium">Toleransi</th>
               <th scope="col" class="px-4 py-3 text-right font-medium">Perangkat</th>
               <th scope="col" class="px-4 py-3 text-right font-medium">Masuk</th>
-              <th scope="col" class="px-4 py-3 font-medium">Status</th>
+              <th scope="col" class="px-4 py-3 text-left font-medium">Status</th>
               <th scope="col" class="px-4 py-3 text-right font-medium">Aksi</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
-            <tr v-for="event in daftar" :key="event.id">
+            <tr v-for="event in daftar.data" :key="event.id" class="transition-colors hover:bg-slate-50/70">
               <td class="px-4 py-3">
                 <span class="font-medium text-navy-700">{{ event.nama }}</span>
-                <span v-if="event.catatan" class="mt-0.5 block text-xs text-slate-500">{{ event.catatan }}</span>
+                <span v-if="event.catatan" class="mt-0.5 block max-w-xs truncate text-xs text-slate-500">
+                  {{ event.catatan }}
+                </span>
               </td>
               <td class="px-4 py-3">
-                <span
-                  v-if="event.cakupan === cakupan_semua_unit"
-                  class="rounded-full bg-navy-50 px-2.5 py-0.5 text-xs font-medium text-navy-700"
-                >
+                <Lencana v-if="event.cakupan === cakupan_semua_unit" warna="navy" :titik="false">
                   Semua Unit
-                </span>
+                </Lencana>
                 <span v-else class="text-xs text-slate-600">
                   {{ event.unit_kerja.map((u) => u.kode).join(', ') || '—' }}
                 </span>
               </td>
               <td class="px-4 py-3 text-slate-600">
-                {{ tanggalPanjang(event.tanggal) }}
-                <span class="font-display tabular-nums text-slate-500">· {{ event.jam_mulai }}</span>
+                <span class="flex items-center gap-1.5">
+                  <Ikon nama="kalender" ukuran="h-3.5 w-3.5" class="text-slate-400" />
+                  {{ tanggalPanjang(event.tanggal) }}
+                </span>
+                <span class="mt-0.5 flex items-center gap-1.5 font-display text-xs tabular-nums text-slate-500">
+                  <Ikon nama="jam" ukuran="h-3.5 w-3.5" class="text-slate-400" />
+                  {{ event.jam_mulai }}
+                </span>
               </td>
               <td class="px-4 py-3 text-right font-display tabular-nums text-slate-600">
                 {{ event.toleransi_menit }} mnt
@@ -190,70 +293,46 @@ function tanggalPanjang(iso) {
               <td class="px-4 py-3 text-right font-display tabular-nums text-slate-600">
                 {{ event.jumlah_kiosk }}
               </td>
-              <td class="px-4 py-3 text-right font-display tabular-nums text-slate-600">
+              <td class="px-4 py-3 text-right font-display font-medium tabular-nums text-emerald-700">
                 {{ event.jumlah_absensi }}
               </td>
               <td class="px-4 py-3">
-                <span
-                  class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
-                  :class="event.status === 'aktif' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'"
+                <Lencana
+                  :warna="event.status === 'aktif' ? 'emerald' : 'slate'"
+                  :denyut="event.status === 'aktif'"
                 >
-                  <span
-                    class="h-1.5 w-1.5 rounded-full"
-                    :class="event.status === 'aktif' ? 'bg-emerald-600' : 'bg-slate-400'"
-                  ></span>
                   {{ event.status_label }}
-                </span>
+                </Lencana>
               </td>
               <td class="whitespace-nowrap px-4 py-3 text-right">
-                <button
-                  type="button"
-                  class="rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100"
-                  @click="bukaDetail(event)"
-                >
-                  Detail
-                </button>
-                <button
-                  v-if="event.status === 'aktif'"
-                  type="button"
-                  class="rounded-md px-2.5 py-1.5 text-xs font-medium text-teal-700 transition hover:bg-teal-50"
-                  @click="bukaUbah(event)"
-                >
+                <TombolAksi ikon="detail" @click="bukaDetail(event)">Detail</TombolAksi>
+                <TombolAksi v-if="event.status === 'aktif'" ikon="ubah" warna="teal" @click="bukaUbah(event)">
                   Ubah
-                </button>
-                <button
-                  v-if="event.status === 'aktif'"
-                  type="button"
-                  class="rounded-md px-2.5 py-1.5 text-xs font-medium text-navy-700 transition hover:bg-navy-50"
-                  @click="tutup(event)"
-                >
+                </TombolAksi>
+                <TombolAksi v-if="event.status === 'aktif'" ikon="cek" warna="navy" @click="tutup(event)">
                   Tutup
-                </button>
-                <button
-                  v-if="event.dapat_dihapus"
-                  type="button"
-                  class="rounded-md px-2.5 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-50"
-                  @click="hapus(event)"
-                >
+                </TombolAksi>
+                <TombolAksi v-if="event.dapat_dihapus" ikon="hapus" warna="amber" @click="hapus(event)">
                   Hapus
-                </button>
-                <span
-                  v-else-if="event.status !== 'aktif'"
-                  class="text-xs text-slate-400"
-                  :title="`${event.jumlah_absensi} absensi tercatat`"
-                >
-                  Terkunci
-                </span>
-              </td>
-            </tr>
-            <tr v-if="daftar.length === 0">
-              <td colspan="8" class="px-6 py-12 text-center text-sm text-slate-500">
-                Belum ada event. Mulai dengan menekan “Buat Event Baru”.
+                </TombolAksi>
               </td>
             </tr>
           </tbody>
         </table>
       </div>
+
+      <KeadaanKosong
+        v-if="daftar.data.length === 0"
+        ikon="absen"
+        :judul="adaFilter ? 'Tidak ada event yang cocok' : 'Belum ada event'"
+        :keterangan="
+          adaFilter
+            ? 'Coba longgarkan penyaringan, atau bersihkan seluruhnya.'
+            : 'Mulai dengan menekan “Buat Event” di kanan atas.'
+        "
+      />
+
+      <Paginasi :data="daftar" />
     </div>
 
     <Modal :terbuka="detailTerbuka" judul="Detail Event" @tutup="detailTerbuka = false">
@@ -261,7 +340,10 @@ function tanggalPanjang(iso) {
         {{ detailGagal }}
       </p>
 
-      <p v-else-if="!detail" class="text-sm text-slate-500">Memuat rincian…</p>
+      <p v-else-if="!detail" class="flex items-center gap-2 text-sm text-slate-500">
+        <span class="h-3 w-3 animate-spin rounded-full border-2 border-teal-600 border-t-transparent"></span>
+        Memuat rincian…
+      </p>
 
       <div v-else class="space-y-5">
         <div class="rounded-lg bg-slate-50 px-4 py-3">
@@ -273,11 +355,15 @@ function tanggalPanjang(iso) {
 
         <div class="grid grid-cols-3 gap-3 text-center">
           <div class="rounded-lg border border-slate-200 px-3 py-3">
-            <p class="font-display text-xl font-semibold tabular-nums text-navy-700">{{ detail.kiosk.length }}</p>
+            <p class="font-display text-xl font-semibold tabular-nums text-navy-700">
+              {{ detail.kiosk.length }}
+            </p>
             <p class="mt-0.5 text-xs text-slate-500">Perangkat terhubung</p>
           </div>
           <div class="rounded-lg border border-slate-200 px-3 py-3">
-            <p class="font-display text-xl font-semibold tabular-nums text-navy-700">{{ detail.jumlah_absensi }}</p>
+            <p class="font-display text-xl font-semibold tabular-nums text-emerald-700">
+              {{ detail.jumlah_absensi }}
+            </p>
             <p class="mt-0.5 text-xs text-slate-500">Absen masuk</p>
           </div>
           <div class="rounded-lg border border-slate-200 px-3 py-3">
@@ -294,11 +380,16 @@ function tanggalPanjang(iso) {
         </div>
 
         <div>
-          <p class="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Perangkat Absen Terhubung</p>
+          <p class="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">
+            Perangkat Absen Terhubung
+          </p>
 
-          <div v-if="detail.kiosk.length === 0" class="rounded-md border border-dashed border-slate-300 px-4 py-6 text-center text-xs text-slate-500">
-            Belum ada perangkat absen yang aktif pada event ini.
-          </div>
+          <KeadaanKosong
+            v-if="detail.kiosk.length === 0"
+            ikon="perangkat"
+            judul="Belum ada perangkat"
+            keterangan="Perangkat tercatat begitu layarnya dibuka pada event ini."
+          />
 
           <table v-else class="min-w-full text-sm">
             <thead class="text-xs uppercase tracking-wider text-slate-500">
@@ -312,10 +403,14 @@ function tanggalPanjang(iso) {
               <tr v-for="kiosk in detail.kiosk" :key="kiosk.id">
                 <td class="py-2 text-slate-700">
                   {{ kiosk.nama_titik }}
-                  <span class="ml-1 font-display text-xs tabular-nums text-slate-400">{{ kiosk.unit_kerja_kode }}</span>
+                  <span class="ml-1 font-display text-xs tabular-nums text-slate-400">
+                    {{ kiosk.unit_kerja_kode }}
+                  </span>
                 </td>
                 <td class="py-2 font-display tabular-nums text-slate-600">{{ kiosk.ip_address ?? '—' }}</td>
-                <td class="py-2 text-right text-xs text-slate-500">{{ waktuSingkat(kiosk.terakhir_aktif_pada) }}</td>
+                <td class="py-2 text-right text-xs text-slate-500">
+                  {{ waktuSingkat(kiosk.terakhir_aktif_pada) }}
+                </td>
               </tr>
             </tbody>
           </table>
@@ -405,11 +500,14 @@ function tanggalPanjang(iso) {
             </label>
           </div>
 
-          <div v-if="!semuaUnit" class="mt-2 max-h-48 space-y-1.5 overflow-y-auto rounded-md border border-slate-200 p-3">
+          <div
+            v-if="!semuaUnit"
+            class="mt-2 max-h-48 space-y-1.5 overflow-y-auto rounded-md border border-slate-200 p-3"
+          >
             <label
               v-for="unit in unit_kerja"
               :key="unit.id"
-              class="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-sm text-slate-700 hover:bg-slate-50"
+              class="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-sm text-slate-700 transition hover:bg-slate-50"
             >
               <input
                 v-model="form.unit_kerja_id"
@@ -425,12 +523,15 @@ function tanggalPanjang(iso) {
             </p>
           </div>
 
-          <p v-else class="mt-2 rounded-md bg-navy-50 px-3 py-2 text-xs text-navy-700">
+          <p v-else class="mt-2 flex items-start gap-2 rounded-md bg-navy-50 px-3 py-2 text-xs text-navy-700">
+            <Ikon nama="info" ukuran="h-4 w-4" class="mt-px shrink-0" />
             Event berlaku untuk seluruh unit kerja, termasuk unit yang ditambahkan setelah event ini dibuat.
           </p>
 
           <p v-if="form.errors.cakupan" class="mt-1 text-xs text-amber-700">{{ form.errors.cakupan }}</p>
-          <p v-if="form.errors.unit_kerja_id" class="mt-1 text-xs text-amber-700">{{ form.errors.unit_kerja_id }}</p>
+          <p v-if="form.errors.unit_kerja_id" class="mt-1 text-xs text-amber-700">
+            {{ form.errors.unit_kerja_id }}
+          </p>
         </div>
 
         <div>
@@ -455,10 +556,11 @@ function tanggalPanjang(iso) {
         </button>
         <button
           type="button"
-          class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
+          class="inline-flex items-center gap-1.5 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-teal-700 active:scale-95 disabled:opacity-50"
           :disabled="form.processing"
           @click="simpan"
         >
+          <Ikon v-if="!form.processing" nama="cek" ukuran="h-4 w-4" />
           {{ form.processing ? 'Menyimpan…' : 'Simpan Event' }}
         </button>
       </template>

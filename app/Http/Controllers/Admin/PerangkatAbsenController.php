@@ -22,11 +22,17 @@ class PerangkatAbsenController extends Controller
 {
     public function __construct(protected PerangkatAbsenService $perangkat) {}
 
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        $filter = $request->only(['cari', 'unit_kerja_id', 'status']);
+
         return Inertia::render('Perangkat/Index', [
-            'daftar' => $this->perangkat->daftar(),
+            'daftar' => $this->perangkat->daftar(filter: $filter),
             'unit_kerja' => $this->perangkat->unitKerjaTersedia(),
+            'filter' => ['cari' => '', 'unit_kerja_id' => '', 'status' => ''] + array_filter(
+                $filter,
+                fn ($nilai) => $nilai !== null,
+            ),
         ]);
     }
 

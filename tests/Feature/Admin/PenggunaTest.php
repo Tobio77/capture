@@ -248,10 +248,10 @@ class PenggunaTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Pengguna/Index')
-                ->has('daftar', 2)
-                ->where('daftar.0.nama', 'Admin BLK Singosari')
-                ->where('daftar.0.unit_kerja.kode', 'BLK-SGS')
-                ->where('daftar.1.unit_kerja', null)
+                ->has('daftar.data', 2)
+                ->where('daftar.data.0.nama', 'Admin BLK Singosari')
+                ->where('daftar.data.0.unit_kerja.kode', 'BLK-SGS')
+                ->where('daftar.data.1.unit_kerja', null)
                 ->etc());
     }
 

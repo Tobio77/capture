@@ -9,6 +9,8 @@ use App\Models\EventAbsen;
 use App\Models\Pegawai;
 use App\Models\UnitKerja;
 use App\Models\User;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -23,6 +25,65 @@ use Illuminate\Support\Collection;
  */
 class LaporanService
 {
+    /** Jumlah baris per halaman pada layar laporan. */
+    public const int PER_HALAMAN = 25;
+
+    /**
+     * Satu halaman laporan.
+     *
+     * Ekspor sengaja tidak memakai ini melainkan {@see self::rekap()} penuh:
+     * berkas unduhan harus memuat seluruh pegawai, bukan halaman yang kebetulan
+     * sedang dibuka.
+     *
+     * @return array<string, mixed>
+     */
+    public function halaman(
+        User $pelaku,
+        Carbon $dari,
+        Carbon $sampai,
+        ?int $unitKerjaId,
+        ?string $cari,
+        int $halaman,
+    ): array {
+        $hasil = $this->rekap($pelaku, $dari, $sampai, $unitKerjaId);
+
+        $baris = $this->saring($hasil['baris'], $cari);
+
+        return [
+            'baris' => new LengthAwarePaginator(
+                $baris->forPage($halaman, self::PER_HALAMAN)->values(),
+                $baris->count(),
+                self::PER_HALAMAN,
+                $halaman,
+                ['path' => Paginator::resolveCurrentPath()],
+            ),
+
+            // Ringkasan mengikuti hasil penyaringan, bukan halaman: yang ingin
+            // diketahui adalah total untuk pilihan yang sedang dilihat.
+            'ringkasan' => $this->ringkasan($baris),
+            'jumlah_event' => $hasil['jumlah_event'],
+        ];
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $baris
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function saring(Collection $baris, ?string $cari): Collection
+    {
+        if (blank($cari)) {
+            return $baris;
+        }
+
+        $kunci = mb_strtolower(trim($cari));
+
+        return $baris
+            ->filter(fn (array $isi) => str_contains(mb_strtolower($isi['nama']), $kunci)
+                || str_contains($isi['nip'], $kunci)
+                || str_contains(mb_strtolower($isi['unit_kerja'] ?? ''), $kunci))
+            ->values();
+    }
+
     /**
      * Rekap kehadiran per pegawai pada rentang tanggal tertentu.
      *
@@ -139,6 +200,15 @@ class LaporanService
             fn ($nilai) => '"'.str_replace('"', '""', (string) $nilai).'"',
             $kolom,
         ));
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $baris
+     * @return array<string, int>
+     */
+    public function ringkasanUntuk(Collection $baris): array
+    {
+        return $this->ringkasan($baris);
     }
 
     /**

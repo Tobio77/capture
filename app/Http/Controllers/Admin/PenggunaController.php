@@ -23,10 +23,16 @@ class PenggunaController extends Controller
 {
     public function __construct(protected PenggunaService $pengguna) {}
 
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        $filter = $request->only(['cari', 'role', 'status']);
+
         return Inertia::render('Pengguna/Index', [
-            'daftar' => $this->pengguna->daftar(),
+            'daftar' => $this->pengguna->daftar($filter),
+            'filter' => ['cari' => '', 'role' => '', 'status' => ''] + array_filter(
+                $filter,
+                fn ($nilai) => $nilai !== null,
+            ),
             'unit_kerja' => $this->pengguna->unitKerjaTersedia(),
             'peran' => collect(PeranPengguna::cases())
                 ->map(fn (PeranPengguna $peran) => [

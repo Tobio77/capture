@@ -105,6 +105,7 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
         Route::get('event', [EventController::class, 'index'])->name('event.index');
         Route::post('event', [EventController::class, 'store'])->name('event.store');
         Route::patch('event/{event}', [EventController::class, 'update'])->name('event.update');
+        Route::get('event/ekspor', [EventController::class, 'ekspor'])->name('event.ekspor');
         Route::get('event/{event}/detail', [EventController::class, 'detail'])->name('event.detail');
         Route::post('event/{event}/tutup', [EventController::class, 'tutup'])->name('event.tutup');
         Route::delete('event/{event}', [EventController::class, 'destroy'])->name('event.destroy');
@@ -115,6 +116,7 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
          * bercakupan semua unit — tetapi hanya melihat pegawainya sendiri.
          */
         Route::get('rekap', [RekapController::class, 'index'])->name('rekap.index');
+        Route::get('rekap/{event}/ekspor', [RekapController::class, 'ekspor'])->name('rekap.ekspor');
         Route::get('rekap/{event}/data', [RekapController::class, 'data'])
             ->middleware('throttle:60,1')
             ->name('rekap.data');
