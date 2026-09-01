@@ -1,0 +1,46 @@
+<?php
+
+namespace App\Http\Controllers\Kiosk;
+
+use App\Http\Controllers\Controller;
+use App\Services\AbsensiService;
+use App\Services\EventAbsenService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+
+/**
+ * Daftar e-Presensi terkini untuk layar kiosk (FR-TAP-08).
+ *
+ * Ditarik berkala oleh kiosk supaya tabel ikut bertambah ketika pegawai lain
+ * men-tap di kiosk lain pada event yang sama. Jawaban juga membawa keadaan
+ * event, sehingga kiosk mengetahui entry yang ditutup admin tanpa perlu
+ * dimuat ulang (FR-EVT-04).
+ */
+class DaftarPresensiController extends Controller
+{
+    public function __construct(
+        protected EventAbsenService $event,
+        protected AbsensiService $absensi,
+    ) {}
+
+    public function __invoke(Request $request): JsonResponse
+    {
+        $kiosk = $request->kiosk();
+        $event = $kiosk === null ? null : $this->event->eventAktifUntukKiosk($kiosk);
+
+        if ($event === null) {
+            return response()->json(['event' => null, 'daftar_presensi' => []]);
+        }
+
+        return response()->json([
+            'event' => [
+                'id' => $event->id,
+                'nama' => $event->nama,
+                'tanggal' => $event->tanggal->toDateString(),
+                'jam_mulai' => substr((string) $event->jam_mulai, 0, 5),
+                'toleransi_menit' => $event->toleransi_menit,
+            ],
+            'daftar_presensi' => $this->absensi->daftarPresensi($event),
+        ]);
+    }
+}

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Head, router, usePage } from '@inertiajs/vue3'
 import PanelEntry from '@/Components/Kiosk/PanelEntry.vue'
 import PanelPresensi from '@/Components/Kiosk/PanelPresensi.vue'
@@ -31,7 +31,10 @@ const presensi = ref(props.daftar_presensi)
 const pesan = ref(null)
 const panel = ref(null)
 
-const entryDibuka = computed(() => props.event !== null)
+// Keadaan event disimpan lokal, bukan dibaca langsung dari prop, karena
+// pembaruan berkala dapat mengubahnya di tengah sesi (FR-TAP-08, FR-EVT-04).
+const eventAktif = ref(props.event)
+const entryDibuka = computed(() => eventAktif.value !== null)
 const tahap = ref(entryDibuka.value ? 'menunggu_tap' : 'menunggu_event')
 
 const { siapkanModel, verifikasi } = useVerifikasiWajah()
@@ -39,19 +42,68 @@ const { siapkanModel, verifikasi } = useVerifikasiWajah()
 let jedaPulih = null
 
 /*
- * Model face-api berukuran ~6,8 MB dan butuh beberapa detik untuk dimuat.
- * Pemuatannya dimulai begitu layar terbuka — bukan saat tap pertama — supaya
- * pegawai pertama tidak menunggu lebih lama daripada yang berikutnya
- * (NFR-01: tap hingga hasil rata-rata di bawah 3 detik).
+ * Jeda penarikan Daftar e-Presensi. 10 detik cukup terasa langsung bagi
+ * pegawai yang menunggu namanya muncul, sementara satu kiosk hanya membebani
+ * server enam permintaan per menit.
  */
+const JEDA_TARIK_MS = 10000
+
+let jedaTarik = null
+
 onMounted(() => {
+  /*
+   * Model face-api berukuran ~6,8 MB dan butuh beberapa detik untuk dimuat.
+   * Pemuatannya dimulai begitu layar terbuka — bukan saat tap pertama —
+   * supaya pegawai pertama tidak menunggu lebih lama daripada yang
+   * berikutnya (NFR-01: tap hingga hasil rata-rata di bawah 3 detik).
+   */
   if (props.metode.wajah && entryDibuka.value) {
     siapkanModel().catch(() => {
       // Kegagalan dilaporkan saat tap, bukan sebagai peringatan yang
       // menghalangi layar sebelum ada yang mencoba absen.
     })
   }
+
+  jedaTarik = setInterval(tarikPresensi, JEDA_TARIK_MS)
 })
+
+onBeforeUnmount(() => {
+  clearInterval(jedaTarik)
+  clearTimeout(jedaPulih)
+})
+
+/**
+ * Tarik daftar terkini beserta keadaan event (FR-TAP-08).
+ *
+ * Dilewati selagi tap sedang diproses supaya hasil yang baru saja tampil
+ * tidak tertimpa di tengah pembacaan pegawai.
+ */
+async function tarikPresensi() {
+  if (tahap.value === 'memindai') return
+
+  try {
+    const jawaban = await fetch('/kiosk/presensi', { headers: { Accept: 'application/json' } })
+
+    if (!jawaban.ok) return
+
+    const isi = await jawaban.json()
+
+    presensi.value = isi.daftar_presensi
+    eventAktif.value = isi.event
+
+    // Entry yang ditutup admin langsung mengunci kolom tap, tanpa perlu
+    // layar kiosk dimuat ulang.
+    if (isi.event === null && tahap.value === 'menunggu_tap') {
+      tahap.value = 'menunggu_event'
+    }
+
+    if (isi.event !== null && tahap.value === 'menunggu_event') {
+      tahap.value = 'menunggu_tap'
+    }
+  } catch {
+    // Jaringan sedang bermasalah; percobaan berikutnya menyusul sendiri.
+  }
+}
 
 /**
  * Tap dari kolom ID — UID kartu maupun NIP yang diketik, keduanya dikirim
@@ -218,7 +270,7 @@ const lepas = () => {
         <div class="flex items-center gap-5">
           <div>
             <p class="font-display text-lg font-semibold text-white">
-              {{ event?.nama ?? 'Tidak ada event aktif' }}
+              {{ eventAktif?.nama ?? 'Tidak ada event aktif' }}
             </p>
             <p class="text-sm text-navy-200">
               {{ kiosk.nama_titik }} · {{ kiosk.unit_kerja?.nama }}
@@ -235,8 +287,8 @@ const lepas = () => {
         </div>
 
         <div class="flex items-center gap-4">
-          <p v-if="event" class="text-right text-xs text-navy-200">
-            Mulai {{ event.jam_mulai }} · toleransi {{ event.toleransi_menit }} menit
+          <p v-if="eventAktif" class="text-right text-xs text-navy-200">
+            Mulai {{ eventAktif.jam_mulai }} · toleransi {{ eventAktif.toleransi_menit }} menit
           </p>
           <button
             type="button"
@@ -261,7 +313,7 @@ const lepas = () => {
         @tap="tangkapTap"
       />
 
-      <PanelPresensi :daftar="presensi" :event="event" />
+      <PanelPresensi :daftar="presensi" :event="eventAktif" />
     </main>
   </div>
 </template>

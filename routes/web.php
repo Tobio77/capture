@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\SettingWorkaController;
 use App\Http\Controllers\Admin\UnitKerjaController;
 use App\Http\Controllers\Auth\SesiController;
 use App\Http\Controllers\Kiosk\AktivasiController;
+use App\Http\Controllers\Kiosk\DaftarPresensiController;
 use App\Http\Controllers\Kiosk\FotoAbsenController;
 use App\Http\Controllers\Kiosk\FotoPegawaiController;
 use App\Http\Controllers\Kiosk\IdentifikasiTapController;
@@ -54,6 +55,15 @@ Route::prefix('kiosk')->name('kiosk.')->group(function () {
         Route::post('absen', SimpanAbsenController::class)
             ->middleware('throttle:120,1')
             ->name('absen.simpan');
+
+        /*
+         * Daftar e-Presensi terkini (FR-TAP-08). Ditarik berkala oleh layar
+         * kiosk agar tabel ikut bertambah ketika pegawai lain men-tap di
+         * kiosk lain pada event yang sama.
+         */
+        Route::get('presensi', DaftarPresensiController::class)
+            ->middleware('throttle:60,1')
+            ->name('presensi');
 
         // Foto absen disajikan lewat route terautentikasi, tidak pernah dari
         // disk publik (NFR-04).

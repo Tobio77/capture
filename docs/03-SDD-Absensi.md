@@ -501,6 +501,23 @@ event; setelahnya terlambat. Hanya berlaku untuk jenis Datang — absen Pulang
 menyimpan `null`. Tap berulang menggeser waktu sekaligus menghitung ulang
 ketepatannya.
 
+### Pembaruan live Daftar e-Presensi (FR-TAP-08)
+
+Layar kiosk menarik `GET /kiosk/presensi` setiap **10 detik**. Angka itu cukup
+terasa langsung bagi pegawai yang menunggu namanya muncul, sementara satu kiosk
+hanya membebani server enam permintaan per menit.
+
+Jawaban membawa daftar terkini **beserta keadaan event**, sehingga kiosk
+mengetahui entry yang ditutup admin tanpa perlu dimuat ulang: kolom tap
+langsung terkunci dan badge berubah menjadi "Entry Ditutup" (FR-EVT-04).
+Sebaliknya, event yang baru dibuka membuka kembali kolom tap dengan
+sendirinya.
+
+Penarikan dilewati selagi sebuah tap sedang diproses, supaya hasil yang baru
+tampil tidak tertimpa di tengah pembacaan pegawai. Karena daftar disusun ulang
+dari basis data setiap kali — satu baris per pegawai, bukan per tap — tidak ada
+peluang baris ganda muncul dari balapan antar kiosk (FR-TAP-05).
+
 ### Foto absen
 
 Disimpan pada disk privat `local` di bawah `foto-absen/{event}/`, tidak pernah
@@ -580,6 +597,7 @@ Ringkasan endpoint inti; daftar lengkap akan dirinci sebagai route Laravel pada 
 | POST       | /kiosk/tap/identifikasi                | Kenali pegawai dari UID kartu RFID atau NIP yang diketik (FR-TAP-03)            |
 | GET        | /kiosk                                 | Layar utama kiosk; membawa event aktif, metode yang menyala, dan daftar presensi |
 | POST       | /kiosk/absen                           | Kirim hasil absen; seluruh syarat diperiksa ulang di server (FR-TAP-05)          |
+| GET        | /kiosk/presensi                        | Daftar e-Presensi terkini beserta keadaan event, ditarik berkala (FR-TAP-08)     |
 | GET        | /kiosk/absen/{absensi}/foto            | Foto absen untuk Daftar e-Presensi, terbatas kiosk pada event yang sama (NFR-04) |
 | GET        | /admin/kelola-absen/event              | Daftar event (terfilter sesuai peran)                                           |
 | POST       | /admin/kelola-absen/event              | Buat event baru (FR-EVT-01, FR-EVT-02)                                          |

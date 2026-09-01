@@ -335,6 +335,69 @@ class SimpanAbsenTest extends TestCase
     }
 
     #[Test]
+    public function penarikan_berkala_membawa_absen_dari_kiosk_lain(): void
+    {
+        // FR-TAP-08: daftar bertambah seiring pegawai lain men-tap di kiosk
+        // lain pada event yang sama.
+        $lain = Pegawai::factory()->create([
+            'nip' => '199001012020011002',
+            'nama' => 'Dewi Anggraini',
+            'unit_kerja_id' => $this->unitKerja->id,
+        ]);
+
+        Absensi::factory()->create([
+            'event_absen_id' => $this->event->id,
+            'pegawai_id' => $lain->id,
+            'waktu' => '2026-09-07 07:31:00',
+        ]);
+
+        $this->denganToken()
+            ->get('/kiosk/presensi', ['Accept' => 'application/json'])
+            ->assertOk()
+            ->assertJson([
+                'event' => ['id' => $this->event->id],
+                'daftar_presensi' => [['nama' => 'Dewi Anggraini', 'jam_masuk' => '07:31']],
+            ]);
+    }
+
+    #[Test]
+    public function penarikan_berkala_menyatakan_event_null_setelah_ditutup(): void
+    {
+        // Layar kiosk memakai ini untuk mengunci kolom tap tanpa dimuat ulang.
+        $this->event->update(['status' => StatusEvent::Ditutup, 'ditutup_pada' => now()]);
+
+        $this->denganToken()
+            ->get('/kiosk/presensi', ['Accept' => 'application/json'])
+            ->assertOk()
+            ->assertJson(['event' => null, 'daftar_presensi' => []]);
+    }
+
+    #[Test]
+    public function daftar_presensi_tertutup_bagi_perangkat_tanpa_token(): void
+    {
+        $this->get('/kiosk/presensi')->assertRedirect('/kiosk/aktivasi');
+    }
+
+    #[Test]
+    public function daftar_presensi_tidak_menduplikasi_baris_setelah_tap_berulang(): void
+    {
+        // FR-TAP-05 dilihat dari sisi tampilan: berapa kali pun di-tap, satu
+        // pegawai tetap satu baris.
+        $this->travelTo('2026-09-07 07:35:00');
+        $this->kirim();
+        $this->kirim();
+
+        $this->travelTo('2026-09-07 16:00:00');
+        $this->kirim(['jenis' => 'pulang']);
+        $this->kirim(['jenis' => 'pulang']);
+
+        $daftar = $this->denganToken()->get('/kiosk/presensi', ['Accept' => 'application/json'])->json('daftar_presensi');
+
+        $this->assertCount(1, $daftar);
+        $this->assertSame('16:00', $daftar[0]['jam_pulang']);
+    }
+
+    #[Test]
     public function layar_kiosk_memuat_daftar_presensi_yang_sudah_ada(): void
     {
         $this->travelTo('2026-09-07 07:35:00');
