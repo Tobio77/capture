@@ -334,18 +334,62 @@ Konsekuensi yang disengaja:
 
 > *Catatan: Kombinasi (event_absen_id, pegawai_id, jenis) bersifat unik agar tap berulang untuk jenis yang sama memperbarui data, bukan menduplikasi baris — sesuai FR-TAP-05.*
 
-## 3.9 pengaturan_absen (setting, single-row atau key-value)
+## 3.9 Setting Absen (key-value pada tabel `pengaturan`)
 
-| **Kolom**               | **Tipe**   | **Keterangan**             |
-|-------------------------|------------|----------------------------|
-| id                      | bigint, PK |                            |
-| metode_manual_aktif     | boolean    | default true               |
-| metode_rfid_aktif       | boolean    | default true               |
-| metode_wajah_aktif      | boolean    | default true               |
-| toleransi_default_menit | int        | default 15                 |
-| ambang_kecocokan_wajah  | int        | persentase, default 85     |
-| kompresi_foto           | enum       | ringan \| sedang \| tinggi |
-| timestamps              | \-         | created_at, updated_at     |
+Diimplementasikan sebagai key-value, bukan tabel single-row — memakai tabel
+`pengaturan` yang sudah dipakai Integrasi WORKA, sehingga hanya ada satu
+mekanisme pengaturan runtime di sistem ini.
+
+| **Kunci**                       | **Tipe**    | **Bawaan** | **Kebutuhan** |
+|---------------------------------|-------------|------------|---------------|
+| absen.metode_manual_aktif       | `'1'`/`'0'` | aktif      | FR-SET-01     |
+| absen.metode_rfid_aktif         | `'1'`/`'0'` | aktif      | FR-SET-01     |
+| absen.metode_wajah_aktif        | `'1'`/`'0'` | aktif      | FR-SET-01     |
+| absen.toleransi_default_menit   | int         | 15         | FR-SET-02     |
+| absen.ambang_kecocokan_wajah    | int (%)     | 85         | FR-SET-03     |
+| absen.kompresi_foto             | enum        | sedang     | FR-SET-04     |
+
+Nilai bawaan berlaku selama kuncinya belum pernah disimpan, sehingga instalasi
+baru berjalan tanpa perlu seeding pengaturan. Pembacaan terpusat pada
+`SettingAbsenService`.
+
+**Preset kompresi.** FR-SET-04 menuntut dimensi maksimum dan kualitas JPEG,
+bukan sekadar nama preset. Angkanya dikunci pada enum `KompresiFoto` agar layar
+admin dan kiosk membaca sumber yang sama:
+
+| Preset | Dimensi maks | Kualitas JPEG | Ukuran terukur |
+|--------|--------------|---------------|----------------|
+| Ringan | 480 px       | 70            | 14–24 KB       |
+| Sedang | 560 px       | 75            | 21–35 KB       |
+| Tinggi | 640 px       | 80            | 30–54 KB       |
+
+Angka ukuran di atas **hasil pengukuran, bukan taksiran**: tiap kombinasi
+diterapkan pada 5 foto uji 1280×960 dengan tingkat kerumitan berbeda, lalu
+ukuran berkasnya dicatat. Pemandangan berdetail padat berada di ujung atas
+rentang; wajah dari jarak dekat dengan latar kantor — kasus sesungguhnya di
+kiosk — cenderung di ujung bawah.
+
+**Batas NFR-06.** Satu foto absen tersimpan tidak boleh melebihi ~90 KB. Preset
+terbesar (Tinggi) berhenti di 54 KB pada kasus terburuk, menyisakan margin
+~40%. Margin itu disengaja: penyusutan sesungguhnya dilakukan `canvas.toBlob()`
+di browser kiosk, yang tabel kuantisasi JPEG-nya berbeda dari GD yang dipakai
+saat pengukuran, dan selisihnya tertampung di dalam margin. Invarian ini dijaga
+test — `KompresiFoto::ukuranTerburukKb()` tidak boleh melampaui
+`BATAS_UKURAN_KB`; bila preset diubah, angkanya wajib diukur ulang, bukan
+ditaksir.
+
+**Batas nilai.** Ambang kecocokan wajah 70–99% (mengikuti slider UIUX §3.5),
+toleransi keterlambatan 0–180 menit.
+
+**Minimal satu metode absen harus aktif.** Mematikan ketiganya membuat absensi
+mustahil dilakukan, jadi kombinasi itu ditolak validasi — pengaturan tidak
+boleh mengunci sistemnya sendiri.
+
+Setting Absen adalah pengaturan global sistem, sehingga terbatas pada
+Superadmin dan Admin Dinas (matriks peran SRS §6); Admin UPT tidak dapat
+membuka maupun menyimpannya. Setiap perubahan tercatat pada audit trail beserta
+medan yang bergeser (mis. `ambang_kecocokan_wajah 85 → 95`); menyimpan nilai
+yang sama persis tidak menambah catatan.
 
 # 4. Desain Endpoint Utama
 
@@ -362,6 +406,8 @@ Ringkasan endpoint inti; daftar lengkap akan dirinci sebagai route Laravel pada 
 | POST       | /admin/event                           | Buat event baru                                                                 |
 | POST       | /admin/event/{id}/tutup                | Tutup event                                                                     |
 | GET        | /admin/event/{id}/rekap                | Rekap absen live per event                                                      |
+| GET        | /admin/kelola-absen/setting            | Form Setting Absen (Superadmin & Admin Dinas)                                   |
+| POST       | /admin/kelola-absen/setting            | Simpan Setting Absen (FR-SET-01 s.d. FR-SET-04)                                 |
 | GET        | /admin/pegawai                         | Daftar pegawai (terfilter sesuai peran)                                         |
 | POST       | /admin/pegawai/sinkron                 | Trigger sinkronisasi manual dari WORKA/BKD                                      |
 | GET        | /admin/pegawai/{pegawai}/wajah         | Sajikan foto referensi lewat route terautentikasi (NFR-04)                      |

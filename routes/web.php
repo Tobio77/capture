@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\FotoReferensiWajahController;
 use App\Http\Controllers\Admin\PegawaiController;
+use App\Http\Controllers\Admin\SettingAbsenController;
 use App\Http\Controllers\Admin\SettingWorkaController;
 use App\Http\Controllers\Admin\UnitKerjaController;
 use App\Http\Controllers\Auth\SesiController;
@@ -67,11 +68,14 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
             'deskripsi' => 'Daftar e-presensi per event yang diperbarui secara live. Dikerjakan pada Sesi S21.',
         ])->name('rekap.index');
 
-        // Setting Absen adalah pengaturan global sistem — tidak untuk Admin UPT.
-        Route::inertia('setting', 'Segera', [
-            'judul' => 'Setting Absen',
-            'deskripsi' => 'Metode absen, toleransi default, ambang kecocokan wajah, dan kompresi foto. Dikerjakan pada Sesi S09.',
-        ])->middleware('peran:superadmin,admin_dinas')->name('setting-absen.index');
+        /*
+         * Setting Absen (FR-SET-01 s.d. FR-SET-04) adalah pengaturan global
+         * sistem — tidak untuk Admin UPT.
+         */
+        Route::middleware('peran:superadmin,admin_dinas')->group(function () {
+            Route::get('setting', [SettingAbsenController::class, 'edit'])->name('setting-absen.index');
+            Route::post('setting', [SettingAbsenController::class, 'update'])->name('setting-absen.update');
+        });
 
         /*
          * Setting Unit Kerja (FR-UNIT-01, FR-UNIT-02).
