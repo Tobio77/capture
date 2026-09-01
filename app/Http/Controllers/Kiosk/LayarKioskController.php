@@ -49,6 +49,14 @@ class LayarKioskController extends Controller
                 'wajah' => $setting['metode_wajah_aktif'],
             ],
 
+            /*
+             * FR-SET-03: ambang kecocokan wajah dipakai modul verifikasi di
+             * sisi klien. Preset kompresi ikut dikirim karena kiosk yang
+             * menyusutkan foto sebelum mengirimkannya (FR-SET-04, S16).
+             */
+            'ambang_kecocokan_wajah' => $setting['ambang_kecocokan_wajah'],
+            'kompresi' => $this->setting->kompresi()->rincian(),
+
             // Daftar e-Presensi diisi setelah tabel absensi ada (S16) dan
             // diperbarui berkala pada S21.
             'daftar_presensi' => [],

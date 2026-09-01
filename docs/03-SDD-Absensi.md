@@ -537,7 +537,6 @@ Ringkasan endpoint inti; daftar lengkap akan dirinci sebagai route Laravel pada 
 | POST       | /kiosk/aktivasi                        | Aktivasi perangkat kiosk, menghasilkan device_token                             |
 | POST       | /kiosk/tap/identifikasi                | Kenali pegawai dari UID kartu RFID atau NIP yang diketik (FR-TAP-03)            |
 | GET        | /kiosk                                 | Layar utama kiosk; membawa event aktif, metode yang menyala, dan daftar presensi |
-| GET        | /kiosk/embedding-wajah/{unit_kerja_id} | Kiosk mengambil daftar embedding wajah pegawai unit terkait (di-cache di klien) |
 | POST       | /kiosk/absen                           | Kirim hasil absen (ID pegawai, jenis, metode, skor kecocokan, foto terkompresi) |
 | GET        | /admin/kelola-absen/event              | Daftar event (terfilter sesuai peran)                                           |
 | POST       | /admin/kelola-absen/event              | Buat event baru (FR-EVT-01, FR-EVT-02)                                          |
@@ -561,13 +560,47 @@ Ringkasan endpoint inti; daftar lengkap akan dirinci sebagai route Laravel pada 
 
 1.  Saat kiosk aktif untuk suatu event, browser memuat model face-api (satu kali per sesi, di-cache oleh browser).
 
-1.  Browser mengambil daftar embedding wajah referensi pegawai pada unit kerja kiosk (bukan foto mentah) dari server melalui endpoint /kiosk/embedding-wajah.
+1.  Server mengirimkan embedding wajah referensi (bukan foto mentah) milik pegawai yang di-tap saja, menyertai jawaban `POST /kiosk/tap/identifikasi`.
+
+> **Penyimpangan dari rancangan awal (S15).** Rancangan semula menarik seluruh
+> embedding unit kerja lewat `GET /kiosk/embedding-wajah/{unit_kerja_id}` untuk
+> di-cache di klien. Yang diterapkan adalah pengiriman satu deskriptor menyertai
+> jawaban identifikasi tap, karena pencocokan memang bersifat 1:1 (butir 3) dan
+> identifikasi itu sendiri sudah menuntut satu perjalanan ke server — sehingga
+> cache massal tidak menghemat perjalanan apa pun, sementara menaruh biometrik
+> seluruh pegawai unit di browser kiosk memperbesar paparan tanpa imbalan.
+> Endpoint massal tetap masuk akal bila kelak tap luring dikerjakan (NFR-05),
+> karena saat itu identitas pegawai pun harus tersedia tanpa jaringan.
 
 2.  Saat pegawai tap ID, kamera menangkap satu frame; face-api mendeteksi wajah dan menghasilkan embedding 128 dimensi.
 
 3.  Embedding hasil capture dibandingkan (cosine/Euclidean distance) hanya dengan embedding milik ID yang di-tap (verifikasi 1:1, bukan pencarian 1:banyak).
 
 4.  Jika skor kecocokan ≥ ambang pada Setting Absen, verifikasi dinyatakan berhasil; foto hasil capture dikompresi (resize + kualitas JPEG sesuai Setting Absen) sebelum dikirim ke server sebagai bukti/arsip.
+
+### Skala skor kecocokan
+
+face-api tidak mengenal "persen": ia menghasilkan **jarak Euclidean**, dengan
+0,6 sebagai batas keputusan bawaannya. Setting Absen menyatakan ambang dalam
+persen 70–99 (FR-SET-03), sehingga keduanya perlu dijembatani.
+
+Pemetaannya lurus dan dikalibrasi pada dua titik:
+
+| Jarak Euclidean | Persentase | Makna                                   |
+|-----------------|------------|-----------------------------------------|
+| 0,20            | 99%        | kecocokan sangat kuat                   |
+| 0,60            | 70%        | batas keputusan bawaan face-api         |
+
+Ambang bawaan 85% dengan demikian menuntut jarak ≤ ~0,393 — lebih ketat
+daripada bawaan face-api. **Angka ini persentase kalibrasi, bukan
+probabilitas**, dan disimpan pada `absensi.skor_kecocokan_wajah`.
+
+Model face-api (~6,8 MB) dimuat begitu layar kiosk terbuka, bukan saat tap
+pertama, agar pegawai pertama tidak menunggu lebih lama daripada berikutnya
+(NFR-01). Pegawai yang belum punya foto referensi ditolak dengan pesan yang
+menyebutkan hal itu — pendaftaran wajah adalah prasyarat verifikasi (FR-PEG-05).
+Bila admin mematikan metode wajah pada Setting Absen, tahap verifikasi
+dilewati seluruhnya dan identitas cukup dipastikan kartu atau NIP.
 
 > *Catatan: Karena hanya embedding (bukan foto) yang dikirim ke kiosk untuk pencocokan, risiko kebocoran foto referensi pegawai melalui jaringan lokal berkurang.*
 

@@ -1,8 +1,9 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { Head, router, usePage } from '@inertiajs/vue3'
 import PanelEntry from '@/Components/Kiosk/PanelEntry.vue'
 import PanelPresensi from '@/Components/Kiosk/PanelPresensi.vue'
+import { useVerifikasiWajah } from '@/Composables/useVerifikasiWajah'
 
 /**
  * Layar Utama Kiosk (UIUX §4.2) — header status event dan dua panel yang
@@ -16,6 +17,8 @@ import PanelPresensi from '@/Components/Kiosk/PanelPresensi.vue'
 const props = defineProps({
   event: { type: Object, default: null },
   metode: { type: Object, required: true },
+  ambang_kecocokan_wajah: { type: Number, required: true },
+  kompresi: { type: Object, required: true },
   daftar_presensi: { type: Array, required: true },
 })
 
@@ -30,7 +33,24 @@ const panel = ref(null)
 const entryDibuka = computed(() => props.event !== null)
 const tahap = ref(entryDibuka.value ? 'menunggu_tap' : 'menunggu_event')
 
+const { siapkanModel, verifikasi } = useVerifikasiWajah()
+
 let jedaPulih = null
+
+/*
+ * Model face-api berukuran ~6,8 MB dan butuh beberapa detik untuk dimuat.
+ * Pemuatannya dimulai begitu layar terbuka — bukan saat tap pertama — supaya
+ * pegawai pertama tidak menunggu lebih lama daripada yang berikutnya
+ * (NFR-01: tap hingga hasil rata-rata di bawah 3 detik).
+ */
+onMounted(() => {
+  if (props.metode.wajah && entryDibuka.value) {
+    siapkanModel().catch(() => {
+      // Kegagalan dilaporkan saat tap, bukan sebagai peringatan yang
+      // menghalangi layar sebelum ada yang mencoba absen.
+    })
+  }
+})
 
 /**
  * Tap dari kolom ID — UID kartu maupun NIP yang diketik, keduanya dikirim
@@ -76,11 +96,56 @@ async function tangkapTap({ id_card, jenis: jenisTap }) {
       metode: isi.data.metode,
     }
 
-    tahap.value = 'berhasil'
-    pulihkan()
+    await verifikasiWajah(isi.data)
   } catch {
     gagalkan('Perangkat tidak dapat menghubungi server.')
   }
+}
+
+/**
+ * Verifikasi wajah 1:1 terhadap embedding referensi pegawai yang di-tap
+ * (FR-TAP-04, FR-TAP-06).
+ *
+ * Dilewati bila admin mematikan metode wajah pada Setting Absen — identitas
+ * sudah dipastikan oleh kartu atau NIP yang di-tap.
+ */
+async function verifikasiWajah(data) {
+  if (!props.metode.wajah) {
+    tahap.value = 'berhasil'
+    pulihkan()
+
+    return
+  }
+
+  const hasilVerifikasi = await verifikasi(
+    panel.value?.elemenVideo(),
+    data.embedding_wajah,
+    props.ambang_kecocokan_wajah,
+  )
+
+  if (hasilVerifikasi.galat) {
+    gagalkan(hasilVerifikasi.galat)
+
+    return
+  }
+
+  hasil.value = { ...hasil.value, skor: hasilVerifikasi.skor }
+
+  if (!hasilVerifikasi.cocok) {
+    // FR-TAP-06: kehadiran tidak dicatat, pegawai dipersilakan mengulang tap.
+    gagalkan(
+      `Wajah tidak cocok (${hasilVerifikasi.skor}%, ambang ${props.ambang_kecocokan_wajah}%). Silakan ulangi tap.`,
+    )
+
+    return
+  }
+
+  // Foto hasil capture sudah disusutkan sesuai preset; penyimpanannya
+  // beserta pencatatan absen dikerjakan pada S16.
+  hasil.value = { ...hasil.value, foto: panel.value?.ambilFoto(props.kompresi) }
+
+  tahap.value = 'berhasil'
+  pulihkan()
 }
 
 function gagalkan(teks) {

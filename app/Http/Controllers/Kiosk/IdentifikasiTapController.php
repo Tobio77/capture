@@ -111,6 +111,16 @@ class IdentifikasiTapController extends Controller
 
                 // Penanda milik SI-ABSEN sendiri (S08), terpisah dari foto WORKA.
                 'wajah_terdaftar' => $pegawai->wajah_terdaftar,
+
+                /*
+                 * Embedding referensi milik pegawai yang di-tap saja, bukan
+                 * seluruh unit: pencocokan bersifat 1:1 (SDD §3), sehingga
+                 * mengirimkan satu deskriptor sudah cukup dan biometrik
+                 * pegawai lain tidak perlu berada di browser kiosk.
+                 *
+                 * Foto referensinya sendiri tidak pernah ikut dikirim.
+                 */
+                'embedding_wajah' => $pegawai->embedding_wajah,
             ],
         ]);
     }

@@ -176,6 +176,85 @@ class IdentifikasiTapTest extends TestCase
     }
 
     #[Test]
+    public function jawaban_tap_membawa_embedding_referensi_pegawai_itu_saja(): void
+    {
+        // FR-TAP-04: pencocokan bersifat 1:1, jadi cukup satu deskriptor.
+        $pegawai = Pegawai::factory()->wajahTerdaftar()->create([
+            'nip' => '199001012020011001',
+            'unit_kerja_id' => $this->unitKerja->id,
+        ]);
+
+        Pegawai::factory()->wajahTerdaftar()->create([
+            'nip' => '199001012020011002',
+            'unit_kerja_id' => $this->unitKerja->id,
+        ]);
+
+        $jawaban = $this->denganToken()
+            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->assertOk();
+
+        $data = $jawaban->json('data');
+
+        $this->assertCount(128, $data['embedding_wajah']);
+        $this->assertSame($pegawai->embedding_wajah, $data['embedding_wajah']);
+
+        // Biometrik pegawai lain tidak ikut terkirim ke browser kiosk.
+        $this->assertStringNotContainsString(
+            (string) Pegawai::where('nip', '199001012020011002')->sole()->embedding_wajah[0],
+            $jawaban->getContent(),
+        );
+    }
+
+    #[Test]
+    public function pegawai_tanpa_wajah_terdaftar_menjawab_embedding_kosong(): void
+    {
+        // Kiosk yang menerima null menampilkan pesan "wajah belum terdaftar",
+        // bukan mencoba mencocokkan dengan data kosong.
+        Pegawai::factory()->create([
+            'nip' => '199001012020011001',
+            'wajah_terdaftar' => false,
+            'unit_kerja_id' => $this->unitKerja->id,
+        ]);
+
+        $this->denganToken()
+            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->assertOk()
+            ->assertJson(['data' => ['wajah_terdaftar' => false, 'embedding_wajah' => null]]);
+    }
+
+    #[Test]
+    public function layar_kiosk_membawa_ambang_kecocokan_dan_preset_kompresi(): void
+    {
+        // FR-SET-03 dan FR-SET-04 dipakai modul verifikasi di sisi klien.
+        $this->denganToken()
+            ->get('/kiosk')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('ambang_kecocokan_wajah', 85)
+                ->where('kompresi.dimensi_maks', 560)
+                ->where('kompresi.kualitas', 75)
+                ->etc());
+    }
+
+    #[Test]
+    public function foto_referensi_tidak_pernah_ikut_dikirim_ke_kiosk(): void
+    {
+        // NFR-04 dan SDD §3: hanya embedding yang melintas ke jaringan lokal.
+        $pegawai = Pegawai::factory()->wajahTerdaftar()->create([
+            'nip' => '199001012020011001',
+            'unit_kerja_id' => $this->unitKerja->id,
+        ]);
+
+        $isi = $this->denganToken()
+            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringNotContainsString($pegawai->foto_referensi_path, $isi);
+        $this->assertStringNotContainsString('foto_referensi_path', $isi);
+    }
+
+    #[Test]
     public function tap_mencatat_kiosk_sebagai_terhubung_pada_event(): void
     {
         // FR-EVT-03: kiosk yang melayani event tercatat beserta alamat IP-nya.

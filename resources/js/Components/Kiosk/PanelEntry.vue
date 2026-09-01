@@ -142,7 +142,29 @@ onBeforeUnmount(() => {
   matikanKamera()
 })
 
-defineExpose({ rebutFokus })
+/**
+ * Ambil satu bingkai dari pratinjau sebagai JPEG terkompresi.
+ *
+ * Dimensi dan kualitas berasal dari preset Setting Absen (FR-SET-04), dan
+ * penyusutan dilakukan di sini — bukan di server — supaya yang melintasi
+ * jaringan sudah berukuran akhir. Dipakai S16 saat menyimpan absen.
+ */
+function ambilFoto(kompresi) {
+  const sumber = video.value
+
+  if (!sumber || !sumber.videoWidth) return null
+
+  const skala = Math.min(1, kompresi.dimensi_maks / Math.max(sumber.videoWidth, sumber.videoHeight))
+  const kanvas = document.createElement('canvas')
+
+  kanvas.width = Math.round(sumber.videoWidth * skala)
+  kanvas.height = Math.round(sumber.videoHeight * skala)
+  kanvas.getContext('2d').drawImage(sumber, 0, 0, kanvas.width, kanvas.height)
+
+  return kanvas.toDataURL('image/jpeg', kompresi.kualitas / 100)
+}
+
+defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
 </script>
 
 <template>
