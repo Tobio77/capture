@@ -43,6 +43,10 @@ class ValidasiNipController extends Controller
             ], 409);
         }
 
+        // FR-EVT-03: kiosk tercatat sebagai terhubung pada event ini, beserta
+        // alamat IP-nya, terhitung sejak tap pertama yang dilayaninya.
+        $this->event->catatKioskAktif($event, $kiosk, $request->ip());
+
         $nip = trim($data['nip']);
 
         $pegawai = Pegawai::query()

@@ -8,6 +8,7 @@ use App\Http\Requests\SimpanEventRequest;
 use App\Models\EventAbsen;
 use App\Models\UnitKerja;
 use App\Services\EventAbsenService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -59,6 +60,20 @@ class EventController extends Controller
     }
 
     /**
+     * Detail event: kiosk terhubung, jumlah absen masuk, status entry
+     * (FR-EVT-05).
+     *
+     * Dijawab sebagai JSON, bukan halaman Inertia, karena dimuat oleh modal
+     * di atas daftar event yang sudah tampil.
+     */
+    public function detail(Request $request, EventAbsen $event): JsonResponse
+    {
+        abort_unless($this->dapatMelihat($request, $event), 403);
+
+        return response()->json($this->event->detail($event));
+    }
+
+    /**
      * Tutup entry event (FR-EVT-04).
      */
     public function tutup(Request $request, EventAbsen $event): RedirectResponse
@@ -96,6 +111,25 @@ class EventController extends Controller
         $this->event->hapus($event, $request->user());
 
         return back()->with('sukses', "Event {$nama} berhasil dihapus.");
+    }
+
+    /**
+     * Melihat lebih longgar daripada mengubah: Admin UPT boleh membuka detail
+     * event bercakupan semua unit yang menyentuh unitnya, walau tidak boleh
+     * mengubahnya.
+     */
+    protected function dapatMelihat(Request $request, EventAbsen $event): bool
+    {
+        $pengguna = $request->user();
+
+        if ($pengguna->lintasUnit() || $event->berlakuUntukSemuaUnit()) {
+            return true;
+        }
+
+        return $event->unitKerja
+            ->pluck('id')
+            ->intersect(UnitKerja::idsDenganTurunan($pengguna->unit_kerja_id))
+            ->isNotEmpty();
     }
 
     /**

@@ -85,6 +85,38 @@ class ValidasiNipTest extends TestCase
     }
 
     #[Test]
+    public function tap_mencatat_kiosk_sebagai_terhubung_pada_event(): void
+    {
+        // FR-EVT-03: kiosk yang melayani event tercatat beserta alamat IP-nya.
+        Pegawai::factory()->create([
+            'nip' => '199001012020011001',
+            'unit_kerja_id' => $this->unitKerja->id,
+        ]);
+
+        $this->denganToken()
+            ->post('/kiosk/tap/validasi-nip', ['nip' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->assertOk();
+
+        $this->assertDatabaseHas('event_kiosk', [
+            'event_absen_id' => $this->event->id,
+            'kiosk_id' => Kiosk::sole()->id,
+            'ip_address' => '127.0.0.1',
+        ]);
+    }
+
+    #[Test]
+    public function membuka_layar_kiosk_sudah_menghitungnya_terhubung(): void
+    {
+        // Tidak perlu menunggu tap pertama untuk dianggap terhubung.
+        $this->denganToken()->get('/kiosk')->assertOk();
+
+        $this->assertDatabaseHas('event_kiosk', [
+            'event_absen_id' => $this->event->id,
+            'kiosk_id' => Kiosk::sole()->id,
+        ]);
+    }
+
+    #[Test]
     public function tap_ditolak_setelah_event_ditutup(): void
     {
         // FR-EVT-04: setelah entry ditutup, tap baru pada kiosk ditolak.

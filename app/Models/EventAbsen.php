@@ -55,6 +55,17 @@ class EventAbsen extends Model
         return $this->belongsToMany(UnitKerja::class, 'event_unit_kerja');
     }
 
+    /**
+     * Kiosk yang pernah aktif melayani event ini (FR-EVT-03).
+     *
+     * @return BelongsToMany<Kiosk, $this>
+     */
+    public function kiosk(): BelongsToMany
+    {
+        return $this->belongsToMany(Kiosk::class, 'event_kiosk')
+            ->withPivot(['ip_address', 'aktif_pada', 'terakhir_aktif_pada']);
+    }
+
     /** @return BelongsTo<User, $this> */
     public function pembuat(): BelongsTo
     {

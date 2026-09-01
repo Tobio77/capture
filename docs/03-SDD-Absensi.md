@@ -392,15 +392,38 @@ Pemeriksaannya menoleransi keadaan tabel `absensi` belum ada — tabel itu
 dibuat pada S16 — dengan menganggap jumlah absensi nol, sehingga tidak perlu
 diubah lagi setelah tabelnya lahir.
 
-## 3.7 event_kiosk (log kiosk aktif per event)
+## 3.7 event_kiosk (kiosk aktif per event)
 
-| **Kolom**      | **Tipe**    | **Keterangan**                           |
-|----------------|-------------|------------------------------------------|
-| id             | bigint, PK  |                                          |
-| event_absen_id | bigint, FK  |                                          |
-| kiosk_id       | bigint, FK  |                                          |
-| ip_address     | varchar(45) | dicatat saat kiosk aktif untuk event ini |
-| aktif_pada     | timestamp   |                                          |
+| **Kolom**            | **Tipe**              | **Keterangan**                            |
+|----------------------|-----------------------|-------------------------------------------|
+| id                   | bigint, PK            |                                           |
+| event_absen_id       | bigint, FK            | cascade on delete                         |
+| kiosk_id             | bigint, FK            | cascade on delete                         |
+| ip_address           | varchar(45), nullable | alamat IP terbaru; 45 menampung IPv6      |
+| aktif_pada           | timestamp             | pertama kali kiosk melayani event ini     |
+| terakhir_aktif_pada  | timestamp             | aktivitas terbaru                         |
+|                      |                       | unik per pasangan event × kiosk           |
+
+**Satu baris per pasangan event × kiosk, bukan satu baris per kunjungan.**
+Yang dibutuhkan layar detail event adalah daftar kiosk terhubung, bukan riwayat
+setiap kali kiosk menyentuh event. Karena itu `aktif_pada` menahan waktu
+pertama, sedangkan `ip_address` dan `terakhir_aktif_pada` bergerak mengikuti
+aktivitas terbaru — kiosk dapat berpindah alamat IP di tengah satu event.
+Kolom `terakhir_aktif_pada` adalah tambahan di luar rancangan awal, diperlukan
+agar admin dapat membedakan kiosk yang masih melayani dari yang sudah lama
+diam.
+
+**Kapan dicatat.** Kiosk terhitung terhubung sejak **membuka layar kiosk**,
+tidak perlu menunggu tap pertama, dan pencatatannya diperbarui pada setiap tap
+berikutnya. Event yang sudah ditutup tidak pernah dicatat: tidak ada kiosk yang
+sah "terhubung" ke entry yang sudah selesai.
+
+**Detail event (FR-EVT-05).** `GET /admin/kelola-absen/event/{event}/detail`
+menjawab JSON berisi daftar kiosk terhubung (titik, unit, alamat IP, waktu
+aktif terakhir), jumlah absen masuk, dan status entry. Dijawab sebagai JSON
+karena dimuat modal di atas daftar event yang sudah tampil. Hak melihat lebih
+longgar daripada hak mengubah: Admin UPT dapat membuka detail event bercakupan
+semua unit, walau tidak dapat mengubahnya.
 
 ## 3.8 absensi
 
@@ -490,6 +513,7 @@ Ringkasan endpoint inti; daftar lengkap akan dirinci sebagai route Laravel pada 
 | POST       | /kiosk/absen                           | Kirim hasil absen (ID pegawai, jenis, metode, skor kecocokan, foto terkompresi) |
 | GET        | /admin/kelola-absen/event              | Daftar event (terfilter sesuai peran)                                           |
 | POST       | /admin/kelola-absen/event              | Buat event baru (FR-EVT-01, FR-EVT-02)                                          |
+| GET        | /admin/kelola-absen/event/{event}/detail| Detail event: kiosk terhubung, jumlah masuk, status (FR-EVT-05)                 |
 | PATCH      | /admin/kelola-absen/event/{event}      | Ubah event yang masih aktif                                                     |
 | DELETE     | /admin/kelola-absen/event/{event}      | Hapus permanen event yang belum menautkan absensi                               |
 | POST       | /admin/kelola-absen/event/{event}/tutup| Tutup entry event (FR-EVT-04)                                                   |

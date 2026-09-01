@@ -7,9 +7,11 @@ use App\Enums\CakupanEvent;
 use App\Enums\PeranPengguna;
 use App\Enums\StatusEvent;
 use App\Models\EventAbsen;
+use App\Models\Kiosk;
 use App\Models\LogAktivitas;
 use App\Models\UnitKerja;
 use App\Models\User;
+use App\Services\EventAbsenService;
 use App\Services\SettingAbsenService;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -479,6 +481,124 @@ class EventTest extends TestCase
             ->assertSessionHas('sukses');
 
         $this->assertSame('Nama Diperbarui', $event->refresh()->nama);
+    }
+
+    /* ---------------------------------------------------------------------
+     * Kiosk terhubung & detail event (FR-EVT-03, FR-EVT-05).
+     * ------------------------------------------------------------------- */
+
+    #[Test]
+    public function detail_event_memuat_kiosk_terhubung_beserta_ip_dan_jumlah_masuk(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        $event = EventAbsen::factory()->create(['nama' => 'Apel Pagi']);
+        $event->unitKerja()->attach($upt);
+
+        $kiosk = Kiosk::factory()->create([
+            'nama_titik' => 'Aula BLK Singosari',
+            'unit_kerja_id' => $upt->id,
+        ]);
+
+        app(EventAbsenService::class)->catatKioskAktif($event, $kiosk, '10.10.4.21');
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->getJson(self::URL."/{$event->id}/detail")
+            ->assertOk()
+            ->assertJson([
+                'nama' => 'Apel Pagi',
+                'status' => 'aktif',
+                'jumlah_absensi' => 0,
+                'kiosk' => [
+                    [
+                        'nama_titik' => 'Aula BLK Singosari',
+                        'unit_kerja_kode' => 'BLK-SGS',
+                        'ip_address' => '10.10.4.21',
+                    ],
+                ],
+            ]);
+    }
+
+    #[Test]
+    public function kiosk_yang_kembali_aktif_tidak_menambah_baris_baru(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        $event = EventAbsen::factory()->create();
+        $event->unitKerja()->attach($upt);
+        $kiosk = Kiosk::factory()->create(['unit_kerja_id' => $upt->id]);
+        $layanan = app(EventAbsenService::class);
+
+        $layanan->catatKioskAktif($event, $kiosk, '10.10.4.21');
+        $pertama = DB::table('event_kiosk')->sole();
+
+        $this->travel(5)->minutes();
+
+        // Kiosk berpindah alamat IP dalam event yang sama.
+        $layanan->catatKioskAktif($event, $kiosk, '10.10.4.99');
+
+        $this->assertDatabaseCount('event_kiosk', 1);
+
+        $sesudah = DB::table('event_kiosk')->sole();
+
+        $this->assertSame('10.10.4.99', $sesudah->ip_address);
+        $this->assertSame($pertama->aktif_pada, $sesudah->aktif_pada);
+        $this->assertNotSame($pertama->terakhir_aktif_pada, $sesudah->terakhir_aktif_pada);
+    }
+
+    #[Test]
+    public function kiosk_tidak_dicatat_pada_event_yang_sudah_ditutup(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        $event = EventAbsen::factory()->ditutup()->create();
+        $event->unitKerja()->attach($upt);
+        $kiosk = Kiosk::factory()->create(['unit_kerja_id' => $upt->id]);
+
+        app(EventAbsenService::class)->catatKioskAktif($event, $kiosk, '10.10.4.21');
+
+        // Tidak ada kiosk yang sah "terhubung" ke entry yang sudah selesai.
+        $this->assertDatabaseCount('event_kiosk', 0);
+    }
+
+    #[Test]
+    public function daftar_event_menampilkan_jumlah_kiosk_terhubung(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        $event = EventAbsen::factory()->create();
+        $event->unitKerja()->attach($upt);
+        $layanan = app(EventAbsenService::class);
+
+        foreach (Kiosk::factory()->count(2)->create(['unit_kerja_id' => $upt->id]) as $kiosk) {
+            $layanan->catatKioskAktif($event, $kiosk, '10.10.4.21');
+        }
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL)
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('daftar.0.jumlah_kiosk', 2)
+                ->etc());
+    }
+
+    #[Test]
+    public function admin_upt_dapat_membuka_detail_event_semua_unit(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        $event = EventAbsen::factory()->semuaUnit()->create();
+
+        // Boleh melihat walau tidak boleh mengubah.
+        $this->actingAs(User::factory()->adminUpt($upt)->create())
+            ->getJson(self::URL."/{$event->id}/detail")
+            ->assertOk();
+    }
+
+    #[Test]
+    public function admin_upt_tidak_dapat_membuka_detail_event_unit_lain(): void
+    {
+        ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
+        $event = EventAbsen::factory()->create();
+        $event->unitKerja()->attach($lain);
+
+        $this->actingAs(User::factory()->adminUpt($upt)->create())
+            ->getJson(self::URL."/{$event->id}/detail")
+            ->assertForbidden();
     }
 
     /* ---------------------------------------------------------------------

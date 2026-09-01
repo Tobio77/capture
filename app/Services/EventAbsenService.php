@@ -48,6 +48,7 @@ class EventAbsenService
     {
         $event = EventAbsen::query()
             ->with(['unitKerja:id,kode,nama', 'pembuat:id,nama'])
+            ->withCount('kiosk')
             ->when(
                 ! $pelaku->lintasUnit(),
                 fn ($query) => $query->menyentuhUnit(
@@ -165,6 +166,86 @@ class EventAbsenService
             ->orderByDesc('tanggal')
             ->orderByDesc('jam_mulai')
             ->first();
+    }
+
+    /**
+     * Catat bahwa sebuah kiosk sedang aktif melayani event (FR-EVT-03).
+     *
+     * Satu baris per pasangan event × kiosk: `aktif_pada` menahan waktu
+     * pertama kali, `terakhir_aktif_pada` dan `ip_address` mengikuti aktivitas
+     * terbaru — kiosk dapat berpindah alamat IP dalam satu event.
+     *
+     * Event yang sudah ditutup tidak lagi dicatat; tidak ada kiosk yang sah
+     * "terhubung" ke entry yang sudah selesai.
+     */
+    public function catatKioskAktif(EventAbsen $event, Kiosk $kiosk, ?string $ip): void
+    {
+        if (! $event->aktif()) {
+            return;
+        }
+
+        $sekarang = Carbon::now();
+
+        $tersimpan = DB::table('event_kiosk')
+            ->where('event_absen_id', $event->id)
+            ->where('kiosk_id', $kiosk->id)
+            ->exists();
+
+        if ($tersimpan) {
+            DB::table('event_kiosk')
+                ->where('event_absen_id', $event->id)
+                ->where('kiosk_id', $kiosk->id)
+                ->update([
+                    'ip_address' => $ip,
+                    'terakhir_aktif_pada' => $sekarang,
+                ]);
+
+            return;
+        }
+
+        DB::table('event_kiosk')->insert([
+            'event_absen_id' => $event->id,
+            'kiosk_id' => $kiosk->id,
+            'ip_address' => $ip,
+            'aktif_pada' => $sekarang,
+            'terakhir_aktif_pada' => $sekarang,
+        ]);
+    }
+
+    /**
+     * Rincian sebuah event untuk layar detail (FR-EVT-05): daftar kiosk
+     * terhubung beserta IP-nya, jumlah absen masuk, dan status entry.
+     *
+     * @return array<string, mixed>
+     */
+    public function detail(EventAbsen $event): array
+    {
+        $event->load(['kiosk:id,nama_titik,unit_kerja_id', 'kiosk.unitKerja:id,kode', 'unitKerja:id,kode,nama']);
+
+        return [
+            'id' => $event->id,
+            'nama' => $event->nama,
+            'tanggal' => $event->tanggal->toDateString(),
+            'jam_mulai' => substr((string) $event->jam_mulai, 0, 5),
+            'status' => $event->status->value,
+            'status_label' => $event->status->label(),
+            'ditutup_pada' => $event->ditutup_pada?->toIso8601String(),
+            'cakupan_label' => $event->berlakuUntukSemuaUnit()
+                ? 'Semua Unit'
+                : $event->unitKerja->pluck('kode')->implode(', '),
+            'jumlah_absensi' => $this->jumlahAbsensi([$event->id])[$event->id],
+            'kiosk' => $event->kiosk
+                ->sortByDesc(fn (Kiosk $kiosk) => $kiosk->pivot->terakhir_aktif_pada)
+                ->map(fn (Kiosk $kiosk) => [
+                    'id' => $kiosk->id,
+                    'nama_titik' => $kiosk->nama_titik,
+                    'unit_kerja_kode' => $kiosk->unitKerja?->kode,
+                    'ip_address' => $kiosk->pivot->ip_address,
+                    'aktif_pada' => $kiosk->pivot->aktif_pada,
+                    'terakhir_aktif_pada' => $kiosk->pivot->terakhir_aktif_pada,
+                ])
+                ->values(),
+        ];
     }
 
     /**
@@ -367,6 +448,7 @@ class EventAbsenService
             'status_label' => $event->status->label(),
             'catatan' => $event->catatan,
             'dibuat_oleh' => $event->pembuat?->nama,
+            'jumlah_kiosk' => $event->kiosk_count ?? 0,
             'jumlah_absensi' => $jumlahAbsensi,
             'dapat_dihapus' => $jumlahAbsensi === 0,
         ];

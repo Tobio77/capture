@@ -20,6 +20,9 @@ const props = defineProps({
 
 const formTerbuka = ref(false)
 const sedangDiubah = ref(null)
+const detailTerbuka = ref(false)
+const detail = ref(null)
+const detailGagal = ref(null)
 
 const form = useForm({
   nama: '',
@@ -74,6 +77,35 @@ function simpan() {
   }
 }
 
+async function bukaDetail(event) {
+  detailTerbuka.value = true
+  detail.value = null
+  detailGagal.value = null
+
+  try {
+    const jawaban = await fetch(`/admin/kelola-absen/event/${event.id}/detail`, {
+      headers: { Accept: 'application/json' },
+    })
+
+    if (!jawaban.ok) throw new Error()
+
+    detail.value = await jawaban.json()
+  } catch {
+    detailGagal.value = 'Rincian event gagal dimuat.'
+  }
+}
+
+function waktuSingkat(iso) {
+  if (!iso) return '—'
+
+  return new Date(iso.replace(' ', 'T')).toLocaleString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 function tutup(event) {
   const pesan =
     `Tutup entry event "${event.nama}"?\n\n` +
@@ -125,6 +157,8 @@ function tanggalPanjang(iso) {
               <th scope="col" class="px-4 py-3 font-medium">Cakupan</th>
               <th scope="col" class="px-4 py-3 font-medium">Tanggal &amp; Jam</th>
               <th scope="col" class="px-4 py-3 text-right font-medium">Toleransi</th>
+              <th scope="col" class="px-4 py-3 text-right font-medium">Kiosk</th>
+              <th scope="col" class="px-4 py-3 text-right font-medium">Masuk</th>
               <th scope="col" class="px-4 py-3 font-medium">Status</th>
               <th scope="col" class="px-4 py-3 text-right font-medium">Aksi</th>
             </tr>
@@ -153,6 +187,12 @@ function tanggalPanjang(iso) {
               <td class="px-4 py-3 text-right font-display tabular-nums text-slate-600">
                 {{ event.toleransi_menit }} mnt
               </td>
+              <td class="px-4 py-3 text-right font-display tabular-nums text-slate-600">
+                {{ event.jumlah_kiosk }}
+              </td>
+              <td class="px-4 py-3 text-right font-display tabular-nums text-slate-600">
+                {{ event.jumlah_absensi }}
+              </td>
               <td class="px-4 py-3">
                 <span
                   class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
@@ -166,6 +206,13 @@ function tanggalPanjang(iso) {
                 </span>
               </td>
               <td class="whitespace-nowrap px-4 py-3 text-right">
+                <button
+                  type="button"
+                  class="rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100"
+                  @click="bukaDetail(event)"
+                >
+                  Detail
+                </button>
                 <button
                   v-if="event.status === 'aktif'"
                   type="button"
@@ -200,7 +247,7 @@ function tanggalPanjang(iso) {
               </td>
             </tr>
             <tr v-if="daftar.length === 0">
-              <td colspan="6" class="px-6 py-12 text-center text-sm text-slate-500">
+              <td colspan="8" class="px-6 py-12 text-center text-sm text-slate-500">
                 Belum ada event. Mulai dengan menekan “Buat Event Baru”.
               </td>
             </tr>
@@ -208,6 +255,83 @@ function tanggalPanjang(iso) {
         </table>
       </div>
     </div>
+
+    <Modal :terbuka="detailTerbuka" judul="Detail Event" @tutup="detailTerbuka = false">
+      <p v-if="detailGagal" class="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        {{ detailGagal }}
+      </p>
+
+      <p v-else-if="!detail" class="text-sm text-slate-500">Memuat rincian…</p>
+
+      <div v-else class="space-y-5">
+        <div class="rounded-lg bg-slate-50 px-4 py-3">
+          <p class="font-medium text-navy-700">{{ detail.nama }}</p>
+          <p class="mt-0.5 text-xs text-slate-500">
+            {{ tanggalPanjang(detail.tanggal) }} · {{ detail.jam_mulai }} · {{ detail.cakupan_label }}
+          </p>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3 text-center">
+          <div class="rounded-lg border border-slate-200 px-3 py-3">
+            <p class="font-display text-xl font-semibold tabular-nums text-navy-700">{{ detail.kiosk.length }}</p>
+            <p class="mt-0.5 text-xs text-slate-500">Kiosk terhubung</p>
+          </div>
+          <div class="rounded-lg border border-slate-200 px-3 py-3">
+            <p class="font-display text-xl font-semibold tabular-nums text-navy-700">{{ detail.jumlah_absensi }}</p>
+            <p class="mt-0.5 text-xs text-slate-500">Absen masuk</p>
+          </div>
+          <div class="rounded-lg border border-slate-200 px-3 py-3">
+            <p
+              class="font-display text-sm font-semibold"
+              :class="detail.status === 'aktif' ? 'text-emerald-700' : 'text-slate-500'"
+            >
+              {{ detail.status_label }}
+            </p>
+            <p class="mt-0.5 text-xs text-slate-500">
+              {{ detail.ditutup_pada ? waktuSingkat(detail.ditutup_pada) : 'Entry dibuka' }}
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <p class="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Kiosk Terhubung</p>
+
+          <div v-if="detail.kiosk.length === 0" class="rounded-md border border-dashed border-slate-300 px-4 py-6 text-center text-xs text-slate-500">
+            Belum ada kiosk yang aktif pada event ini.
+          </div>
+
+          <table v-else class="min-w-full text-sm">
+            <thead class="text-xs uppercase tracking-wider text-slate-500">
+              <tr>
+                <th scope="col" class="py-2 text-left font-medium">Titik</th>
+                <th scope="col" class="py-2 text-left font-medium">Alamat IP</th>
+                <th scope="col" class="py-2 text-right font-medium">Terakhir Aktif</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-for="kiosk in detail.kiosk" :key="kiosk.id">
+                <td class="py-2 text-slate-700">
+                  {{ kiosk.nama_titik }}
+                  <span class="ml-1 font-display text-xs tabular-nums text-slate-400">{{ kiosk.unit_kerja_kode }}</span>
+                </td>
+                <td class="py-2 font-display tabular-nums text-slate-600">{{ kiosk.ip_address ?? '—' }}</td>
+                <td class="py-2 text-right text-xs text-slate-500">{{ waktuSingkat(kiosk.terakhir_aktif_pada) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <template #aksi>
+        <button
+          type="button"
+          class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+          @click="detailTerbuka = false"
+        >
+          Tutup
+        </button>
+      </template>
+    </Modal>
 
     <Modal :terbuka="formTerbuka" :judul="judulForm" @tutup="tutupForm">
       <div class="space-y-4">
