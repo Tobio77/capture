@@ -302,6 +302,7 @@ Konsekuensi yang disengaja:
 |-------------------|-------------------------|--------------------------------|
 | id                | bigint, PK              |                                |
 | nama_titik        | varchar(150)            | mis. “Aula Senam BLK Surabaya” |
+| sumber            | enum                    | terdaftar \| ad_hoc — `ad_hoc` bila masuk lewat Mode Terbuka (FR-SET-06) |
 | unit_kerja_id     | bigint, FK → unit_kerja |                                |
 | device_token      | varchar(100), unik      | token autentikasi perangkat    |
 | ip_terakhir       | varchar(45), nullable   |                                |
@@ -506,6 +507,79 @@ kiosk yang men-tap orang yang sama bersamaan tidak dapat menyelinapkan baris
 kembar. `kiosk_id` memakai `nullOnDelete` agar perangkat dapat dilepas tanpa
 menghapus riwayat absensinya.
 
+### Tap kedua ditolak, bukan menimpa (revisi FR-TAP-05, S28a)
+
+Kunci unik `(event_absen_id, pegawai_id, jenis)` sejak awal menjamin satu baris
+per pasangan itu. Yang berubah pada S28a adalah maknanya: tap kedua untuk jenis
+yang sama semula MEMPERBARUI baris yang ada — menggeser jamnya, ketepatannya,
+dan fotonya — dan kini DITOLAK.
+
+Alasannya bukan teknis. Jam kehadiran yang sudah tercatat adalah bukti; bila
+tap ulang menggesernya, siapa pun dapat memindahkan jam kehadirannya sendiri,
+termasuk orang yang datang terlambat lalu mengulang tap sesudah rekannya
+mengabsenkan lebih dahulu.
+
+Alurnya:
+
+1. `POST /kiosk/tap/identifikasi` mengembalikan `sudah_absen: {datang, pulang}`
+   berisi jam yang sudah tercatat, atau null. Layar berhenti di sini bila jenis
+   yang dipilih sudah terisi — kamera tidak perlu menyala hanya untuk berakhir
+   ditolak.
+2. `POST /kiosk/absen` tetap memeriksa ulang. Bila sudah ada, jawabannya
+   `409 SUDAH_ABSEN` beserta jam tercatat dan daftar presensi terkini.
+   `AbsensiService::catat()` melempar `AbsenGandaException`, termasuk ketika
+   pemeriksaannya lolos tetapi kunci unik yang menolak — dua perangkat men-tap
+   orang yang sama dalam hitungan milidetik. Foto yang telanjur tertulis pada
+   jalur yang kalah itu ikut dibuang supaya tidak menumpuk tanpa pemilik.
+3. Layar menampilkan tahap `sudah` — biru keterangan, bukan amber peringatan.
+   Bagi orang yang berdiri di depan layar maknanya bukan "coba lagi" melainkan
+   "Anda sudah aman".
+4. Antrian luring (NFR-05) memperlakukan `409` sebagai penolakan yang tidak
+   akan berubah bila diulang, sehingga kiriman itu dibuang dari antrian alih-alih
+   dicoba selamanya.
+
+Absen datang dan pulang berdiri sendiri: yang satu tidak menghalangi yang lain.
+
+### Kamera tetap menyala tanpa pencocokan wajah (revisi FR-SET-01, S28a)
+
+Mematikan verifikasi wajah pada Setting Absen semula ikut mematikan kamera dan
+melewatkan penyimpanan foto — pada implementasi lama, layar bahkan berhenti
+sebelum sempat memanggil endpoint simpan, sehingga tap tidak tercatat sama
+sekali. Sejak S28a, yang dimatikan hanya langkah pencocokan embedding:
+
+- Kamera tetap menyala dan pratinjaunya tetap tampil, dengan penanda
+  "Foto bukti · tanpa pencocokan wajah".
+- Foto tetap diambil, disusutkan sesuai preset, dikirim, dan disimpan — lalu
+  muncul di rekap seperti biasa.
+- Validasi menjadi murni pencocokan NIP/UID kartu terhadap data pegawai.
+- `skor_kecocokan_wajah` disimpan null, karena memang tidak ada pencocokan.
+
+Pratinjau tidak dicerminkan (`transform: scaleX(-1)` tidak dipakai di mana pun,
+baik pada elemen video maupun saat menggambar ke kanvas). Foto absen adalah
+dokumen: nama pada tanda pengenal dan sisi tubuh harus sama dengan kenyataan.
+
+### Mode Terbuka — perangkat tanpa kode aktivasi (FR-SET-06)
+
+Bawaannya mati. Ketika dinyalakan admin:
+
+- Layar aktivasi menawarkan "Masuk Tanpa Kode Aktivasi" beserta pemilih unit
+  kerja. Unitnya diminta, bukan ditebak dari alamat IP — tebakan yang keliru
+  mengarahkan seluruh absen ke unit yang salah, dan petugas yang berdiri di
+  lokasi jelas tahu ia sedang berada di mana.
+- Perangkat dibuatkan entri `kiosk` bertanda `sumber = ad_hoc`, memperoleh
+  device token sendiri, dan alamat IP-nya dicatat persis seperti perangkat
+  terdaftar. Ia muncul pada halaman Perangkat Absen dengan lencana "Ad-hoc"
+  dan pada daftar perangkat terhubung sebuah event.
+- Aktivasinya masuk audit trail (NFR-09) dengan keterangan bahwa Mode Terbuka
+  sedang menyala.
+- Panel admin menampilkan spanduk peringatan pada SETIAP halaman selama mode
+  ini menyala. Ia dipasang di kerangka `AdminLayout`, bukan di satu layar saja:
+  mode ini gampang dinyalakan untuk satu kegiatan lalu terlupakan, dan justru
+  itulah keadaan yang berbahaya.
+- Pemeriksaan settingnya diulang di controller, bukan hanya di layar. Rute yang
+  terbuka bukan berarti fiturnya menyala.
+
+Mode ini melonggarkan NFR-03 dengan sengaja dan hanya untuk keadaan darurat.
 ### Validasi ulang di server (FR-TAP-05, FR-TAP-06)
 
 Kiosk sudah memutuskan cocok/tidaknya wajah di sisi klien, tetapi keputusan itu

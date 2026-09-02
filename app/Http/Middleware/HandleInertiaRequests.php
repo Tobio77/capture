@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\SettingAbsenService;
 use App\Support\MenuNavigasi;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -67,6 +68,16 @@ class HandleInertiaRequests extends Middleware
                 'unit_kerja' => $request->kiosk()->unitKerja?->only(['id', 'kode', 'nama']),
             ] : null,
             'menu' => $pengguna ? MenuNavigasi::untuk($pengguna) : [],
+
+            /*
+             * FR-SET-06: spanduk peringatan Mode Terbuka dipasang di kerangka
+             * Panel Admin, sehingga keadaannya harus tersedia di setiap layar
+             * admin — bukan hanya di halaman Setting Absen. Closure menahan
+             * pembacaan pengaturan sampai benar-benar dirender, dan hanya
+             * untuk sesi admin: layar perangkat tidak berkepentingan atasnya.
+             */
+            'mode_terbuka' => fn () => $pengguna !== null
+                && app(SettingAbsenService::class)->modeTerbuka(),
             'rute_saat_ini' => $request->route()?->getName(),
             'flash' => [
                 'sukses' => fn () => $request->session()->get('sukses'),

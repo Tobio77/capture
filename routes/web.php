@@ -43,6 +43,15 @@ Route::prefix('kiosk')->name('kiosk.')->group(function () {
     Route::get('aktivasi', [AktivasiController::class, 'create'])->name('aktivasi');
     Route::post('aktivasi', [AktivasiController::class, 'store'])->middleware('throttle:10,1');
 
+    /*
+     * Mode Terbuka (FR-SET-06): perangkat masuk tanpa kode aktivasi.
+     * Setting-nya diperiksa ulang di controller — rute yang terbuka bukan
+     * berarti fiturnya menyala.
+     */
+    Route::post('aktivasi/terbuka', [AktivasiController::class, 'terbuka'])
+        ->middleware('throttle:10,1')
+        ->name('aktivasi.terbuka');
+
     Route::middleware('kiosk')->group(function () {
         Route::get('/', LayarKioskController::class)->name('utama');
         Route::post('lepas', [AktivasiController::class, 'destroy'])->name('lepas');

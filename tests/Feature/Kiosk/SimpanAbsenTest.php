@@ -142,21 +142,46 @@ class SimpanAbsenTest extends TestCase
     }
 
     #[Test]
-    public function tap_berulang_jenis_sama_memperbarui_baris_bukan_menduplikasi(): void
+    public function tap_kedua_jenis_sama_ditolak_dan_tidak_menggeser_jam(): void
     {
-        // FR-TAP-05: tidak boleh ada baris ganda untuk event/pegawai/jenis.
+        /*
+         * FR-TAP-05 (revisi S28a): tap kedua untuk jenis yang sama DITOLAK,
+         * bukan menimpa yang pertama. Jam kehadiran adalah bukti; membiarkannya
+         * tergeser oleh tap ulang berarti siapa pun dapat memindahkan jamnya
+         * sendiri — termasuk dari 'tepat waktu' menjadi jam yang lebih enak
+         * dibaca, atau sebaliknya.
+         */
         $this->travelTo('2026-09-07 07:35:00');
         $this->kirim()->assertOk();
 
         $this->travelTo('2026-09-07 07:50:00');
-        $this->kirim()->assertOk();
+        $this->kirim()
+            ->assertStatus(409)
+            ->assertJson([
+                'success' => false,
+                'code' => 'SUDAH_ABSEN',
+                'message' => 'Sudah absen datang pukul 07:35.',
+            ]);
 
         $this->assertDatabaseCount('absensi', 1);
 
-        // Waktu ikut bergeser ke tap terakhir, begitu pula ketepatannya.
+        // Jam dan ketepatan tetap milik tap pertama.
         $absensi = Absensi::sole();
-        $this->assertSame('07:50', $absensi->waktu->format('H:i'));
-        $this->assertSame(StatusKetepatan::Terlambat, $absensi->status_ketepatan);
+        $this->assertSame('07:35', $absensi->waktu->format('H:i'));
+        $this->assertSame(StatusKetepatan::Tepat, $absensi->status_ketepatan);
+    }
+
+    #[Test]
+    public function absen_pulang_tetap_diterima_setelah_absen_datang(): void
+    {
+        // Yang ditolak hanya jenis yang sama; datang dan pulang berdiri sendiri.
+        $this->travelTo('2026-09-07 07:35:00');
+        $this->kirim()->assertOk();
+
+        $this->travelTo('2026-09-07 15:05:00');
+        $this->kirim(['jenis' => 'pulang'])->assertOk();
+
+        $this->assertDatabaseCount('absensi', 2);
     }
 
     #[Test]
@@ -323,19 +348,27 @@ class SimpanAbsenTest extends TestCase
     }
 
     #[Test]
-    public function tap_berulang_mengganti_foto_lama(): void
+    public function tap_kedua_tidak_menyisakan_foto_yatim(): void
     {
+        /*
+         * Tap kedua ditolak, tetapi fotonya telanjur sampai ke server dan
+         * telanjur ditulis ke disk sebelum kunci unik menolaknya. Berkas itu
+         * harus ikut dibuang: tidak ada baris absensi yang menautnya, dan ia
+         * akan menumpuk diam-diam pada setiap tap ulang.
+         */
         $this->kirim(['foto' => $this->fotoUji()])->assertOk();
-        $pathLama = Absensi::sole()->foto_path;
+        $pathPertama = Absensi::sole()->foto_path;
 
-        $this->kirim(['foto' => $this->fotoUji()])->assertOk();
-        $pathBaru = Absensi::sole()->foto_path;
-
-        $this->assertNotSame($pathLama, $pathBaru);
+        $this->kirim(['foto' => $this->fotoUji()])->assertStatus(409);
 
         $disk = Storage::disk(AbsensiService::DISK);
-        $disk->assertMissing($pathLama);
-        $disk->assertExists($pathBaru);
+
+        // Foto tap pertama tetap utuh — ia bukti kehadiran yang sah.
+        $this->assertSame($pathPertama, Absensi::sole()->foto_path);
+        $disk->assertExists($pathPertama);
+
+        // Dan tidak ada berkas kedua yang tertinggal tanpa pemilik.
+        $this->assertCount(1, $disk->allFiles(AbsensiService::DIREKTORI));
     }
 
     #[Test]
@@ -380,15 +413,19 @@ class SimpanAbsenTest extends TestCase
     #[Test]
     public function pengiriman_ulang_dari_antrian_tidak_menduplikasi_baris(): void
     {
-        // Antrian luring boleh mengirim ulang berkali-kali; kunci unik
-        // membuat kiriman kembar memperbarui baris yang sama (FR-TAP-05).
+        /*
+         * Antrian luring boleh mengirim ulang berkali-kali. Kiriman kembar
+         * ditolak sebagai tap kedua (FR-TAP-05 revisi S28a) — bukan galat
+         * server, sehingga klien membuangnya dari antrian alih-alih mencoba
+         * selamanya, dan baris pertamanya tetap utuh pada jam tap aslinya.
+         */
         $this->travelTo('2026-09-07 08:10:00');
 
         $muatan = ['waktu_tap' => '2026-09-07T07:35:00+07:00'];
 
         $this->kirim($muatan)->assertOk();
-        $this->kirim($muatan)->assertOk();
-        $this->kirim($muatan)->assertOk();
+        $this->kirim($muatan)->assertStatus(409);
+        $this->kirim($muatan)->assertStatus(409);
 
         $this->assertDatabaseCount('absensi', 1);
         $this->assertSame('07:35', Absensi::sole()->waktu->format('H:i'));

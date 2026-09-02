@@ -5,10 +5,12 @@ namespace App\Services;
 use App\Enums\JenisAbsen;
 use App\Enums\MetodeAbsen;
 use App\Enums\StatusKetepatan;
+use App\Exceptions\AbsenGandaException;
 use App\Models\Absensi;
 use App\Models\EventAbsen;
 use App\Models\Kiosk;
 use App\Models\Pegawai;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
@@ -40,9 +42,37 @@ class AbsensiService
     public function __construct(protected SettingAbsenService $setting) {}
 
     /**
-     * Catat kehadiran, atau perbarui bila jenis yang sama sudah tercatat.
+     * Kehadiran yang sudah tercatat untuk satu pasangan event × pegawai ×
+     * jenis, atau null bila belum ada.
+     *
+     * Dipakai layar titik absen untuk memberi tahu pegawai sebelum kamera
+     * menyala — tidak ada gunanya memindai wajah orang yang jelas sudah
+     * tercatat.
+     */
+    public function absenTercatat(
+        EventAbsen $event,
+        Pegawai $pegawai,
+        JenisAbsen $jenis,
+    ): ?Absensi {
+        return Absensi::query()
+            ->where('event_absen_id', $event->id)
+            ->where('pegawai_id', $pegawai->id)
+            ->where('jenis', $jenis)
+            ->first();
+    }
+
+    /**
+     * Catat kehadiran.
+     *
+     * FR-TAP-05 (revisi S28a): satu baris per (event, pegawai, jenis), dan tap
+     * kedua untuk jenis yang sama DITOLAK, bukan menimpa yang pertama. Jam
+     * kehadiran yang sudah tercatat adalah bukti; membiarkannya tergeser oleh
+     * tap ulang berarti siapa pun dapat memindahkan jamnya sendiri hanya
+     * dengan men-tap lagi.
      *
      * @param  array<string, mixed>  $data
+     *
+     * @throws AbsenGandaException bila kehadiran jenis itu sudah tercatat
      */
     public function catat(
         EventAbsen $event,
@@ -51,47 +81,43 @@ class AbsensiService
         array $data,
     ): Absensi {
         $jenis = JenisAbsen::from($data['jenis']);
+
+        $tercatat = $this->absenTercatat($event, $pegawai, $jenis);
+
+        if ($tercatat !== null) {
+            throw new AbsenGandaException($tercatat);
+        }
+
         $waktu = $this->waktuTap($event, $data['waktu_tap'] ?? null);
+        $fotoPath = $this->simpanFoto($event, $pegawai, $jenis, $data['foto'] ?? null);
 
-        $sebelumnya = Absensi::query()
-            ->where('event_absen_id', $event->id)
-            ->where('pegawai_id', $pegawai->id)
-            ->where('jenis', $jenis)
-            ->first();
-
-        $fotoPath = $this->simpanFoto($event, $pegawai, $jenis, $data['foto'] ?? null)
-            ?? $sebelumnya?->foto_path;
-
-        $atribut = [
-            'kiosk_id' => $kiosk?->id,
-            'metode' => MetodeAbsen::from($data['metode']),
-            'waktu' => $waktu,
-            'status_ketepatan' => $this->ketepatan($event, $jenis, $waktu),
-            'skor_kecocokan_wajah' => $data['skor'] ?? null,
-            'foto_path' => $fotoPath,
-        ];
-
-        /*
-         * FR-TAP-05: satu baris per (event, pegawai, jenis). Tap berulang
-         * memperbarui baris yang sama sehingga Daftar e-Presensi tidak
-         * menumbuhkan baris duplikat.
-         */
-        $absensi = Absensi::updateOrCreate(
-            [
+        try {
+            return Absensi::create([
                 'event_absen_id' => $event->id,
                 'pegawai_id' => $pegawai->id,
                 'jenis' => $jenis,
-            ],
-            $atribut,
-        );
+                'kiosk_id' => $kiosk?->id,
+                'metode' => MetodeAbsen::from($data['metode']),
+                'waktu' => $waktu,
+                'status_ketepatan' => $this->ketepatan($event, $jenis, $waktu),
+                'skor_kecocokan_wajah' => $data['skor'] ?? null,
+                'foto_path' => $fotoPath,
+            ]);
+        } catch (UniqueConstraintViolationException) {
+            /*
+             * Dua perangkat men-tap orang yang sama dalam hitungan milidetik:
+             * keduanya lolos pemeriksaan di atas, hanya satu yang menang kunci
+             * unik. Yang kalah diperlakukan sama seperti tap kedua biasa —
+             * ditolak, bukan digagalkan sebagai galat server.
+             */
+            if ($fotoPath !== null) {
+                Storage::disk(self::DISK)->delete($fotoPath);
+            }
 
-        // Foto lama dibuang setelah baris tersimpan, dan hanya bila benar-benar
-        // digantikan berkas baru.
-        if ($sebelumnya?->foto_path !== null && $sebelumnya->foto_path !== $fotoPath) {
-            Storage::disk(self::DISK)->delete($sebelumnya->foto_path);
+            throw new AbsenGandaException(
+                $this->absenTercatat($event, $pegawai, $jenis),
+            );
         }
-
-        return $absensi;
     }
 
     /**

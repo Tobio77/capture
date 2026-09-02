@@ -56,7 +56,7 @@ const waktuWorka = (iso) =>
 <template>
   <AdminLayout
     judul="Integrasi WORKA"
-    deskripsi="Alamat dan token API sistem kepegawaian WORKA, sumber data pegawai dan unit kerja SI-ABSEN."
+    deskripsi="Alamat dan token API sistem kepegawaian WORKA, sumber data pegawai dan unit kerja Capture."
   >
     <div class="grid gap-6 lg:grid-cols-3">
       <div class="lg:col-span-2">
@@ -74,7 +74,7 @@ const waktuWorka = (iso) =>
               />
               <p v-if="form.errors.api_url" class="mt-1.5 text-sm text-peringatan-teks">{{ form.errors.api_url }}</p>
               <p v-else class="mt-1.5 text-xs text-redup">
-                Tanpa garis miring di akhir. SI-ABSEN menambahkan sendiri jalur /api/v1/absen.
+                Tanpa garis miring di akhir. Capture menambahkan sendiri jalur /api/v1/absen.
               </p>
             </div>
 

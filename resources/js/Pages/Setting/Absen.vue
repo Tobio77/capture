@@ -2,9 +2,10 @@
 import { computed } from 'vue'
 import { useForm } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
+import Ikon from '@/Components/Ikon.vue'
 
 /**
- * Setting Absen — pengaturan global sistem (FR-SET-01 s.d. FR-SET-04).
+ * Setting Absen — pengaturan global sistem (FR-SET-01 s.d. FR-SET-06).
  */
 
 const props = defineProps({
@@ -174,6 +175,47 @@ const simpan = () => {
             />
             <p v-if="form.errors.jam_masuk_umum" class="mt-1.5 text-xs text-peringatan-teks">
               {{ form.errors.jam_masuk_umum }}
+            </p>
+          </div>
+        </section>
+
+        <!-- FR-SET-06 -->
+        <section class="rounded-lg border border-garis bg-permukaan p-6 bayang">
+          <h2 class="font-display text-sm font-semibold text-utama">Registrasi Perangkat Absen</h2>
+          <p class="mt-1 text-xs text-redup">
+            Secara bawaan, perangkat harus didaftarkan admin lebih dahulu dan menukarkan kode
+            aktivasi sebelum dapat melayani tap.
+          </p>
+
+          <label class="mt-4 flex cursor-pointer items-start gap-3">
+            <input
+              v-model="form.wajib_kode_aktivasi"
+              type="checkbox"
+              class="mt-0.5 h-4 w-4 rounded border-garis text-aksen focus:ring-aksen"
+            />
+            <span>
+              <span class="block text-sm font-medium text-utama">
+                Wajib kode aktivasi perangkat
+              </span>
+              <span class="mt-0.5 block text-xs text-redup">
+                Biarkan menyala pada operasi normal.
+              </span>
+            </span>
+          </label>
+
+          <div
+            v-if="!form.wajib_kode_aktivasi"
+            class="mt-4 rounded-lg border border-peringatan bg-peringatan-lembut p-4"
+          >
+            <p class="flex items-center gap-1.5 text-sm font-semibold text-peringatan-teks">
+              <Ikon nama="peringatan" ukuran="h-4 w-4" /> Mode Terbuka
+            </p>
+            <p class="mt-1 text-xs text-peringatan-teks">
+              Perangkat mana pun yang dapat menjangkau alamat aplikasi ini boleh masuk tanpa kode
+              aktivasi. Ia dibuatkan entri sendiri bertanda <strong>Ad-hoc</strong>, alamat IP-nya
+              tetap dicatat, dan absen yang dilayaninya tercatat pada unit kerja yang dipilih
+              petugas di layar. Gunakan hanya untuk kebutuhan darurat, dan nonaktifkan kembali
+              sesudahnya.
             </p>
           </div>
         </section>

@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\Absen;
 
+use App\Enums\JenisAbsen;
 use App\Http\Controllers\Controller;
+use App\Services\AbsensiService;
 use App\Services\EventAbsenService;
 use App\Services\KartuRfidService;
 use App\Services\SettingAbsenService;
@@ -25,6 +27,7 @@ use Illuminate\Http\Request;
 class IdentifikasiTapController extends Controller
 {
     public function __construct(
+        protected AbsensiService $absensi,
         protected EventAbsenService $event,
         protected KartuRfidService $kartu,
         protected SettingAbsenService $setting,
@@ -93,6 +96,21 @@ class IdentifikasiTapController extends Controller
                     'jam_mulai' => substr((string) $event->jam_mulai, 0, 5),
                     'toleransi_menit' => $event->toleransi_menit,
                 ],
+                /*
+                 * FR-TAP-05 (revisi S28a): jenis yang sudah tercatat diberitahukan
+                 * sejak identifikasi, sehingga kamera tidak perlu menyala hanya
+                 * untuk berakhir ditolak — dan pegawai langsung membaca pukul
+                 * berapa ia sebenarnya sudah absen.
+                 */
+                'sudah_absen' => [
+                    'datang' => $this->absensi
+                        ->absenTercatat($event, $pegawai, JenisAbsen::Datang)
+                        ?->waktu->format('H:i'),
+                    'pulang' => $this->absensi
+                        ->absenTercatat($event, $pegawai, JenisAbsen::Pulang)
+                        ?->waktu->format('H:i'),
+                ],
+
                 'nip' => $pegawai->nip,
                 'nama' => $pegawai->nama,
                 'jabatan' => $pegawai->jabatan,

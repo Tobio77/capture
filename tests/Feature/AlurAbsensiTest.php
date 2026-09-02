@@ -233,18 +233,34 @@ class AlurAbsensiTest extends TestCase
         $perangkat = $this->pasangPerangkat();
         $this->buatEvent(jamMulai: '07:30', toleransi: 0);
 
-        $pegawai = Pegawai::factory()->create([
+        /*
+         * Dua pegawai, bukan satu yang men-tap dua kali: sejak revisi
+         * FR-TAP-05 (S28a), tap kedua untuk jenis yang sama ditolak, sehingga
+         * batas ketepatan hanya dapat diuji dengan orang yang berbeda.
+         */
+        $tepat = Pegawai::factory()->create([
             'nip' => '199001012020011001',
+            'unit_kerja_id' => $this->upt->id,
+        ]);
+        $terlambat = Pegawai::factory()->create([
+            'nip' => '199001012020011002',
             'unit_kerja_id' => $this->upt->id,
         ]);
 
         $this->travelTo('2026-09-07 07:30:00');
-        $this->tap($perangkat, $pegawai->nip)->assertOk();
-        $this->assertSame(StatusKetepatan::Tepat, Absensi::sole()->status_ketepatan);
+        $this->tap($perangkat, $tepat->nip)->assertOk();
 
         $this->travelTo('2026-09-07 07:30:30');
-        $this->tap($perangkat, $pegawai->nip)->assertOk();
-        $this->assertSame(StatusKetepatan::Terlambat, Absensi::sole()->refresh()->status_ketepatan);
+        $this->tap($perangkat, $terlambat->nip)->assertOk();
+
+        $this->assertSame(
+            StatusKetepatan::Tepat,
+            Absensi::query()->where('pegawai_id', $tepat->id)->sole()->status_ketepatan,
+        );
+        $this->assertSame(
+            StatusKetepatan::Terlambat,
+            Absensi::query()->where('pegawai_id', $terlambat->id)->sole()->status_ketepatan,
+        );
     }
 
     #[Test]

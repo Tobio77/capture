@@ -68,6 +68,11 @@ class PerangkatAbsenService
             ->through(fn (Kiosk $perangkat) => [
                 'id' => $perangkat->id,
                 'nama_titik' => $perangkat->nama_titik,
+
+                // FR-SET-06: perangkat ad-hoc tidak pernah ditinjau admin,
+                // sehingga asal-usulnya harus terbaca pada daftar.
+                'sumber' => $perangkat->sumber->value,
+                'sumber_label' => $perangkat->sumber->label(),
                 'unit_kerja' => $perangkat->unitKerja?->only(['id', 'kode', 'nama']),
                 'aktif' => $perangkat->aktif,
 

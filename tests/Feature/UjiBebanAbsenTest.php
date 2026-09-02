@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Exceptions\AbsenGandaException;
 use App\Models\Absensi;
 use App\Models\EventAbsen;
 use App\Models\Kiosk;
@@ -87,18 +88,31 @@ class UjiBebanAbsenTest extends TestCase
          */
         $absensi = app(AbsensiService::class);
 
-        foreach (range(1, 5) as $ke) {
-            $absensi->catat($this->event, $this->pegawai, null, [
-                'jenis' => 'datang',
-                'metode' => 'manual',
-            ]);
+        $absensi->catat($this->event, $this->pegawai, null, [
+            'jenis' => 'datang',
+            'metode' => 'manual',
+        ]);
+
+        // Tap kedua ditolak, bukan menimpa (FR-TAP-05 revisi S28a).
+        foreach (range(1, 4) as $ke) {
+            try {
+                $absensi->catat($this->event, $this->pegawai, null, [
+                    'jenis' => 'datang',
+                    'metode' => 'manual',
+                ]);
+
+                $this->fail('Tap kedua seharusnya ditolak.');
+            } catch (AbsenGandaException $ganda) {
+                $this->assertSame('Sudah absen datang pukul '.
+                    $ganda->tercatat->waktu->format('H:i').'.', $ganda->pesan());
+            }
         }
 
         $this->assertSame(1, Absensi::query()->count());
     }
 
     #[Test]
-    public function tap_berurutan_dari_dua_perangkat_tetap_satu_baris(): void
+    public function tap_dari_perangkat_kedua_ditolak_dan_tidak_memindahkan_kepemilikan(): void
     {
         $perangkatA = Kiosk::factory()->diaktifkan('token-a')->create([
             'unit_kerja_id' => $this->unitKerja->id,
@@ -109,17 +123,24 @@ class UjiBebanAbsenTest extends TestCase
 
         $absensi = app(AbsensiService::class);
 
-        foreach ([$perangkatA, $perangkatB, $perangkatA] as $perangkat) {
-            $absensi->catat($this->event, $this->pegawai, $perangkat, [
+        $absensi->catat($this->event, $this->pegawai, $perangkatA, [
+            'jenis' => 'datang',
+            'metode' => 'rfid',
+        ]);
+
+        $this->expectException(AbsenGandaException::class);
+
+        // Perangkat kedua menolak, dan perangkat pertama tetap tercatat sebagai
+        // pemilik tap — bukti tidak berpindah tangan hanya karena tap ulang.
+        try {
+            $absensi->catat($this->event, $this->pegawai, $perangkatB, [
                 'jenis' => 'datang',
                 'metode' => 'rfid',
             ]);
+        } finally {
+            $this->assertSame(1, Absensi::query()->count());
+            $this->assertSame($perangkatA->id, Absensi::query()->value('kiosk_id'));
         }
-
-        $this->assertSame(1, Absensi::query()->count());
-
-        // Perangkat yang tercatat adalah yang melayani tap terakhir.
-        $this->assertSame($perangkatA->id, Absensi::query()->value('kiosk_id'));
     }
 
     /* ---------------------------------------------------------------------

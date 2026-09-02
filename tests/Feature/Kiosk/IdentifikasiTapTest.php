@@ -3,7 +3,9 @@
 namespace Tests\Feature\Kiosk;
 
 use App\Enums\CakupanEvent;
+use App\Enums\JenisAbsen;
 use App\Enums\StatusEvent;
+use App\Models\Absensi;
 use App\Models\EventAbsen;
 use App\Models\Kiosk;
 use App\Models\Pegawai;
@@ -284,6 +286,42 @@ class IdentifikasiTapTest extends TestCase
             'event_absen_id' => $this->event->id,
             'kiosk_id' => Kiosk::sole()->id,
         ]);
+    }
+
+    #[Test]
+    public function identifikasi_memberitahukan_jenis_yang_sudah_tercatat(): void
+    {
+        /*
+         * FR-TAP-05 (revisi S28a). Layar titik absen memakai keterangan ini
+         * untuk berhenti sebelum kamera menyala — memindai wajah orang yang
+         * jelas sudah tercatat hanya memperlambat antrean, dan hasilnya toh
+         * ditolak.
+         */
+        $pegawai = Pegawai::factory()->create([
+            'nip' => '199001012020011001',
+            'unit_kerja_id' => $this->unitKerja->id,
+        ]);
+
+        $this->denganToken()
+            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], [
+                'Accept' => 'application/json',
+            ])
+            ->assertOk()
+            ->assertJson(['data' => ['sudah_absen' => ['datang' => null, 'pulang' => null]]]);
+
+        Absensi::factory()->create([
+            'event_absen_id' => $this->event->id,
+            'pegawai_id' => $pegawai->id,
+            'jenis' => JenisAbsen::Datang,
+            'waktu' => $this->event->tanggal->toDateString().' 07:16:00',
+        ]);
+
+        $this->denganToken()
+            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], [
+                'Accept' => 'application/json',
+            ])
+            ->assertOk()
+            ->assertJson(['data' => ['sudah_absen' => ['datang' => '07:16', 'pulang' => null]]]);
     }
 
     #[Test]

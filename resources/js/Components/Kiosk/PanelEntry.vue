@@ -7,10 +7,14 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
  * Panel ini menampilkan keadaan, tidak memutuskan apa pun: verifikasi wajah
  * dan penyimpanan absen mengendalikannya lewat prop `tahap`.
  *
- * Pratinjau kamera sengaja menjadi elemen terbesar di layar. Orang yang
- * berdiri di depan titik absen perlu melihat wajahnya sendiri untuk
- * memposisikan diri; kotak kecil membuat mereka mencondong dan memperlambat
- * antrean.
+ * Kamera selalu menyala selama perangkat punya akses ke sana, termasuk ketika
+ * verifikasi wajah dimatikan pada Setting Absen — yang dimatikan hanya langkah
+ * pencocokan embedding, sedangkan fotonya tetap diambil sebagai bukti
+ * kehadiran (revisi FR-SET-01, S28a).
+ *
+ * Pratinjaunya tidak dicerminkan. Foto absen adalah dokumen: nama pada tanda
+ * pengenal, arah rambut, dan sisi tubuh harus sama dengan kenyataan, bukan
+ * terbalik seperti cermin.
  */
 
 const props = defineProps({
@@ -34,6 +38,7 @@ const idCard = ref('')
 const memindai = computed(() => props.tahap === 'memindai')
 const berhasil = computed(() => props.tahap === 'berhasil')
 const gagal = computed(() => props.tahap === 'gagal')
+const sudah = computed(() => props.tahap === 'sudah')
 
 const status = computed(() => {
   const daftar = {
@@ -47,6 +52,7 @@ const status = computed(() => {
         }
       : { teks: 'Absen berhasil dicatat', warna: 'text-berhasil-teks' },
     gagal: { teks: props.pesan ?? 'Verifikasi gagal, silakan ulangi', warna: 'text-peringatan-teks' },
+    sudah: { teks: props.pesan ?? 'Kehadiran sudah tercatat', warna: 'text-info-teks' },
   }
 
   return daftar[props.tahap] ?? daftar.menunggu_tap
@@ -56,14 +62,13 @@ const status = computed(() => {
 const warnaBingkai = computed(() => {
   if (berhasil.value) return 'border-berhasil'
   if (gagal.value) return 'border-peringatan'
+  if (sudah.value) return 'border-aksen-kuat'
   if (memindai.value) return 'border-aksen'
 
   return 'border-garis-kuat'
 })
 
 async function nyalakanKamera() {
-  if (!props.metode.wajah) return
-
   try {
     kamera.value = await navigator.mediaDevices.getUserMedia({
       video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
@@ -184,13 +189,15 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
     </h2>
 
     <!--
-      Pratinjau kamera. Rasio 4:3 dan kolom yang lebar membuat luasnya sekitar
-      tiga kali lipat tata letak sebelumnya — inilah yang seharusnya pertama
-      dilihat orang yang berdiri di depan layar.
+      Pratinjau kamera mengisi lebar kolom kiri pada rasio 16:9 — cukup besar
+      untuk memposisikan wajah, tanpa mendominasi layar sampai Daftar
+      e-Presensi di sebelahnya kehilangan tempat.
+
+      Kamera tetap menyala walau verifikasi wajah dimatikan: fotonya tetap
+      diambil dan disimpan sebagai bukti kehadiran (revisi FR-SET-01, S28a).
     -->
     <div
-      v-if="metode.wajah"
-      class="relative mt-4 aspect-[4/3] overflow-hidden rounded-xl border-4 bg-navy-900 transition-colors duration-300"
+      class="relative mt-4 aspect-video overflow-hidden rounded-xl border-2 bg-navy-900 transition-colors duration-300"
       :class="warnaBingkai"
     >
       <video ref="video" class="h-full w-full object-cover" autoplay muted playsinline></video>
@@ -204,10 +211,18 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
 
       <span
         v-else
-        class="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full bg-navy-900/70 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm"
+        class="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-navy-900/70 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm"
       >
-        <span class="h-2 w-2 animate-pulse rounded-full bg-red-500"></span>
+        <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500"></span>
         LIVE
+      </span>
+
+      <!-- Verifikasi wajah dimatikan: kamera tetap merekam bukti kehadiran. -->
+      <span
+        v-if="!kameraGagal && !metode.wajah"
+        class="absolute right-3 top-3 rounded-full bg-navy-900/70 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm"
+      >
+        Foto bukti · tanpa pencocokan wajah
       </span>
 
       <!--
@@ -218,13 +233,13 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
       <template v-if="!kameraGagal">
         <span
           v-for="sudut in [
-            'left-6 top-6 border-l-4 border-t-4 rounded-tl-lg',
-            'right-6 top-6 border-r-4 border-t-4 rounded-tr-lg',
-            'bottom-6 left-6 border-b-4 border-l-4 rounded-bl-lg',
-            'bottom-6 right-6 border-b-4 border-r-4 rounded-br-lg',
+            'left-4 top-4 border-l-2 border-t-2 rounded-tl-md',
+            'right-4 top-4 border-r-2 border-t-2 rounded-tr-md',
+            'bottom-4 left-4 border-b-2 border-l-2 rounded-bl-md',
+            'bottom-4 right-4 border-b-2 border-r-2 rounded-br-md',
           ]"
           :key="sudut"
-          class="pointer-events-none absolute h-12 w-12 transition-colors duration-300"
+          class="pointer-events-none absolute h-8 w-8 transition-colors duration-300"
           :class="[sudut, memindai ? 'border-teal-300' : 'border-white/60']"
         ></span>
       </template>
@@ -243,13 +258,6 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
       >
         {{ hasil.skor }}% cocok
       </span>
-    </div>
-
-    <div
-      v-else
-      class="mt-4 rounded-xl border border-dashed border-garis-kuat px-4 py-12 text-center text-sm text-redup"
-    >
-      Verifikasi wajah dinonaktifkan pada Setting Absen.
     </div>
 
     <!-- Jenis absen -->
@@ -294,6 +302,19 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
         @keyup.enter="kirim"
         @blur="rebutFokus"
       />
+
+      <!--
+        Reader RFID mengirim Enter sendiri, tetapi pegawai yang mengetik NIP
+        pada layar sentuh tidak punya papan ketik fisik untuk menekannya.
+      -->
+      <button
+        type="button"
+        :disabled="!aktif || idCard.trim() === ''"
+        class="mt-3 w-full rounded-lg bg-aksen px-4 py-3 text-sm font-semibold text-white transition-colors duration-150 hover:bg-aksen-kuat active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40"
+        @click="kirim"
+      >
+        Absen {{ jenis === 'datang' ? 'Datang' : 'Pulang' }}
+      </button>
     </div>
 
     <!-- Hasil -->
@@ -327,6 +348,7 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
           'animate-pulse bg-aksen': memindai,
           'bg-berhasil': berhasil,
           'bg-peringatan': gagal,
+          'bg-aksen-kuat': sudah,
         }"
       ></span>
       {{ status.teks }}

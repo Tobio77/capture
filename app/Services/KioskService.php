@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Enums\AksiLog;
 use App\Enums\StatusKiosk;
+use App\Enums\SumberKiosk;
 use App\Models\Kiosk;
+use App\Models\UnitKerja;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -41,6 +43,52 @@ class KioskService
     public const int JEDA_PEMBARUAN_JEJAK_MENIT = 5;
 
     public function __construct(protected LogAktivitasService $log) {}
+
+    /**
+     * Daftarkan perangkat yang masuk tanpa kode aktivasi (Mode Terbuka, FR-SET-06).
+     *
+     * Perangkat semacam ini tidak pernah ditinjau siapa pun, sehingga ia
+     * ditandai `sumber = ad_hoc` dan namanya menyebut asal-usulnya. Selebihnya
+     * ia diperlakukan sama persis dengan perangkat terdaftar — device token
+     * sendiri, alamat IP tercatat, dan muncul pada Daftar Perangkat maupun
+     * daftar perangkat terhubung sebuah event.
+     *
+     * Unit kerja diminta di layar aktivasi, bukan ditebak dari alamat IP:
+     * tebakan yang keliru mengarahkan seluruh absen ke unit yang salah, dan
+     * petugas yang berdiri di lokasi jelas tahu ia sedang berada di mana.
+     *
+     * @return array{kiosk: Kiosk, token: string}
+     */
+    public function masukTanpaKode(UnitKerja $unitKerja, Request $request): array
+    {
+        $token = Str::random(64);
+        $waktu = Carbon::now();
+
+        $kiosk = Kiosk::create([
+            'nama_titik' => 'Perangkat Ad-hoc — '.$unitKerja->nama,
+            'sumber' => SumberKiosk::AdHoc,
+            'unit_kerja_id' => $unitKerja->id,
+            'aktif' => true,
+        ]);
+
+        $kiosk->forceFill([
+            'device_token' => self::hashToken($token),
+            'ip_terakhir' => $request->ip(),
+            'status' => StatusKiosk::Online,
+            'login_terakhir_at' => $waktu,
+            'diaktifkan_pada' => $waktu,
+        ])->save();
+
+        $this->log->catat(
+            AksiLog::AktivasiKiosk,
+            "Perangkat ad-hoc masuk tanpa kode aktivasi pada unit {$unitKerja->nama} dari IP {$request->ip()} ".
+            '(Mode Terbuka sedang menyala).',
+            kiosk: $kiosk,
+            subjek: $kiosk,
+        );
+
+        return ['kiosk' => $kiosk, 'token' => $token];
+    }
 
     /**
      * Terbitkan kode aktivasi sekali pakai untuk kiosk yang sudah didaftarkan admin.

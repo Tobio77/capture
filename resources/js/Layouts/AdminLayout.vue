@@ -24,6 +24,14 @@ const cakupan = computed(() =>
 const aktif = (rute) => ruteSaatIni.value === rute
 
 /*
+ * FR-SET-06: selama Mode Terbuka menyala, perangkat mana pun dapat masuk
+ * tanpa kode. Peringatannya sengaja dipasang di kerangka halaman, bukan di
+ * satu layar saja — mode ini gampang dinyalakan untuk satu kegiatan lalu
+ * terlupakan, dan justru itulah yang berbahaya.
+ */
+const modeTerbuka = computed(() => page.props.mode_terbuka === true)
+
+/*
  * Di bawah `md` sidebar menjadi laci yang meluncur dari kiri di atas isi
  * halaman, bukan menumpuk di atasnya: menu proyek ini punya sebelas butir,
  * dan menumpuknya akan mendorong isi halaman jauh ke bawah lipatan.
@@ -168,22 +176,51 @@ const keluar = () => router.post('/keluar')
           </div>
           <p class="mt-2 truncate text-xs text-sidebar-redup" :title="cakupan">{{ cakupan }}</p>
 
-          <div class="mt-3 flex items-center gap-2">
-            <button
-              type="button"
-              class="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-sidebar-garis px-3 py-2 text-xs font-medium text-sidebar-redup transition-colors duration-150 hover:bg-white/10 hover:text-sidebar-teks"
-              @click="keluar"
-            >
-              <Ikon nama="keluar" ukuran="h-4 w-4" /> Keluar
-            </button>
-            <SaklarTema varian="sidebar" class="hidden md:block" />
-          </div>
+          <!-- Saklar tema tinggal di bilah atas; di sini cukup tombol keluar. -->
+          <button
+            type="button"
+            class="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-sidebar-garis px-3 py-2 text-xs font-medium text-sidebar-redup transition-colors duration-150 hover:bg-white/10 hover:text-sidebar-teks"
+            @click="keluar"
+          >
+            <Ikon nama="keluar" ukuran="h-4 w-4" /> Keluar
+          </button>
         </div>
     </aside>
 
     <!-- Konten -->
     <div class="min-w-0 flex-1">
+      <!--
+        Bilah atas layar lebar: tempat saklar tema, supaya tidak terkubur di
+        dalam menu samping.
+      -->
+      <div
+        class="hidden items-center justify-end gap-3 border-b border-garis bg-permukaan px-6 py-2.5 md:flex print:hidden"
+      >
+        <SaklarTema />
+      </div>
+
       <main class="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+        <!-- Peringatan Mode Terbuka; terlihat di setiap halaman admin. -->
+        <div
+          v-if="modeTerbuka"
+          class="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-peringatan bg-peringatan-lembut px-4 py-3 print:hidden"
+        >
+          <p class="flex items-start gap-2 text-sm text-peringatan-teks">
+            <Ikon nama="peringatan" ukuran="h-5 w-5 shrink-0" />
+            <span>
+              <span class="font-semibold">Mode Terbuka Aktif</span> — perangkat tidak perlu
+              registrasi dan dapat mengabsen tanpa kode aktivasi. Gunakan hanya untuk kebutuhan
+              darurat, dan jangan lupa nonaktifkan kembali.
+            </span>
+          </p>
+          <Link
+            href="/admin/kelola-absen/setting"
+            class="tautan-aksi inline-flex shrink-0 items-center gap-1.5 rounded-md border border-peringatan px-3 py-2 text-xs font-semibold text-peringatan-teks transition hover:bg-peringatan-lembut active:scale-95"
+          >
+            <Ikon nama="filter" ukuran="h-3.5 w-3.5" /> Nonaktifkan
+          </Link>
+        </div>
+
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div class="min-w-0">
             <h1 class="font-display text-xl font-semibold text-utama sm:text-2xl">{{ judul }}</h1>

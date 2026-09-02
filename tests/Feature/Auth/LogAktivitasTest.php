@@ -5,6 +5,7 @@ namespace Tests\Feature\Auth;
 use App\Enums\AksiLog;
 use App\Models\LogAktivitas;
 use App\Models\User;
+use App\Services\LogAktivitasService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use PHPUnit\Framework\Attributes\Test;
@@ -106,7 +107,7 @@ class LogAktivitasTest extends TestCase
         $pelaku = User::factory()->superadmin()->create();
         $sasaran = User::factory()->create(['nama' => 'Admin UPT Baru']);
 
-        $log = app(\App\Services\LogAktivitasService::class)->catat(
+        $log = app(LogAktivitasService::class)->catat(
             AksiLog::Buat,
             'Membuat akun Admin UPT Baru.',
             user: $pelaku,

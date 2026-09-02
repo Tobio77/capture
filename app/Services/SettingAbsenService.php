@@ -34,6 +34,8 @@ class SettingAbsenService
 
     public const string KUNCI_JAM_MASUK_UMUM = 'absen.jam_masuk_umum';
 
+    public const string KUNCI_WAJIB_KODE_AKTIVASI = 'absen.wajib_kode_aktivasi';
+
     /** Jam masuk harian bawaan bila admin belum menyetelnya. */
     public const string JAM_MASUK_BAWAAN = '07:30';
 
@@ -72,7 +74,28 @@ class SettingAbsenService
              */
             'absen_umum_aktif' => $this->bool(self::KUNCI_ABSEN_UMUM, true),
             'jam_masuk_umum' => $this->jam(self::KUNCI_JAM_MASUK_UMUM, self::JAM_MASUK_BAWAAN),
+
+            /*
+             * FR-SET-06. Bawaannya menyala: perangkat harus didaftarkan admin
+             * dan menukarkan kode aktivasi lebih dahulu. Mematikannya membuka
+             * layar absen bagi mesin mana pun yang dapat menjangkau alamatnya,
+             * sehingga hanya untuk keadaan darurat — dan admin diberi peringatan
+             * yang selalu terlihat selama mode itu menyala.
+             */
+            'wajib_kode_aktivasi' => $this->bool(self::KUNCI_WAJIB_KODE_AKTIVASI, true),
         ];
+    }
+
+    /**
+     * Mode Terbuka: perangkat boleh masuk tanpa kode aktivasi.
+     *
+     * Dipisahkan sebagai method sendiri karena dibaca dari banyak tempat —
+     * layar aktivasi, pembuatan perangkat ad-hoc, dan spanduk peringatan di
+     * panel admin — dan ketiganya harus selalu sepakat.
+     */
+    public function modeTerbuka(): bool
+    {
+        return ! $this->ambil()['wajib_kode_aktivasi'];
     }
 
     /**
@@ -111,6 +134,7 @@ class SettingAbsenService
             self::KUNCI_KOMPRESI => (string) $nilai('kompresi_foto'),
             self::KUNCI_ABSEN_UMUM => $this->dariBool($nilai('absen_umum_aktif')),
             self::KUNCI_JAM_MASUK_UMUM => substr((string) $nilai('jam_masuk_umum'), 0, 5),
+            self::KUNCI_WAJIB_KODE_AKTIVASI => $this->dariBool($nilai('wajib_kode_aktivasi')),
         ]);
 
         $sesudah = $this->ambil();

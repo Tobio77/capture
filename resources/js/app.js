@@ -4,7 +4,7 @@ import '../css/app.css';
 import { createApp, h } from 'vue';
 import { createInertiaApp } from '@inertiajs/vue3';
 
-const appName = import.meta.env.VITE_APP_NAME || 'SI-ABSEN';
+const appName = import.meta.env.VITE_APP_NAME || 'Capture';
 
 createInertiaApp({
     title: (title) => (title ? `${title} — ${appName}` : appName),

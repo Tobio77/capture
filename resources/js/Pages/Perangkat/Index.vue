@@ -308,6 +308,14 @@ const pemasangan = (item) =>
                     <Ikon nama="perangkat" ukuran="h-4 w-4" />
                   </span>
                   <span class="whitespace-nowrap font-medium text-utama">{{ item.nama_titik }}</span>
+                  <Lencana
+                    v-if="item.sumber === 'ad_hoc'"
+                    warna="amber"
+                    :titik="false"
+                    title="Perangkat masuk sendiri selagi Mode Terbuka menyala, tanpa ditinjau admin"
+                  >
+                    {{ item.sumber_label }}
+                  </Lencana>
                 </div>
               </td>
               <td

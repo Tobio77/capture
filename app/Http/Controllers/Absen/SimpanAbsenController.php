@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Absen;
 
+use App\Exceptions\AbsenGandaException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SimpanAbsenRequest;
 use App\Services\AbsensiService;
@@ -71,16 +72,40 @@ class SimpanAbsenController extends Controller
             }
         }
 
-        $absensi = $this->absensi->catat($event, $pegawai, $kiosk, [
-            'jenis' => $request->string('jenis')->toString(),
-            'metode' => $request->string('metode')->toString(),
-            'skor' => $setting['metode_wajah_aktif'] ? $skor : null,
-            'foto' => $request->input('foto'),
+        try {
+            $absensi = $this->absensi->catat($event, $pegawai, $kiosk, [
+                'jenis' => $request->string('jenis')->toString(),
+                'metode' => $request->string('metode')->toString(),
+                'skor' => $setting['metode_wajah_aktif'] ? $skor : null,
 
-            // Diisi kiosk agar absen yang tertahan antrian luring tetap
-            // tercatat pada jam tapnya, bukan jam pengirimannya (NFR-05).
-            'waktu_tap' => $request->input('waktu_tap'),
-        ]);
+                /*
+                 * Foto tetap disimpan walau verifikasi wajah dimatikan: ia
+                 * berfungsi sebagai bukti kehadiran, bukan hanya bahan
+                 * pencocokan (revisi FR-SET-01, S28a).
+                 */
+                'foto' => $request->input('foto'),
+
+                // Diisi kiosk agar absen yang tertahan antrian luring tetap
+                // tercatat pada jam tapnya, bukan jam pengirimannya (NFR-05).
+                'waktu_tap' => $request->input('waktu_tap'),
+            ]);
+        } catch (AbsenGandaException $ganda) {
+            /*
+             * FR-TAP-05 (revisi S28a): tap kedua untuk jenis yang sama ditolak.
+             * Daftar presensi tetap dikirim supaya layar titik absen menampilkan
+             * keadaan terkini, bukan berhenti pada tampilan lama.
+             */
+            return response()->json([
+                'success' => false,
+                'code' => 'SUDAH_ABSEN',
+                'message' => $ganda->pesan(),
+                'data' => [
+                    'jenis' => $ganda->tercatat->jenis->value,
+                    'waktu' => $ganda->tercatat->waktu->format('H:i'),
+                    'daftar_presensi' => $this->absensi->daftarPresensi($event),
+                ],
+            ], 409);
+        }
 
         return response()->json([
             'success' => true,

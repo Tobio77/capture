@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\StatusKiosk;
+use App\Enums\SumberKiosk;
 use Database\Factories\KioskFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -20,6 +21,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 #[Fillable([
     'nama_titik',
+    'sumber',
     'unit_kerja_id',
     'device_token',
     'kode_aktivasi',
@@ -44,6 +46,7 @@ class Kiosk extends Model
     protected function casts(): array
     {
         return [
+            'sumber' => SumberKiosk::class,
             'status' => StatusKiosk::class,
             'login_terakhir_at' => 'datetime',
             'kode_aktivasi_kedaluwarsa_at' => 'datetime',

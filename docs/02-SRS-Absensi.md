@@ -86,11 +86,12 @@ SI-ABSEN adalah aplikasi web dengan dua front-end: (1) Panel Admin untuk Superad
 
 | **Kode**  | **Deskripsi**                                                                                                                                      | **Prioritas** |
 |-----------|----------------------------------------------------------------------------------------------------------------------------------------------------|---------------|
-| FR-SET-01 | Admin dapat mengaktifkan/menonaktifkan metode absen: input manual, tap RFID, dan verifikasi wajah, berlaku sebagai pengaturan global sistem.       | Tinggi        |
+| FR-SET-01 **(revisi S28a)** | Admin dapat mengaktifkan/menonaktifkan metode absen: input manual, tap RFID, dan verifikasi wajah, berlaku sebagai pengaturan global sistem. Mematikan verifikasi wajah hanya melewati langkah PENCOCOKAN embedding — kamera tetap menyala dan foto tetap diambil serta disimpan sebagai bukti kehadiran, dan validasinya menjadi murni pencocokan NIP/UID kartu terhadap data pegawai. | Tinggi        |
 | FR-SET-02 | Admin dapat menetapkan toleransi keterlambatan default (menit) yang berlaku untuk event baru, dan dapat dioverride per-event saat pembuatan event. | Tinggi        |
 | FR-SET-03 | Admin dapat menetapkan ambang kecocokan wajah (persentase) yang digunakan modul verifikasi wajah di sisi klien.                                    | Tinggi        |
 | FR-SET-04 | Admin dapat memilih tingkat kompresi foto absen (dimensi maksimum piksel dan kualitas JPEG) untuk membatasi ukuran berkas yang disimpan.           | Tinggi        |
 | FR-SET-05 | Admin dapat menyalakan/mematikan absen umum harian beserta jam masuknya. Saat menyala, sistem membuka sesi absen harian per unit kerja ketika tidak ada event kegiatan yang berjalan, sehingga pegawai dapat mencatat kehadiran rutin tanpa admin membuat event lebih dahulu. | Sedang        |
+| FR-SET-06 | Admin dapat mematikan kewajiban kode aktivasi perangkat ("Mode Terbuka"); bawaannya menyala. Saat dimatikan, perangkat yang membuka layar absen tanpa kode dibuatkan entri sendiri bertanda sumber `ad_hoc`, memilih unit kerjanya di layar aktivasi, dan alamat IP-nya dicatat sama seperti perangkat terdaftar — tercermin pada halaman Perangkat Absen maupun daftar perangkat terhubung sebuah event. Selama mode ini menyala, panel admin menampilkan peringatan yang selalu terlihat pada setiap halaman. | Sedang        |
 
 ## 3.6 Kelola Absen — Setting Unit Kerja
 
@@ -141,7 +142,7 @@ SI-ABSEN adalah aplikasi web dengan dua front-end: (1) Panel Admin untuk Superad
 | FR-TAP-02 | Pegawai memilih jenis absen (Datang/Pulang) sebelum atau saat melakukan tap.                                                                                                                                                                                                                                                                                             | Tinggi        |
 | FR-TAP-03 | Pegawai men-tap kartu RFID (terbaca sebagai input keyboard) atau mengetik ID/NIP secara manual pada kolom yang selalu dalam kondisi fokus (auto-focus).                                                                                                                                                                                                                  | Tinggi        |
 | FR-TAP-04 | Setelah ID diterima, sistem otomatis mengaktifkan kamera, menangkap gambar wajah, dan melakukan verifikasi kecocokan dengan foto referensi pegawai bersangkutan di sisi klien (browser), menggunakan ambang kecocokan sesuai Setting Absen.                                                                                                                              | Tinggi        |
-| FR-TAP-05 | Jika verifikasi wajah berhasil, sistem mencatat data absen (NIP, nama, unit kerja, waktu, jenis datang/pulang, metode tap, status tepat/terlambat) beserta foto hasil capture yang telah dikompresi, lalu memperbarui kolom Jam Masuk atau Jam Pulang pada baris pegawai yang bersangkutan di Daftar e-Presensi tanpa membuat baris duplikat untuk hari/event yang sama. | Tinggi        |
+| FR-TAP-05 **(revisi S28a)** | Sistem mencatat data absen (NIP, nama, unit kerja, waktu, jenis datang/pulang, metode tap, status tepat/terlambat) beserta foto hasil capture yang telah dikompresi, lalu mengisi kolom Jam Masuk atau Jam Pulang pada baris pegawai yang bersangkutan di Daftar e-Presensi. Satu baris per (event, pegawai, jenis): **tap kedua untuk jenis yang sama pada event/hari yang sama DITOLAK**, bukan menimpa yang pertama, dan layar titik absen menampilkan "Sudah absen datang/pulang pukul HH:MM". Absen datang dan pulang berdiri sendiri — yang satu tidak menghalangi yang lain. | Tinggi        |
 | FR-TAP-06 | Jika verifikasi wajah gagal, sistem menampilkan status gagal dan tidak mencatat kehadiran; pegawai dapat mengulang tap.                                                                                                                                                                                                                                                  | Tinggi        |
 | FR-TAP-07 | Sistem membandingkan waktu tap terhadap jam mulai dan toleransi keterlambatan event untuk menentukan status tepat waktu/terlambat (berlaku untuk jenis Datang).                                                                                                                                                                                                          | Tinggi        |
 | FR-TAP-08 | Sistem menampilkan Daftar e-Presensi yang bertambah/berubah secara langsung pada layar kiosk seiring pegawai lain melakukan tap.                                                                                                                                                                                                                                         | Sedang        |
@@ -196,3 +197,15 @@ SI-ABSEN adalah aplikasi web dengan dua front-end: (1) Panel Admin untuk Superad
 | Tepat Waktu      | Waktu tap ≤ jam mulai event + toleransi keterlambatan                                         |
 | Terlambat        | Waktu tap \> jam mulai event + toleransi keterlambatan                                        |
 | Tanpa Keterangan | Pegawai terdaftar pada unit kerja cakupan event namun tidak tercatat tap hingga event ditutup |
+
+
+# 8. Catatan Revisi
+
+Revisi berikut mengubah perilaku yang sudah pernah disepakati. Dicatat di sini
+agar perubahannya dapat ditelusuri, bukan tampak sebagai perbedaan yang muncul
+begitu saja antara dokumen dan aplikasi.
+
+| **Kode**  | **Sesi** | **Perubahan** | **Alasan** |
+|-----------|----------|---------------|------------|
+| FR-TAP-05 | S28a | Tap kedua untuk jenis yang sama semula MEMPERBARUI baris yang ada; kini DITOLAK. | Jam kehadiran yang sudah tercatat adalah bukti. Bila tap ulang menggesernya, siapa pun dapat memindahkan jam kehadirannya sendiri — termasuk orang yang datang terlambat lalu mengulang tap sesudah rekan mengabsenkannya lebih dahulu. Layar kini menyatakan pukul berapa kehadirannya sudah tercatat. |
+| FR-SET-01 | S28a | Mematikan verifikasi wajah semula ikut mematikan kamera dan penyimpanan foto; kini hanya melewati langkah pencocokan. | Foto absen berfungsi sebagai bukti dan arsip, bukan hanya bahan pencocokan. Instansi yang mematikan pencocokan wajah — misalnya karena pencahayaan lokasi buruk — tetap membutuhkan buktinya. |

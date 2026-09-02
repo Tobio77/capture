@@ -36,6 +36,7 @@ class SimpanSettingAbsenRequest extends FormRequest
             'kompresi_foto' => ['required', Rule::enum(KompresiFoto::class)],
             'absen_umum_aktif' => ['required', 'boolean'],
             'jam_masuk_umum' => ['required', 'date_format:H:i'],
+            'wajib_kode_aktivasi' => ['required', 'boolean'],
         ];
     }
 
@@ -75,6 +76,7 @@ class SimpanSettingAbsenRequest extends FormRequest
             'kompresi_foto' => 'kompresi foto absen',
             'absen_umum_aktif' => 'absen umum harian',
             'jam_masuk_umum' => 'jam masuk harian',
+            'wajib_kode_aktivasi' => 'wajib kode aktivasi perangkat',
         ];
     }
 }

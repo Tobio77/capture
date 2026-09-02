@@ -159,9 +159,21 @@ async function tangkapTap({ id_card, jenis: jenisTap }) {
       unit_kerja: isi.data.unit_kerja_nama,
       jam: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
 
-      // Dibawa untuk S16: jenis yang dipilih pegawai dan asal masukannya.
       jenis: jenisTap,
       metode: isi.data.metode,
+    }
+
+    /*
+     * FR-TAP-05 (revisi S28a): jenis yang sudah tercatat ditolak. Server
+     * memberitahukannya sejak identifikasi, sehingga tap berhenti di sini —
+     * kamera tidak menyala hanya untuk berakhir ditolak.
+     */
+    const tercatat = isi.data.sudah_absen?.[jenisTap]
+
+    if (tercatat) {
+      sudahAbsen(`Sudah absen ${jenisTap} pukul ${tercatat}.`)
+
+      return
     }
 
     await verifikasiWajah(isi.data)
@@ -174,43 +186,44 @@ async function tangkapTap({ id_card, jenis: jenisTap }) {
  * Verifikasi wajah 1:1 terhadap embedding referensi pegawai yang di-tap
  * (FR-TAP-04, FR-TAP-06).
  *
- * Dilewati bila admin mematikan metode wajah pada Setting Absen — identitas
- * sudah dipastikan oleh kartu atau NIP yang di-tap.
+ * Ketika admin mematikan metode wajah pada Setting Absen, yang dilewati hanya
+ * langkah PENCOCOKANNYA — identitas sudah dipastikan kartu atau NIP yang
+ * di-tap. Kamera tetap menyala dan fotonya tetap diambil serta disimpan
+ * sebagai bukti kehadiran (revisi FR-SET-01, S28a).
  */
 async function verifikasiWajah(data) {
-  if (!props.metode.wajah) {
-    tahap.value = 'berhasil'
-    pulihkan()
+  let skor = null
 
-    return
-  }
-
-  const hasilVerifikasi = await verifikasi(
-    panel.value?.elemenVideo(),
-    data.embedding_wajah,
-    props.ambang_kecocokan_wajah,
-  )
-
-  if (hasilVerifikasi.galat) {
-    gagalkan(hasilVerifikasi.galat)
-
-    return
-  }
-
-  hasil.value = { ...hasil.value, skor: hasilVerifikasi.skor }
-
-  if (!hasilVerifikasi.cocok) {
-    // FR-TAP-06: kehadiran tidak dicatat, pegawai dipersilakan mengulang tap.
-    gagalkan(
-      `Wajah tidak cocok (${hasilVerifikasi.skor}%, ambang ${props.ambang_kecocokan_wajah}%). Silakan ulangi tap.`,
+  if (props.metode.wajah) {
+    const hasilVerifikasi = await verifikasi(
+      panel.value?.elemenVideo(),
+      data.embedding_wajah,
+      props.ambang_kecocokan_wajah,
     )
 
-    return
+    if (hasilVerifikasi.galat) {
+      gagalkan(hasilVerifikasi.galat)
+
+      return
+    }
+
+    hasil.value = { ...hasil.value, skor: hasilVerifikasi.skor }
+
+    if (!hasilVerifikasi.cocok) {
+      // FR-TAP-06: kehadiran tidak dicatat, pegawai dipersilakan mengulang tap.
+      gagalkan(
+        `Wajah tidak cocok (${hasilVerifikasi.skor}%, ambang ${props.ambang_kecocokan_wajah}%). Silakan ulangi tap.`,
+      )
+
+      return
+    }
+
+    skor = hasilVerifikasi.skor
   }
 
   // Foto hasil capture sudah disusutkan sesuai preset Setting Absen sebelum
   // dikirim, sehingga yang melintasi jaringan sudah berukuran akhir.
-  await simpanAbsen(data, panel.value?.ambilFoto(props.kompresi), hasilVerifikasi.skor)
+  await simpanAbsen(data, panel.value?.ambilFoto(props.kompresi), skor)
 }
 
 /**
@@ -234,6 +247,21 @@ async function simpanAbsen(data, foto, skor) {
 
   try {
     const isi = await kirimMuatan(muatan)
+
+    /*
+     * Kehadiran jenis ini sudah tercatat. Bukan kegagalan yang perlu diulang:
+     * pegawai justru sudah aman, dan yang dibutuhkannya hanya kepastian pukul
+     * berapa. Daftar presensi ikut disegarkan supaya namanya terlihat.
+     */
+    if (!isi.success && isi.code === 'SUDAH_ABSEN') {
+      if (isi.data?.daftar_presensi) {
+        presensi.value = isi.data.daftar_presensi
+      }
+
+      sudahAbsen(isi.message)
+
+      return
+    }
 
     if (!isi.success) {
       gagalkan(isi.message ?? 'Absen gagal disimpan.')
@@ -309,6 +337,19 @@ function gagalkan(teks) {
   pulihkan()
 }
 
+/**
+ * Kehadiran jenis ini sudah tercatat sebelumnya.
+ *
+ * Dipisahkan dari `gagalkan()` karena maknanya berbeda bagi orang yang berdiri
+ * di depan layar: bukan "coba lagi", melainkan "Anda sudah aman". Warnanya pun
+ * berbeda — biru keterangan, bukan amber peringatan.
+ */
+function sudahAbsen(teks) {
+  pesan.value = teks
+  tahap.value = 'sudah'
+  pulihkan()
+}
+
 /** Kembali menunggu tap berikutnya setelah hasil sempat terbaca. */
 function pulihkan() {
   jedaPulih = setTimeout(() => {
@@ -374,12 +415,12 @@ function pulihkan() {
     </header>
 
     <!--
-      Kolom kiri jauh lebih lebar daripada sebelumnya (640px, dari 420px) dan
-      pratinjaunya berasio 4:3 alih-alih 16:9 — luas kameranya menjadi sekitar
-      tiga kali lipat, dan ia menjadi elemen pertama yang tertangkap mata.
+      Kolom kiri memuat panel entry beserta pratinjau kameranya; sisanya milik
+      Daftar e-Presensi, yang justru paling sering dibaca petugas selama apel
+      berlangsung.
     -->
     <main
-      class="mx-auto grid w-full max-w-[1600px] flex-1 gap-5 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,640px)_minmax(0,1fr)]"
+      class="mx-auto grid w-full max-w-[1600px] flex-1 gap-5 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,480px)_minmax(0,1fr)]"
     >
       <PanelEntry
         ref="panel"

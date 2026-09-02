@@ -37,6 +37,7 @@ class SettingAbsenTest extends TestCase
             'kompresi_foto' => 'sedang',
             'absen_umum_aktif' => true,
             'jam_masuk_umum' => '07:30',
+            'wajib_kode_aktivasi' => true,
         ], $ubahan);
     }
 
