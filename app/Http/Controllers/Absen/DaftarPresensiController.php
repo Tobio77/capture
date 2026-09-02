@@ -44,7 +44,10 @@ class DaftarPresensiController extends Controller
                 'jam_mulai' => substr((string) $event->jam_mulai, 0, 5),
                 'toleransi_menit' => $event->toleransi_menit,
             ],
-            'daftar_presensi' => $this->absensi->daftarPresensi($event),
+            'daftar_presensi' => $this->absensi->daftarPresensi(
+                $event,
+                fn (int $id) => $this->titik->urlFotoAbsen($request, $id),
+            ),
         ]);
     }
 }

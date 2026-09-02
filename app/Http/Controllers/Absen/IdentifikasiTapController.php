@@ -139,10 +139,7 @@ class IdentifikasiTapController extends Controller
                 // Foto berasal dari WORKA dan disajikan lewat proxy SI-ABSEN,
                 // sehingga token WORKA tidak pernah sampai ke browser kiosk.
                 'foto_tersedia' => $pegawai->foto_tersedia_worka,
-                'foto_url' => route(
-                    $this->titik->ruteFotoPegawai($request),
-                    ['nip' => $pegawai->nip],
-                ),
+                'foto_url' => $this->titik->urlFotoPegawai($request, $pegawai->nip),
 
                 // Penanda milik SI-ABSEN sendiri (S08), terpisah dari foto WORKA.
                 'wajah_terdaftar' => $pegawai->wajah_terdaftar,

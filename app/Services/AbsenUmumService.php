@@ -9,6 +9,7 @@ use App\Models\EventAbsen;
 use App\Models\Kiosk;
 use App\Models\UnitKerja;
 use App\Models\User;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -59,8 +60,7 @@ class AbsenUmumService
 
         $sesi = EventAbsen::query()
             ->umum()
-            ->whereDate('tanggal', $tanggal->toDateString())
-            ->whereHas('unitKerja', fn ($unit) => $unit->where('unit_kerja.id', $unitTeratas))
+            ->where('kunci_sesi', self::kunci($unitTeratas, $tanggal))
             ->first();
 
         if ($sesi !== null || ! $buat) {
@@ -68,6 +68,18 @@ class AbsenUmumService
         }
 
         return $this->aktif() ? $this->buatSesi($unitTeratas, $tanggal) : null;
+    }
+
+    /**
+     * Penanda satu sesi harian: satu unit kerja, satu tanggal.
+     *
+     * Cakupan sesi tersimpan pada tabel pivot, sehingga kunci uniknya tidak
+     * dapat dirakit dari kolom biasa. Nilai ini yang menempati kolom unik
+     * `event_absen.kunci_sesi`.
+     */
+    public static function kunci(int $unitKerjaId, Carbon $tanggal): string
+    {
+        return "umum:{$unitKerjaId}:{$tanggal->toDateString()}";
     }
 
     /**
@@ -178,19 +190,35 @@ class AbsenUmumService
     {
         $setting = $this->setting->ambil();
         $unit = UnitKerja::query()->find($unitKerjaId);
+        $kunci = self::kunci($unitKerjaId, $tanggal);
 
-        $sesi = EventAbsen::create([
-            'nama' => 'Absen Umum'.($unit === null ? '' : " — {$unit->nama}"),
-            'jenis' => JenisEvent::Umum,
-            'tanggal' => $tanggal->toDateString(),
-            'jam_mulai' => $setting['jam_masuk_umum'].':00',
-            'toleransi_menit' => $setting['toleransi_default_menit'],
-            'cakupan' => CakupanEvent::Unit,
-            'status' => StatusEvent::Aktif,
+        try {
+            $sesi = EventAbsen::create([
+                'nama' => 'Absen Umum'.($unit === null ? '' : " — {$unit->nama}"),
+                'jenis' => JenisEvent::Umum,
+                'kunci_sesi' => $kunci,
+                'tanggal' => $tanggal->toDateString(),
+                'jam_mulai' => $setting['jam_masuk_umum'].':00',
+                'toleransi_menit' => $setting['toleransi_default_menit'],
+                'cakupan' => CakupanEvent::Unit,
+                'status' => StatusEvent::Aktif,
 
-            // Tidak ada pembuat: sesi ini dibuka sistem, bukan seorang admin.
-            'dibuat_oleh' => null,
-        ]);
+                // Tidak ada pembuat: sesi ini dibuka sistem, bukan seorang admin.
+                'dibuat_oleh' => null,
+            ]);
+        } catch (UniqueConstraintViolationException) {
+            /*
+             * Titik absen lain di unit yang sama membuka sesi hari ini lebih
+             * dahulu, terpaut milidetik. Tanpa kunci unik, keduanya akan lahir
+             * dan tap berikutnya jatuh ke salah satunya secara tak tentu —
+             * membuat penolakan tap ganda (FR-TAP-05) tidak pernah kena.
+             */
+            return EventAbsen::query()
+                ->umum()
+                ->where('kunci_sesi', $kunci)
+                ->firstOrFail()
+                ->load('unitKerja:id,kode,nama');
+        }
 
         $sesi->unitKerja()->attach($unitKerjaId);
 

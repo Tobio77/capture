@@ -102,7 +102,10 @@ class SimpanAbsenController extends Controller
                 'data' => [
                     'jenis' => $ganda->tercatat->jenis->value,
                     'waktu' => $ganda->tercatat->waktu->format('H:i'),
-                    'daftar_presensi' => $this->absensi->daftarPresensi($event),
+                    'daftar_presensi' => $this->absensi->daftarPresensi(
+                        $event,
+                        fn (int $id) => $this->titik->urlFotoAbsen($request, $id),
+                    ),
                 ],
             ], 409);
         }
@@ -113,7 +116,10 @@ class SimpanAbsenController extends Controller
                 'jenis' => $absensi->jenis->value,
                 'waktu' => $absensi->waktu->format('H:i'),
                 'status_ketepatan' => $absensi->status_ketepatan?->value,
-                'daftar_presensi' => $this->absensi->daftarPresensi($event),
+                'daftar_presensi' => $this->absensi->daftarPresensi(
+                    $event,
+                    fn (int $id) => $this->titik->urlFotoAbsen($request, $id),
+                ),
             ],
         ]);
     }

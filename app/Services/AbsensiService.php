@@ -182,17 +182,21 @@ class AbsensiService
      * Daftar e-Presensi sebuah event: satu baris per pegawai, kolom Jam Masuk
      * dan Jam Pulang terisi dari dua jenis absen yang berbeda (UIUX §4.2.2).
      *
+     * @param  (callable(int): string)|null  $urlFoto  perakit URL foto absen,
+     *                                                 mengikuti pagar autentikasi pemanggil; bawaannya rute perangkat
      * @return Collection<int, array<string, mixed>>
      */
-    public function daftarPresensi(EventAbsen $event): Collection
+    public function daftarPresensi(EventAbsen $event, ?callable $urlFoto = null): Collection
     {
+        $urlFoto ??= fn (int $id) => route('kiosk.absen.foto', ['absensi' => $id]);
+
         return Absensi::query()
             ->with('pegawai:id,nip,nama')
             ->where('event_absen_id', $event->id)
             ->orderBy('waktu')
             ->get()
             ->groupBy('pegawai_id')
-            ->map(function (Collection $baris) {
+            ->map(function (Collection $baris) use ($urlFoto) {
                 $datang = $baris->firstWhere('jenis', JenisAbsen::Datang);
                 $pulang = $baris->firstWhere('jenis', JenisAbsen::Pulang);
                 $pegawai = $baris->first()->pegawai;
@@ -204,9 +208,17 @@ class AbsensiService
                     'jam_masuk' => $datang?->waktu->format('H:i'),
                     'jam_pulang' => $pulang?->waktu->format('H:i'),
                     'status_ketepatan' => $datang?->status_ketepatan?->value,
+                    /*
+                     * Nama rutenya datang dari pemanggil, bukan dipatok di sini.
+                     * Layar yang sama dilayani dua pagar berbeda: perangkat absen
+                     * lewat device token pada /kiosk, dan layar absen umum lewat
+                     * sesi admin pada /admin/kelola-absen/absen-umum. URL yang
+                     * dipatok ke salah satunya membuat gambar di sisi lain
+                     * dijawab 302 ke layar aktivasi — ikon rusak, bukan foto.
+                     */
                     'foto_url' => $datang?->foto_path === null
                         ? null
-                        : route('kiosk.absen.foto', ['absensi' => $datang->id]),
+                        : $urlFoto($datang->id),
                     'urut' => $datang?->waktu ?? $baris->first()->waktu,
                 ];
             })

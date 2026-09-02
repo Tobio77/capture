@@ -22,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable([
     'nama',
     'jenis',
+    'kunci_sesi',
     'tanggal',
     'jam_mulai',
     'toleransi_menit',

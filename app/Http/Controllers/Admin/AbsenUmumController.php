@@ -113,7 +113,14 @@ class AbsenUmumController extends Controller
             ],
             'ambang_kecocokan_wajah' => $setting['ambang_kecocokan_wajah'],
             'kompresi' => $this->setting->kompresi()->rincian(),
-            'daftar_presensi' => $sesi === null ? [] : $this->absensi->daftarPresensi($sesi),
+            // Layar ini dipagari sesi admin, bukan device token.
+            'daftar_presensi' => $sesi === null ? [] : $this->absensi->daftarPresensi(
+                $sesi,
+                fn (int $id) => route('absen-umum.absen.foto', [
+                    'absensi' => $id,
+                    'unit_kerja_id' => $unitId,
+                ]),
+            ),
             'event' => $sesi === null ? null : [
                 'id' => $sesi->id,
                 'nama' => $sesi->nama,

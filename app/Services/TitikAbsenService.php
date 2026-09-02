@@ -68,18 +68,50 @@ class TitikAbsenService
     }
 
     /**
-     * Nama rute foto pegawai yang sesuai dengan titik absen pemanggil.
+     * URL foto pegawai yang sesuai dengan titik absen pemanggil.
      *
      * Layar yang sama dipakai dua konteks dengan pagar autentikasi berbeda,
-     * sehingga URL foto tidak boleh dipatok ke salah satunya.
+     * sehingga URL foto tidak boleh dipatok ke salah satunya: perangkat absen
+     * memakai rute /kiosk yang dipagari device token, sedangkan layar absen
+     * umum di peramban admin memakai rute /admin yang dipagari sesi.
+     *
+     * Pada jalur admin, `unit_kerja_id` ikut dibawa. Endpoint fotonya
+     * menentukan sah-tidaknya akses dari event yang sedang dilayani titik
+     * absen — dan pada jalur admin, event itu baru dapat ditentukan setelah
+     * unit kerjanya diketahui. Tanpa parameter ini, gambarnya dijawab 403.
      */
-    public function ruteFotoPegawai(Request $request): string
+    public function urlFotoPegawai(Request $request, string $nip): string
     {
-        return $request->kiosk() === null ? 'absen-umum.pegawai.foto' : 'kiosk.pegawai.foto';
+        return $request->kiosk() !== null
+            ? route('kiosk.pegawai.foto', ['nip' => $nip])
+            : route('absen-umum.pegawai.foto', [
+                'nip' => $nip,
+                'unit_kerja_id' => $this->unitTerpilih($request),
+            ]);
     }
 
-    public function ruteFotoAbsen(Request $request): string
+    /**
+     * URL foto absen; lihat catatan pada {@see self::urlFotoPegawai()}.
+     */
+    public function urlFotoAbsen(Request $request, int $absensiId): string
     {
-        return $request->kiosk() === null ? 'absen-umum.absen.foto' : 'kiosk.absen.foto';
+        return $request->kiosk() !== null
+            ? route('kiosk.absen.foto', ['absensi' => $absensiId])
+            : route('absen-umum.absen.foto', [
+                'absensi' => $absensiId,
+                'unit_kerja_id' => $this->unitTerpilih($request),
+            ]);
+    }
+
+    /**
+     * Unit kerja yang sedang dilayani layar absen umum di peramban admin.
+     */
+    protected function unitTerpilih(Request $request): ?int
+    {
+        $pengguna = $request->user();
+
+        return $pengguna === null
+            ? null
+            : $this->absenUmum->unitTerpilih($pengguna, $request->integer('unit_kerja_id') ?: null);
     }
 }

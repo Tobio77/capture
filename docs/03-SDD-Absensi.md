@@ -318,6 +318,7 @@ Konsekuensi yang disengaja:
 | id              | bigint, PK          |                                              |
 | nama            | varchar(150)        |                                              |
 | jenis           | enum                | kegiatan \| umum — bawaan `kegiatan`         |
+| kunci_sesi      | varchar(64), unik, nullable | `umum:{unit_kerja_id}:{YYYY-MM-DD}` untuk sesi harian; null untuk kegiatan |
 | tanggal         | date                |                                              |
 | jam_mulai       | time                |                                              |
 | toleransi_menit | smallint unsigned   | disalin dari Setting Absen saat dibuat, lalu berdiri sendiri |
@@ -618,6 +619,25 @@ langsung terkunci dan badge berubah menjadi "Entry Ditutup" (FR-EVT-04).
 Sebaliknya, event yang baru dibuka membuka kembali kolom tap dengan
 sendirinya.
 
+### Satu sesi absen umum per unit kerja per tanggal, dijamin basis data
+
+Sesi harian dibuka sendiri pada tap pertama. Dua titik absen di unit yang sama
+yang men-tap pertama kali dalam hitungan milidetik sama-sama melihat "sesi
+belum ada" dan keduanya membuatnya — lalu tap berikutnya jatuh ke salah satu
+dari dua sesi itu secara tak tentu.
+
+Akibatnya bukan sekadar dua baris event: penolakan tap ganda (FR-TAP-05) tidak
+pernah kena, karena baris kedua tercatat pada sesi yang berbeda dan kunci unik
+`(event, pegawai, jenis)` tidak bertabrakan. Di layar, gejalanya adalah tap
+kedua yang diterima tanpa peringatan apa pun.
+
+Cakupan sesi tersimpan pada tabel pivot `event_unit_kerja`, sehingga kunci
+uniknya tidak dapat dirakit dari kolom biasa. Kolom `event_absen.kunci_sesi`
+menyimpannya sebagai satu nilai — `umum:{unit_kerja_id}:{YYYY-MM-DD}` — dengan
+indeks unik, dan null untuk event kegiatan yang memang boleh berapa pun
+jumlahnya. `AbsenUmumService::buatSesi()` menangkap pelanggarannya dan
+mengembalikan sesi yang menang, sehingga balapan berakhir sebagai satu sesi
+tanpa galat.
 ### Batas laju dihitung per perangkat, bukan per alamat IP
 
 Endpoint titik absen — identifikasi tap, simpan absen, daftar presensi, dan
@@ -670,6 +690,38 @@ Delapan perangkat yang men-tap orang yang sama secara paralel tetap
 menghasilkan satu baris: kunci unik di basis data yang menjadi wasit, dan
 `updateOrCreate` Eloquent menanganinya lewat `createOrFirst` — menyisipkan di
 dalam savepoint dan membaca ulang barisnya ketika kunci unik dilanggar.
+### Dua macam titik absen — satu implementasi
+
+**Absen Umum dan perangkat absen berbasis event bukan dua implementasi.**
+Keduanya menjalankan kode yang sama; yang berbeda hanya pagar autentikasi dan
+prefiks rutenya. Perubahan aturan absensi karena itu cukup dilakukan sekali.
+
+| Lapisan | Berbagi? | Berkas |
+|---|---|---|
+| Layar | ya | `resources/js/Components/Absen/LayarAbsen.vue`, `Kiosk/PanelEntry.vue`, `Kiosk/PanelPresensi.vue` |
+| Controller tap | ya | `App\Http\Controllers\Absen\{IdentifikasiTap,SimpanAbsen,DaftarPresensi,FotoAbsen,FotoPegawai}Controller` |
+| Aturan pencatatan | ya | `AbsensiService::catat()`, `absenTercatat()`, `ketepatan()`, `daftarPresensi()`, `rekap()` |
+| Kunci unik | ya | `absensi (event_absen_id, pegawai_id, jenis)` |
+| Penentuan event | ya, lewat satu titik | `TitikAbsenService::untuk()` |
+| **Pagar autentikasi** | **tidak** | device token pada `/kiosk/*`, sesi admin pada `/admin/kelola-absen/absen-umum/*` |
+| **Prefiks rute** | **tidak** | dua grup rute yang menunjuk controller yang sama |
+
+`TitikAbsenService::untuk()` adalah satu-satunya tempat yang tahu perbedaan
+itu: bila permintaan membawa device token, event ditentukan dari unit tempat
+perangkat dipasang; bila membawa sesi admin, dari unit yang dipilih pada layar.
+Selebihnya seluruh lapisan tidak perlu tahu sedang melayani yang mana.
+
+**Konsekuensi yang mudah terlewat.** Karena pagar autentikasinya berbeda, URL
+yang DIBANGUN server untuk dikonsumsi peramban tidak boleh dipatok ke salah
+satu grup rute. Foto absen dan foto referensi pegawai adalah satu-satunya hal
+semacam itu, dan keduanya dirakit lewat `TitikAbsenService::urlFotoAbsen()` /
+`urlFotoPegawai()` — yang sekaligus menyertakan `unit_kerja_id` pada jalur
+admin, karena di sana event baru dapat ditentukan setelah unit kerjanya
+diketahui.
+
+Bila kelak ada endpoint baru yang merakit URL untuk peramban, ia harus lewat
+kedua method itu juga. Itulah satu-satunya aturan yang perlu diingat saat
+menambah fitur absensi; sisanya otomatis berlaku pada kedua titik absen.
 ### Dua macam titik absen
 
 Layar absen dipakai dua konteks dengan pagar autentikasi berbeda: **perangkat
