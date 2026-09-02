@@ -51,7 +51,7 @@ Route::prefix('kiosk')->name('kiosk.')->group(function () {
         // lokal — satu tap tidak boleh bergantung pada tersedianya jaringan
         // ke WORKA (FR-TAP-03).
         Route::post('tap/identifikasi', IdentifikasiTapController::class)
-            ->middleware('throttle:120,1')
+            ->middleware('throttle:absen-tap')
             ->name('tap.identifikasi');
 
         /*
@@ -59,7 +59,7 @@ Route::prefix('kiosk')->name('kiosk.')->group(function () {
          * diperiksa ulang di server; keputusan kiosk tidak dipercaya sendirian.
          */
         Route::post('absen', SimpanAbsenController::class)
-            ->middleware('throttle:120,1')
+            ->middleware('throttle:absen-tap')
             ->name('absen.simpan');
 
         /*
@@ -68,18 +68,18 @@ Route::prefix('kiosk')->name('kiosk.')->group(function () {
          * kiosk lain pada event yang sama.
          */
         Route::get('presensi', DaftarPresensiController::class)
-            ->middleware('throttle:60,1')
+            ->middleware('throttle:absen-presensi')
             ->name('presensi');
 
         // Foto absen disajikan lewat route terautentikasi, tidak pernah dari
         // disk publik (NFR-04).
         Route::get('absen/{absensi}/foto', FotoAbsenController::class)
-            ->middleware('throttle:300,1')
+            ->middleware('throttle:absen-foto')
             ->name('absen.foto');
 
         Route::get('pegawai/{nip}/foto', FotoPegawaiController::class)
             ->where('nip', '[0-9]{8,20}')
-            ->middleware('throttle:300,1')
+            ->middleware('throttle:absen-foto')
             ->name('pegawai.foto');
     });
 });
@@ -135,24 +135,24 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
 
         Route::prefix('absen-umum')->name('absen-umum.')->group(function () {
             Route::post('tap/identifikasi', IdentifikasiTapController::class)
-                ->middleware('throttle:120,1')
+                ->middleware('throttle:absen-tap')
                 ->name('tap.identifikasi');
 
             Route::post('absen', SimpanAbsenController::class)
-                ->middleware('throttle:120,1')
+                ->middleware('throttle:absen-tap')
                 ->name('absen.simpan');
 
             Route::get('presensi', DaftarPresensiController::class)
-                ->middleware('throttle:60,1')
+                ->middleware('throttle:absen-presensi')
                 ->name('presensi');
 
             Route::get('absen/{absensi}/foto', FotoAbsenController::class)
-                ->middleware('throttle:300,1')
+                ->middleware('throttle:absen-foto')
                 ->name('absen.foto');
 
             Route::get('pegawai/{nip}/foto', FotoPegawaiController::class)
                 ->where('nip', '[0-9]{8,20}')
-                ->middleware('throttle:300,1')
+                ->middleware('throttle:absen-foto')
                 ->name('pegawai.foto');
         });
 

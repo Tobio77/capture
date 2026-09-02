@@ -544,6 +544,58 @@ langsung terkunci dan badge berubah menjadi "Entry Ditutup" (FR-EVT-04).
 Sebaliknya, event yang baru dibuka membuka kembali kolom tap dengan
 sendirinya.
 
+### Batas laju dihitung per perangkat, bukan per alamat IP
+
+Endpoint titik absen — identifikasi tap, simpan absen, daftar presensi, dan
+kedua endpoint foto — memakai pembatas laju bernama yang dikunci pada
+perangkat yang sudah terautentikasi (`absen-tap`, `absen-presensi`,
+`absen-foto`, didefinisikan pada `AppServiceProvider::batasLajuTitikAbsen()`).
+
+Batas per IP tampak wajar sampai beberapa titik absen dipasang di satu kantor:
+seluruhnya keluar lewat satu NAT, sehingga kuota yang dimaksudkan untuk satu
+perangkat dibagi rata. Dengan penarikan Daftar e-Presensi tiap 10 detik — enam
+permintaan per menit per perangkat — batas 60 per menit habis pada perangkat
+kesepuluh, dan perangkat kesebelas mulai menerima `429` walau tidak melakukan
+apa pun yang berlebihan.
+
+Urutan middleware ikut diatur: `AutentikasiKiosk` didahulukan sebelum
+`ThrottleRequests` lewat `prependToPriorityList()` pada `bootstrap/app.php`.
+Pada urutan bawaan, pembatas laju berjalan lebih dahulu dan kunci per
+perangkat diam-diam jatuh kembali ke alamat IP — gejalanya tidak terlihat
+sampai beberapa perangkat menembak bersamaan.
+
+Aktivasi perangkat, sinkronisasi WORKA, dan reset kata sandi tetap dibatasi
+per IP: di sana belum ada perangkat yang dikenali, dan IP memang identitas
+yang tepat untuk menahan percobaan berulang.
+
+### Uji beban ringan (S27)
+
+`php artisan absen:uji-beban` menyimulasikan beberapa perangkat menembak satu
+event bersamaan lewat HTTP sungguhan — bukan panggilan internal — sehingga
+middleware, autentikasi device token, dan basis data ikut terukur. Opsinya:
+`--perangkat`, `--putaran`, `--rebutan` (seluruh perangkat men-tap orang yang
+sama), `--url`, `--abai-sertifikat` (sertifikat lokal Herd), `--simpan`.
+
+Perintah membuat event dan perangkat ujinya sendiri lalu menghapusnya kembali,
+menolak berjalan di lingkungan produksi tanpa `--paksa`, dan mengembalikan kode
+keluar bukan-nol bila ada permintaan gagal atau rata-rata melampaui ambang
+NFR-01.
+
+Hasil pada lingkungan pengembangan (Herd, MySQL 8 lokal), 8 perangkat × 10
+putaran = 240 permintaan, seluruhnya mode rebutan:
+
+| Tahap        | Permintaan | Rata  | p50   | p95   | Gagal |
+|--------------|-----------:|------:|------:|------:|------:|
+| identifikasi |         80 | 500ms | 490ms | 657ms |     0 |
+| absen        |         80 | 520ms | 462ms | 726ms |     0 |
+| presensi     |         80 | 437ms | 409ms | 513ms |     0 |
+
+Rata-rata keseluruhan 486 ms, jauh di bawah ambang NFR-01 (3 detik), tanpa
+permintaan gagal dan tanpa baris duplikat pada `(event, pegawai, jenis)`.
+Delapan perangkat yang men-tap orang yang sama secara paralel tetap
+menghasilkan satu baris: kunci unik di basis data yang menjadi wasit, dan
+`updateOrCreate` Eloquent menanganinya lewat `createOrFirst` — menyisipkan di
+dalam savepoint dan membaca ulang barisnya ketika kunci unik dilanggar.
 ### Dua macam titik absen
 
 Layar absen dipakai dua konteks dengan pagar autentikasi berbeda: **perangkat

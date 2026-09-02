@@ -8,6 +8,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
+use Illuminate\Routing\Middleware\ThrottleRequests;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -26,6 +27,21 @@ return Application::configure(basePath: dirname(__DIR__))
             'peran' => PastikanPeranPengguna::class,
             'pengguna.aktif' => PastikanPenggunaAktif::class,
         ]);
+
+        /*
+         * Autentikasi perangkat harus mendahului pembatas laju.
+         *
+         * Batas laju endpoint titik absen dikunci per perangkat (lihat
+         * AppServiceProvider::batasLajuTitikAbsen()), dan perangkatnya baru
+         * dikenali setelah AutentikasiKiosk berjalan. Pada urutan bawaan,
+         * ThrottleRequests berjalan lebih dahulu, sehingga kuncinya diam-diam
+         * jatuh kembali ke alamat IP — dan beberapa perangkat di satu kantor
+         * yang berbagi NAT ikut berbagi kuota satu perangkat.
+         */
+        $middleware->prependToPriorityList(
+            before: ThrottleRequests::class,
+            prepend: AutentikasiKiosk::class,
+        );
 
         $middleware->redirectGuestsTo(fn () => route('masuk'));
         $middleware->redirectUsersTo(fn () => route('dashboard'));

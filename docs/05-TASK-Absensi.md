@@ -101,7 +101,7 @@ Rencana pengerjaan dibagi menjadi fase dan sesi, mengikuti pola yang telah terbu
 |----------|----------------------------|-----------------------------------------------------------------------------------------------|
 | S25      | Pengujian fungsional       | Test case untuk alur tap, buka/tutup event, dan batas keterlambatan                           |
 | S26      | Hardening keamanan         | Review autentikasi kiosk, validasi ulang backend, proteksi akses foto (NFR-03, NFR-04)        |
-| S27      | Uji beban ringan kiosk     | Simulasi beberapa kiosk aktif bersamaan pada satu event                                       |
+| S27      | Uji beban ringan kiosk     | Perintah `absen:uji-beban` — beberapa perangkat menembak satu event bersamaan lewat HTTP sungguhan; batas laju dipindah dari per-IP ke per-perangkat |
 | S28      | Persiapan data & pelatihan | Sinkronisasi awal data pegawai, pendaftaran foto referensi massal, pelatihan admin unit kerja |
 | S29      | Deployment                 | Rilis ke VPS Jagoan Hosting, konfigurasi CI (GitHub Actions), pemantauan awal pasca-rilis     |
 
