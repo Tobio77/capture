@@ -36,6 +36,7 @@ class EventAbsenService
     public function __construct(
         protected SettingAbsenService $setting,
         protected LogAktivitasService $log,
+        protected AbsenUmumService $absenUmum,
     ) {}
 
     /**
@@ -112,6 +113,12 @@ class EventAbsenService
     protected function kueriDaftar(User $pelaku, array $filter = []): Builder
     {
         return EventAbsen::query()
+            /*
+             * Sesi absen umum harian tidak ikut: ia dibuka sistem, bukan
+             * admin, dan punya menunya sendiri. Membiarkannya masuk akan
+             * memenuhi Daftar Event dengan satu baris per unit per hari.
+             */
+            ->kegiatan()
             ->with(['unitKerja:id,kode,nama', 'pembuat:id,nama'])
             ->withCount('kiosk')
             ->when(
@@ -241,15 +248,23 @@ class EventAbsenService
      * sehingga penentuannya tidak pernah ambigu dan kiosk tidak perlu
      * menyebutkan event mana yang dimaksud saat men-tap.
      */
-    public function eventAktifUntukKiosk(Kiosk $kiosk): ?EventAbsen
+    public function eventAktifUntukKiosk(Kiosk $kiosk, bool $bukaAbsenUmum = false): ?EventAbsen
     {
-        return EventAbsen::query()
+        $kegiatan = EventAbsen::query()
             ->aktif()
+            ->kegiatan()
             ->with('unitKerja:id,kode,nama')
             ->menyentuhUnit($this->cakupanKiosk($kiosk))
             ->orderByDesc('tanggal')
             ->orderByDesc('jam_mulai')
             ->first();
+
+        /*
+         * Kegiatan selalu didahulukan. Sesi absen umum harian baru melayani
+         * perangkat ketika tidak ada kegiatan yang sedang berjalan, sehingga
+         * apel atau rapat tidak pernah tertukar dengan absen rutin.
+         */
+        return $kegiatan ?? $this->absenUmum->sesiUntukKiosk($kiosk, buat: $bukaAbsenUmum);
     }
 
     /**
@@ -450,6 +465,10 @@ class EventAbsenService
 
         return EventAbsen::query()
             ->aktif()
+
+            // Sesi absen umum tidak pernah menghalangi kegiatan: ia justru
+            // mundur ketika ada kegiatan yang berjalan di unit yang sama.
+            ->kegiatan()
             ->with('unitKerja:id,kode')
             ->when($kecuali !== null, fn ($query) => $query->whereKeyNot($kecuali->getKey()))
             ->get()

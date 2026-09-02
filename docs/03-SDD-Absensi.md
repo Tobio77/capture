@@ -316,6 +316,7 @@ Konsekuensi yang disengaja:
 |-----------------|---------------------|----------------------------------------------|
 | id              | bigint, PK          |                                              |
 | nama            | varchar(150)        |                                              |
+| jenis           | enum                | kegiatan \| umum — bawaan `kegiatan`         |
 | tanggal         | date                |                                              |
 | jam_mulai       | time                |                                              |
 | toleransi_menit | smallint unsigned   | disalin dari Setting Absen saat dibuat, lalu berdiri sendiri |
@@ -329,6 +330,36 @@ Konsekuensi yang disengaja:
 `dibuat_oleh` memakai `nullOnDelete` agar event tidak ikut hilang bila akun
 pembuatnya dihapus; `toleransi_menit` sengaja disalin, bukan dirujuk, sehingga
 mengubah Setting Absen tidak menggeser event yang sudah berjalan (FR-SET-02).
+
+**Absen umum (`jenis = umum`).** Absensi harian tanpa event kegiatan tidak
+dibuat sebagai jalur terpisah, melainkan sebagai satu baris `event_absen`
+berjenis `umum` per unit kerja level teratas per tanggal, yang dibuka sistem
+sendiri saat pertama kali dibutuhkan. Pilihan ini menjaga kunci unik
+(`event_absen_id`, `pegawai_id`, `jenis`) pada tabel `absensi` tetap berarti
+"satu kali datang per hari", dan membuat seluruh mesin yang sudah ada —
+pencatatan, verifikasi wajah, foto, rekap, laporan — bekerja pada absen umum
+tanpa perubahan.
+
+Aturannya:
+
+- Sesi umum **tidak** ikut Daftar Event maupun pemilih Rekap Absen; ia punya
+  menu sendiri (Kelola Absen → Absen Umum). Sesi tersebut tetap terhitung pada
+  Laporan Kehadiran, karena hari yang sesinya dibuka memang hari yang wajib
+  dihadiri.
+- FR-EVT-06 (tumpang tindih cakupan) berlaku **antar event kegiatan saja**.
+  Sesi umum yang selalu aktif tidak boleh membuat admin mustahil membuat apel.
+- Titik absen selalu mendahulukan kegiatan. Sesi umum melayaninya hanya ketika
+  tidak ada kegiatan aktif yang mencakup unitnya, sehingga apel tidak pernah
+  tertukar dengan absen rutin.
+- Sesi lahir hanya pada jalur yang memang hendak mencatat kehadiran (tap,
+  membuka layar absen, tombol Buka Sesi). Penarikan daftar presensi berkala
+  tidak membuatnya, agar perangkat yang menyala pada hari libur tidak
+  meninggalkan hari kosong yang terhitung wajib dihadiri.
+- Absen umum dapat dimatikan pada Setting Absen (`absen.absen_umum_aktif`).
+  Bila dimatikan, perilaku sistem kembali persis seperti sebelum fitur ini ada:
+  titik absen hanya melayani event kegiatan, dan FR-EVT-04 menolak tap sesudah
+  entry ditutup. Jam masuk hariannya disetel lewat `absen.jam_masuk_umum`
+  (bawaan 07:30) dan disalin ke sesi saat dibuat, sama seperti toleransi.
 
 ## 3.6 event_unit_kerja (pivot)
 
@@ -512,6 +543,28 @@ mengetahui entry yang ditutup admin tanpa perlu dimuat ulang: kolom tap
 langsung terkunci dan badge berubah menjadi "Entry Ditutup" (FR-EVT-04).
 Sebaliknya, event yang baru dibuka membuka kembali kolom tap dengan
 sendirinya.
+
+### Dua macam titik absen
+
+Layar absen dipakai dua konteks dengan pagar autentikasi berbeda: **perangkat
+absen** yang membawa device token, dan **layar absen umum** yang dibuka admin di
+perambannya sendiri — jalan pintas ketika tidak ada perangkat terpasang di
+ruangan. Keduanya memakai satu komponen layar dan satu set controller; yang
+berbeda hanya prefiks endpointnya (`/kiosk/*` versus
+`/admin/kelola-absen/absen-umum/*`) dan cara event ditentukan.
+
+Penentuan itu dipusatkan pada `TitikAbsenService`:
+
+- **Perangkat** mengikuti unit tempat ia dipasang: kegiatan aktif lebih dahulu,
+  lalu sesi absen umum harian unit tersebut.
+- **Layar admin** mengikuti unit yang dipilih; Admin UPT terkunci pada unitnya
+  sendiri, dan pilihannya diabaikan bila ia mencoba unit lain. Absensi dari
+  layar ini tercatat dengan `kiosk_id = null` — bukan perangkat terdaftar —
+  dan tidak menambah baris `event_kiosk`.
+
+Memusatkan penentuan ini menjaga agar pemeriksaan yang melekat padanya — event
+masih dibuka, foto hanya boleh dibaca titik yang melayani event yang sama —
+tidak bercabang menjadi dua versi yang bisa berbeda perilaku.
 
 Penarikan dilewati selagi sebuah tap sedang diproses, supaya hasil yang baru
 tampil tidak tertimpa di tengah pembacaan pegawai. Karena daftar disusun ulang
@@ -737,6 +790,14 @@ Ringkasan endpoint inti; daftar lengkap akan dirinci sebagai route Laravel pada 
 | PATCH      | /admin/kelola-absen/event/{event}      | Ubah event yang masih aktif                                                     |
 | DELETE     | /admin/kelola-absen/event/{event}      | Hapus permanen event yang belum menautkan absensi                               |
 | POST       | /admin/kelola-absen/event/{event}/tutup| Tutup entry event (FR-EVT-04)                                                   |
+| GET        | /admin/kelola-absen/absen-umum         | Pemantauan sesi absen harian tanpa event kegiatan                                |
+| POST       | /admin/kelola-absen/absen-umum/buka    | Buka sesi absen umum hari ini tanpa menunggu tap pertama                         |
+| GET        | /admin/kelola-absen/absen-umum/data    | Rekap sesi berjalan dalam JSON, untuk penyegaran berkala                         |
+| GET        | /admin/kelola-absen/absen-umum/ekspor  | Unduh rekap absen umum sebagai CSV atau PDF (FR-REK-03)                          |
+| GET        | /admin/kelola-absen/absen-umum/layar   | Layar tangkap absen umum di peramban admin                                       |
+| POST       | /admin/kelola-absen/absen-umum/tap/identifikasi | Kembaran /kiosk/tap/identifikasi, dipagari sesi admin                   |
+| POST       | /admin/kelola-absen/absen-umum/absen   | Kembaran /kiosk/absen, dipagari sesi admin                                       |
+| GET        | /admin/kelola-absen/absen-umum/presensi| Kembaran /kiosk/presensi, dipagari sesi admin                                    |
 | GET        | /admin/perangkat                       | Kelola perangkat absen (FR-USR-02, FR-USR-03)                                    |
 | POST       | /admin/perangkat                       | Daftarkan perangkat beserta kode aktivasinya                                     |
 | PATCH      | /admin/perangkat/{perangkat}           | Ubah nama titik atau unit kerja perangkat                                        |

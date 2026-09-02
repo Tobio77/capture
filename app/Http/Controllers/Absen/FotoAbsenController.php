@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Http\Controllers\Kiosk;
+namespace App\Http\Controllers\Absen;
 
 use App\Http\Controllers\Controller;
 use App\Models\Absensi;
 use App\Services\AbsensiService;
-use App\Services\EventAbsenService;
+use App\Services\TitikAbsenService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -19,12 +19,11 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class FotoAbsenController extends Controller
 {
-    public function __construct(protected EventAbsenService $event) {}
+    public function __construct(protected TitikAbsenService $titik) {}
 
     public function __invoke(Request $request, Absensi $absensi): StreamedResponse
     {
-        $kiosk = $request->kiosk();
-        $event = $kiosk === null ? null : $this->event->eventAktifUntukKiosk($kiosk);
+        ['event' => $event] = $this->titik->untuk($request);
 
         abort_unless($event !== null && $event->id === $absensi->event_absen_id, 403);
         abort_if($absensi->foto_path === null, 404);

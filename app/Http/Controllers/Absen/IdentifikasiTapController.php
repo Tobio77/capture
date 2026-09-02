@@ -1,11 +1,12 @@
 <?php
 
-namespace App\Http\Controllers\Kiosk;
+namespace App\Http\Controllers\Absen;
 
 use App\Http\Controllers\Controller;
 use App\Services\EventAbsenService;
 use App\Services\KartuRfidService;
 use App\Services\SettingAbsenService;
+use App\Services\TitikAbsenService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -27,6 +28,7 @@ class IdentifikasiTapController extends Controller
         protected EventAbsenService $event,
         protected KartuRfidService $kartu,
         protected SettingAbsenService $setting,
+        protected TitikAbsenService $titik,
     ) {}
 
     public function __invoke(Request $request): JsonResponse
@@ -35,15 +37,14 @@ class IdentifikasiTapController extends Controller
             'id_card' => ['required', 'string', 'max:32'],
         ]);
 
-        $kiosk = $request->kiosk();
-
         /*
-         * FR-EVT-04: begitu event ditutup, tap baru ditolak. Kiosk tidak
+         * FR-EVT-04: begitu event ditutup, tap baru ditolak. Titik absen tidak
          * menyebutkan event mana yang dimaksud — FR-EVT-06 menjamin paling
-         * banyak satu event aktif per unit, sehingga server yang menentukan.
-         * Tidak ada event aktif berarti tidak ada yang dapat diabsen.
+         * banyak satu event kegiatan aktif per unit, sehingga server yang
+         * menentukan. Tidak ada event aktif berarti tidak ada yang dapat
+         * diabsen; sesi absen umum harian dibuka di sini bila memang belum ada.
          */
-        $event = $kiosk === null ? null : $this->event->eventAktifUntukKiosk($kiosk);
+        ['event' => $event, 'kiosk' => $kiosk] = $this->titik->untuk($request, buka: true);
 
         if ($event === null) {
             return response()->json([
@@ -54,8 +55,11 @@ class IdentifikasiTapController extends Controller
         }
 
         // FR-EVT-03: kiosk tercatat sebagai terhubung pada event ini, beserta
-        // alamat IP-nya, terhitung sejak tap pertama yang dilayaninya.
-        $this->event->catatKioskAktif($event, $kiosk, $request->ip());
+        // alamat IP-nya, terhitung sejak tap pertama yang dilayaninya. Layar
+        // absen di peramban admin bukan perangkat terdaftar, jadi dilewati.
+        if ($kiosk !== null) {
+            $this->event->catatKioskAktif($event, $kiosk, $request->ip());
+        }
 
         $pegawai = $this->kartu->kenali($data['id_card']);
 
@@ -102,14 +106,25 @@ class IdentifikasiTapController extends Controller
                 'unit_kerja_kode' => $pegawai->unitKerja?->kode,
                 'unit_kerja_nama' => $pegawai->unitKerja?->nama,
 
-                // Unit kerja pegawai berbeda dari titik absen — kiosk memakai
-                // ini untuk menandai peserta dari luar unit pada event lintas unit.
-                'unit_kerja_sama' => $pegawai->unit_kerja_id === $kiosk?->unit_kerja_id,
+                /*
+                 * Unit kerja pegawai berbeda dari titik absen — layar memakai
+                 * ini untuk menandai peserta dari luar unit pada event lintas
+                 * unit. Perangkat membandingkannya dengan unit tempat ia
+                 * dipasang; layar absen umum di peramban admin tidak menaut ke
+                 * perangkat mana pun, sehingga pembandingnya adalah cakupan
+                 * event yang sedang dilayani.
+                 */
+                'unit_kerja_sama' => $kiosk !== null
+                    ? $pegawai->unit_kerja_id === $kiosk->unit_kerja_id
+                    : in_array($pegawai->unit_kerja_id, $this->event->unitTercakup($event), true),
 
                 // Foto berasal dari WORKA dan disajikan lewat proxy SI-ABSEN,
                 // sehingga token WORKA tidak pernah sampai ke browser kiosk.
                 'foto_tersedia' => $pegawai->foto_tersedia_worka,
-                'foto_url' => route('kiosk.pegawai.foto', ['nip' => $pegawai->nip]),
+                'foto_url' => route(
+                    $this->titik->ruteFotoPegawai($request),
+                    ['nip' => $pegawai->nip],
+                ),
 
                 // Penanda milik SI-ABSEN sendiri (S08), terpisah dari foto WORKA.
                 'wajah_terdaftar' => $pegawai->wajah_terdaftar,

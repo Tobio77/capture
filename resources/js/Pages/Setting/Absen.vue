@@ -133,6 +133,51 @@ const simpan = () => {
           </div>
         </section>
 
+        <!-- Absen umum: absensi harian tanpa event kegiatan -->
+        <section class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 class="font-display text-sm font-semibold text-navy-700">Absen Umum Harian</h2>
+          <p class="mt-1 text-xs text-slate-500">
+            Sesi absen harian yang dibuka sistem sendiri ketika tidak ada event kegiatan yang
+            berjalan, sehingga pegawai tetap dapat mencatat kehadiran rutinnya. Kegiatan selalu
+            didahulukan bila keduanya berlaku bersamaan.
+          </p>
+
+          <label class="mt-4 flex cursor-pointer items-start gap-3">
+            <input
+              v-model="form.absen_umum_aktif"
+              type="checkbox"
+              class="mt-0.5 h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+            />
+            <span>
+              <span class="block text-sm font-medium text-slate-700">
+                Nyalakan absen umum harian
+              </span>
+              <span class="mt-0.5 block text-xs text-slate-500">
+                Bila dimatikan, perangkat absen hanya melayani event kegiatan dan menolak tap di
+                luar itu.
+              </span>
+            </span>
+          </label>
+
+          <div class="mt-5">
+            <label for="jam_masuk" class="block text-sm font-medium text-slate-700">
+              Jam Masuk Harian
+            </label>
+            <p class="mt-0.5 text-xs text-slate-500">
+              Batas tepat waktu bagi sesi absen umum, ditambah toleransi keterlambatan di atas.
+            </p>
+            <input
+              id="jam_masuk"
+              v-model="form.jam_masuk_umum"
+              type="time"
+              class="mt-2 w-32 rounded-md border-slate-300 font-display tabular-nums shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+            />
+            <p v-if="form.errors.jam_masuk_umum" class="mt-1.5 text-xs text-amber-700">
+              {{ form.errors.jam_masuk_umum }}
+            </p>
+          </div>
+        </section>
+
         <!-- FR-SET-04 -->
         <section class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
           <h2 class="font-display text-sm font-semibold text-navy-700">Kompresi Foto Absen</h2>

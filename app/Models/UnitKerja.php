@@ -108,6 +108,44 @@ class UnitKerja extends Model
     }
 
     /**
+     * Unit level teratas yang menaungi sebuah unit kerja, atau null bila
+     * tidak ada yang menaunginya.
+     *
+     * Pegawai dan perangkat menaut ke seksi/subbag, sedangkan yang menjadi
+     * satuan kerja sesungguhnya — pemilik sesi absen umum, cakupan Admin UPT
+     * — adalah UPT atau bidang di atasnya.
+     */
+    public static function idTeratasUntuk(?int $unitKerjaId): ?int
+    {
+        if ($unitKerjaId === null) {
+            return null;
+        }
+
+        foreach (static::query()->levelTeratas()->pluck('id') as $id) {
+            if (in_array($unitKerjaId, static::idsDenganTurunan((int) $id), true)) {
+                return (int) $id;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Id seluruh unit level teratas yang menaungi sebuah unit kerja.
+     *
+     * Bentuk jamak dari {@see self::idTeratasUntuk()}, dipakai penyaring
+     * kueri yang membutuhkan klausa `whereIn`.
+     *
+     * @return array<int, int>
+     */
+    public static function idTeratasMenaungi(?int $unitKerjaId): array
+    {
+        $id = static::idTeratasUntuk($unitKerjaId);
+
+        return $id === null ? [] : [$id];
+    }
+
+    /**
      * Id sebuah unit beserta seluruh turunannya, sedalam apa pun.
      *
      * Dipakai setiap kali pertanyaannya "siapa saja yang bernaung di unit ini"

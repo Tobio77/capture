@@ -30,6 +30,13 @@ class SettingAbsenService
 
     public const string KUNCI_KOMPRESI = 'absen.kompresi_foto';
 
+    public const string KUNCI_ABSEN_UMUM = 'absen.absen_umum_aktif';
+
+    public const string KUNCI_JAM_MASUK_UMUM = 'absen.jam_masuk_umum';
+
+    /** Jam masuk harian bawaan bila admin belum menyetelnya. */
+    public const string JAM_MASUK_BAWAAN = '07:30';
+
     /** Batas ambang kecocokan wajah, mengikuti slider pada UIUX §3.5. */
     public const int AMBANG_MIN = 70;
 
@@ -57,6 +64,14 @@ class SettingAbsenService
             'toleransi_default_menit' => $this->int(self::KUNCI_TOLERANSI, 15),
             'ambang_kecocokan_wajah' => $this->int(self::KUNCI_AMBANG_WAJAH, 85),
             'kompresi_foto' => $this->kompresi()->value,
+
+            /*
+             * Absen umum: sesi harian yang dibuka sistem sendiri ketika tidak
+             * ada kegiatan berjalan, memakai jam masuk dan toleransi di bawah
+             * ini. Dimatikan bila instansi hanya ingin absensi berbasis event.
+             */
+            'absen_umum_aktif' => $this->bool(self::KUNCI_ABSEN_UMUM, true),
+            'jam_masuk_umum' => $this->jam(self::KUNCI_JAM_MASUK_UMUM, self::JAM_MASUK_BAWAAN),
         ];
     }
 
@@ -79,13 +94,23 @@ class SettingAbsenService
     {
         $sebelum = $this->ambil();
 
+        /*
+         * Medan yang tidak dikirim mempertahankan nilainya. Formulir Setting
+         * Absen selalu mengirim semuanya, tetapi pemanggil lain — penyiapan
+         * data dan pengujian — kerap hanya menggeser satu medan, dan itu tidak
+         * boleh diam-diam mengembalikan medan lain ke bawaan.
+         */
+        $nilai = fn (string $medan) => $data[$medan] ?? $sebelum[$medan];
+
         $this->pengaturan->simpanBanyak([
-            self::KUNCI_MANUAL => $this->dariBool($data['metode_manual_aktif']),
-            self::KUNCI_RFID => $this->dariBool($data['metode_rfid_aktif']),
-            self::KUNCI_WAJAH => $this->dariBool($data['metode_wajah_aktif']),
-            self::KUNCI_TOLERANSI => (string) (int) $data['toleransi_default_menit'],
-            self::KUNCI_AMBANG_WAJAH => (string) (int) $data['ambang_kecocokan_wajah'],
-            self::KUNCI_KOMPRESI => (string) $data['kompresi_foto'],
+            self::KUNCI_MANUAL => $this->dariBool($nilai('metode_manual_aktif')),
+            self::KUNCI_RFID => $this->dariBool($nilai('metode_rfid_aktif')),
+            self::KUNCI_WAJAH => $this->dariBool($nilai('metode_wajah_aktif')),
+            self::KUNCI_TOLERANSI => (string) (int) $nilai('toleransi_default_menit'),
+            self::KUNCI_AMBANG_WAJAH => (string) (int) $nilai('ambang_kecocokan_wajah'),
+            self::KUNCI_KOMPRESI => (string) $nilai('kompresi_foto'),
+            self::KUNCI_ABSEN_UMUM => $this->dariBool($nilai('absen_umum_aktif')),
+            self::KUNCI_JAM_MASUK_UMUM => substr((string) $nilai('jam_masuk_umum'), 0, 5),
         ]);
 
         $sesudah = $this->ambil();
@@ -141,6 +166,21 @@ class SettingAbsenService
         $nilai = $this->pengaturan->ambil($kunci);
 
         return $nilai === null ? $bawaan : $nilai === '1';
+    }
+
+    /**
+     * Jam dalam bentuk HH:MM. Nilai yang tidak berbentuk jam dijatuhkan ke
+     * bawaan alih-alih diteruskan — sesi absen umum memakainya sebagai
+     * `jam_mulai`, dan baris rusak di tabel pengaturan tidak boleh membuat
+     * pembuatan sesi gagal.
+     */
+    protected function jam(string $kunci, string $bawaan): string
+    {
+        $nilai = $this->pengaturan->ambil($kunci);
+
+        return $nilai !== null && preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $nilai) === 1
+            ? $nilai
+            : $bawaan;
     }
 
     protected function int(string $kunci, int $bawaan): int

@@ -162,7 +162,11 @@ class AlurAbsensiTest extends TestCase
             'kiosk_id' => $perangkat->id,
         ]);
 
-        // Admin menutup entry; tap berikutnya ditolak.
+        // Admin menutup entry; tap berikutnya ditolak. Absen umum dimatikan
+        // lebih dahulu — bila menyala, tap justru dilayani sesi harian, dan
+        // yang diuji di sini adalah penolakan oleh event yang sudah ditutup.
+        $this->matikanAbsenUmum();
+
         $this->actingAs($this->superadmin)
             ->post("/admin/kelola-absen/event/{$event->id}/tutup")
             ->assertSessionHas('sukses');

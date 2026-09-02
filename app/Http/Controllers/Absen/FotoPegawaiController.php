@@ -1,11 +1,12 @@
 <?php
 
-namespace App\Http\Controllers\Kiosk;
+namespace App\Http\Controllers\Absen;
 
 use App\Exceptions\WorkaApiException;
 use App\Http\Controllers\Controller;
 use App\Models\Pegawai;
 use App\Services\EventAbsenService;
+use App\Services\TitikAbsenService;
 use App\Services\WorkaApiClient;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -23,6 +24,7 @@ class FotoPegawaiController extends Controller
     public function __construct(
         protected WorkaApiClient $worka,
         protected EventAbsenService $event,
+        protected TitikAbsenService $titik,
     ) {}
 
     public function __invoke(Request $request, string $nip): Response
@@ -42,8 +44,7 @@ class FotoPegawaiController extends Controller
          * menelusuri NIP — padahal ia cuma perlu menampilkan wajah orang yang
          * baru saja men-tap di depannya.
          */
-        $kiosk = $request->kiosk();
-        $eventAktif = $kiosk === null ? null : $this->event->eventAktifUntukKiosk($kiosk);
+        ['event' => $eventAktif] = $this->titik->untuk($request);
 
         if ($eventAktif === null
             || ! in_array($pegawai->unit_kerja_id, $this->event->unitTercakup($eventAktif), true)

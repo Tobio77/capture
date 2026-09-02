@@ -38,6 +38,8 @@ Dokumen ini menjelaskan alur dan struktur layar yang telah divalidasi melalui pr
 
   - Daftar Event
 
+  - Absen Umum
+
   - Rekap Absen
 
   - Setting Absen

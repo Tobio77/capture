@@ -35,6 +35,7 @@ class MenuNavigasi
                 'peran' => $semuaPeran,
                 'anak' => [
                     ['label' => 'Daftar Event', 'rute' => 'event.index', 'peran' => $semuaPeran],
+                    ['label' => 'Absen Umum', 'rute' => 'absen-umum.index', 'peran' => $semuaPeran],
                     ['label' => 'Rekap Absen', 'rute' => 'rekap.index', 'peran' => $semuaPeran],
                     ['label' => 'Setting Absen', 'rute' => 'setting-absen.index', 'peran' => $lintasUnit],
                     ['label' => 'Setting Unit Kerja', 'rute' => 'unit-kerja.index', 'peran' => $semuaPeran],

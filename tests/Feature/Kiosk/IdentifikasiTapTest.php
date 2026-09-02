@@ -290,6 +290,10 @@ class IdentifikasiTapTest extends TestCase
     public function tap_ditolak_setelah_event_ditutup(): void
     {
         // FR-EVT-04: setelah entry ditutup, tap baru pada kiosk ditolak.
+        // Absen umum dimatikan supaya yang diuji benar-benar keadaan tanpa
+        // event; dengan absen umum menyala, tap justru dilayani sesi harian.
+        $this->matikanAbsenUmum();
+
         Pegawai::factory()->create([
             'nip' => '199001012020011001',
             'unit_kerja_id' => $this->unitKerja->id,
@@ -310,6 +314,8 @@ class IdentifikasiTapTest extends TestCase
     public function tap_ditolak_bila_unit_kiosk_tidak_punya_event_yang_dibuka(): void
     {
         // Event ada, tetapi cakupannya unit lain.
+        $this->matikanAbsenUmum();
+
         $this->event->unitKerja()->sync([UnitKerja::factory()->create(['kode' => 'BLK-MJK'])->id]);
 
         $this->denganToken()

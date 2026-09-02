@@ -1,5 +1,11 @@
 <?php
 
+use App\Http\Controllers\Absen\DaftarPresensiController;
+use App\Http\Controllers\Absen\FotoAbsenController;
+use App\Http\Controllers\Absen\FotoPegawaiController;
+use App\Http\Controllers\Absen\IdentifikasiTapController;
+use App\Http\Controllers\Absen\SimpanAbsenController;
+use App\Http\Controllers\Admin\AbsenUmumController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\EventController;
 use App\Http\Controllers\Admin\FotoReferensiWajahController;
@@ -14,12 +20,7 @@ use App\Http\Controllers\Admin\SettingWorkaController;
 use App\Http\Controllers\Admin\UnitKerjaController;
 use App\Http\Controllers\Auth\SesiController;
 use App\Http\Controllers\Kiosk\AktivasiController;
-use App\Http\Controllers\Kiosk\DaftarPresensiController;
-use App\Http\Controllers\Kiosk\FotoAbsenController;
-use App\Http\Controllers\Kiosk\FotoPegawaiController;
-use App\Http\Controllers\Kiosk\IdentifikasiTapController;
 use App\Http\Controllers\Kiosk\LayarKioskController;
-use App\Http\Controllers\Kiosk\SimpanAbsenController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/admin/dashboard')->name('beranda');
@@ -115,6 +116,46 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
          * membuka rekap event yang menyentuh unitnya — termasuk event
          * bercakupan semua unit — tetapi hanya melihat pegawainya sendiri.
          */
+        /*
+         * Absen Umum — absensi harian tanpa event kegiatan. Sesi hariannya
+         * dibuka sistem, sehingga menu ini memantau dan (bila perlu) menjadi
+         * titik absen sendiri lewat layar tangkap di peramban admin.
+         *
+         * Endpoint tapnya memakai controller yang sama dengan perangkat absen;
+         * yang berbeda hanya pagarnya — sesi admin di sini, device token di
+         * grup /kiosk (NFR-03).
+         */
+        Route::get('absen-umum', [AbsenUmumController::class, 'index'])->name('absen-umum.index');
+        Route::get('absen-umum/layar', [AbsenUmumController::class, 'layar'])->name('absen-umum.layar');
+        Route::post('absen-umum/buka', [AbsenUmumController::class, 'buka'])->name('absen-umum.buka');
+        Route::get('absen-umum/ekspor', [AbsenUmumController::class, 'ekspor'])->name('absen-umum.ekspor');
+        Route::get('absen-umum/data', [AbsenUmumController::class, 'data'])
+            ->middleware('throttle:60,1')
+            ->name('absen-umum.data');
+
+        Route::prefix('absen-umum')->name('absen-umum.')->group(function () {
+            Route::post('tap/identifikasi', IdentifikasiTapController::class)
+                ->middleware('throttle:120,1')
+                ->name('tap.identifikasi');
+
+            Route::post('absen', SimpanAbsenController::class)
+                ->middleware('throttle:120,1')
+                ->name('absen.simpan');
+
+            Route::get('presensi', DaftarPresensiController::class)
+                ->middleware('throttle:60,1')
+                ->name('presensi');
+
+            Route::get('absen/{absensi}/foto', FotoAbsenController::class)
+                ->middleware('throttle:300,1')
+                ->name('absen.foto');
+
+            Route::get('pegawai/{nip}/foto', FotoPegawaiController::class)
+                ->where('nip', '[0-9]{8,20}')
+                ->middleware('throttle:300,1')
+                ->name('pegawai.foto');
+        });
+
         Route::get('rekap', [RekapController::class, 'index'])->name('rekap.index');
         Route::get('rekap/{event}/ekspor', [RekapController::class, 'ekspor'])->name('rekap.ekspor');
         Route::get('rekap/{event}/data', [RekapController::class, 'data'])

@@ -182,6 +182,10 @@ class SimpanAbsenTest extends TestCase
     #[Test]
     public function absen_ditolak_setelah_event_ditutup(): void
     {
+        // FR-EVT-04 diuji pada keadaan tanpa event sama sekali; dengan absen
+        // umum menyala, tap sesudah entry ditutup dilayani sesi harian.
+        $this->matikanAbsenUmum();
+
         $this->event->update(['status' => StatusEvent::Ditutup, 'ditutup_pada' => now()]);
 
         $this->kirim()

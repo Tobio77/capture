@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Kiosk;
+namespace App\Http\Controllers\Absen;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SimpanAbsenRequest;
@@ -8,6 +8,7 @@ use App\Services\AbsensiService;
 use App\Services\EventAbsenService;
 use App\Services\KartuRfidService;
 use App\Services\SettingAbsenService;
+use App\Services\TitikAbsenService;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -26,12 +27,12 @@ class SimpanAbsenController extends Controller
         protected EventAbsenService $event,
         protected KartuRfidService $kartu,
         protected SettingAbsenService $setting,
+        protected TitikAbsenService $titik,
     ) {}
 
     public function __invoke(SimpanAbsenRequest $request): JsonResponse
     {
-        $kiosk = $request->kiosk();
-        $event = $kiosk === null ? null : $this->event->eventAktifUntukKiosk($kiosk);
+        ['event' => $event, 'kiosk' => $kiosk] = $this->titik->untuk($request, buka: true);
 
         // FR-EVT-04: entry yang sudah ditutup menolak tap baru.
         if ($event === null) {

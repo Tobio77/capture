@@ -49,7 +49,7 @@ class UnitKerjaService
             // paginator tetap sesuai dengan yang benar-benar boleh dilihat.
             ->when(
                 ! $pelaku->lintasUnit(),
-                fn ($q) => $q->whereIn('id', $this->idTeratasYangMenaungi($pelaku->unit_kerja_id)),
+                fn ($q) => $q->whereIn('id', UnitKerja::idTeratasMenaungi($pelaku->unit_kerja_id)),
             )
             ->when(
                 filled($filter['cari'] ?? null),
@@ -82,26 +82,6 @@ class UnitKerjaService
                     'jumlah_unit_turunan' => count($cakupan) - 1,
                 ];
             });
-    }
-
-    /**
-     * Unit level teratas yang menaungi satu unit kerja, ditelusuri lewat
-     * cakupan turunan tiap simpul teratas.
-     *
-     * @return array<int, int>
-     */
-    protected function idTeratasYangMenaungi(?int $unitKerjaId): array
-    {
-        if ($unitKerjaId === null) {
-            return [];
-        }
-
-        return UnitKerja::query()
-            ->levelTeratas()
-            ->pluck('id')
-            ->filter(fn (int $id) => in_array($unitKerjaId, UnitKerja::idsDenganTurunan($id), true))
-            ->values()
-            ->all();
     }
 
     /**

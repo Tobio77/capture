@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\CakupanEvent;
+use App\Enums\JenisEvent;
 use App\Enums\StatusEvent;
 use Database\Factories\EventAbsenFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -11,6 +12,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Event absensi (FR-EVT-01 s.d. FR-EVT-06).
@@ -19,6 +21,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  */
 #[Fillable([
     'nama',
+    'jenis',
     'tanggal',
     'jam_mulai',
     'toleransi_menit',
@@ -43,6 +46,7 @@ class EventAbsen extends Model
         return [
             'tanggal' => 'date',
             'toleransi_menit' => 'integer',
+            'jenis' => JenisEvent::class,
             'cakupan' => CakupanEvent::class,
             'status' => StatusEvent::class,
             'ditutup_pada' => 'datetime',
@@ -66,6 +70,12 @@ class EventAbsen extends Model
             ->withPivot(['ip_address', 'aktif_pada', 'terakhir_aktif_pada']);
     }
 
+    /** @return HasMany<Absensi, $this> */
+    public function absensi(): HasMany
+    {
+        return $this->hasMany(Absensi::class);
+    }
+
     /** @return BelongsTo<User, $this> */
     public function pembuat(): BelongsTo
     {
@@ -83,11 +93,38 @@ class EventAbsen extends Model
     }
 
     /**
+     * Sesi absen harian yang dibuka sistem, bukan kegiatan buatan admin.
+     */
+    public function absenUmum(): bool
+    {
+        return $this->jenis === JenisEvent::Umum;
+    }
+
+    /**
      * @param  Builder<EventAbsen>  $query
      */
     public function scopeAktif(Builder $query): void
     {
         $query->where('status', StatusEvent::Aktif);
+    }
+
+    /**
+     * Hanya event kegiatan — sesi absen umum punya menunya sendiri dan tidak
+     * ikut memenuhi Daftar Event maupun pemilih Rekap Absen.
+     *
+     * @param  Builder<EventAbsen>  $query
+     */
+    public function scopeKegiatan(Builder $query): void
+    {
+        $query->where('jenis', JenisEvent::Kegiatan);
+    }
+
+    /**
+     * @param  Builder<EventAbsen>  $query
+     */
+    public function scopeUmum(Builder $query): void
+    {
+        $query->where('jenis', JenisEvent::Umum);
     }
 
     /**

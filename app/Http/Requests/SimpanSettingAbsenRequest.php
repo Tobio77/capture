@@ -34,6 +34,8 @@ class SimpanSettingAbsenRequest extends FormRequest
                 'max:'.SettingAbsenService::AMBANG_MAKS,
             ],
             'kompresi_foto' => ['required', Rule::enum(KompresiFoto::class)],
+            'absen_umum_aktif' => ['required', 'boolean'],
+            'jam_masuk_umum' => ['required', 'date_format:H:i'],
         ];
     }
 
@@ -71,6 +73,8 @@ class SimpanSettingAbsenRequest extends FormRequest
             'toleransi_default_menit' => 'toleransi keterlambatan default',
             'ambang_kecocokan_wajah' => 'ambang kecocokan wajah',
             'kompresi_foto' => 'kompresi foto absen',
+            'absen_umum_aktif' => 'absen umum harian',
+            'jam_masuk_umum' => 'jam masuk harian',
         ];
     }
 }

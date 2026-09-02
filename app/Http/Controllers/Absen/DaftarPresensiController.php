@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Http\Controllers\Kiosk;
+namespace App\Http\Controllers\Absen;
 
 use App\Http\Controllers\Controller;
 use App\Services\AbsensiService;
-use App\Services\EventAbsenService;
+use App\Services\TitikAbsenService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -19,14 +19,18 @@ use Illuminate\Http\Request;
 class DaftarPresensiController extends Controller
 {
     public function __construct(
-        protected EventAbsenService $event,
         protected AbsensiService $absensi,
+        protected TitikAbsenService $titik,
     ) {}
 
     public function __invoke(Request $request): JsonResponse
     {
-        $kiosk = $request->kiosk();
-        $event = $kiosk === null ? null : $this->event->eventAktifUntukKiosk($kiosk);
+        /*
+         * Polling saja tidak membuka sesi absen umum: perangkat yang menyala
+         * sepanjang hari libur tidak boleh meninggalkan sesi kosong yang
+         * kemudian terhitung sebagai hari yang wajib dihadiri pada laporan.
+         */
+        ['event' => $event] = $this->titik->untuk($request);
 
         if ($event === null) {
             return response()->json(['event' => null, 'daftar_presensi' => []]);

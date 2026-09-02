@@ -70,9 +70,9 @@ SI-ABSEN adalah aplikasi web dengan dua front-end: (1) Panel Admin untuk Superad
 | FR-EVT-01 | Admin dapat membuat event baru dengan atribut: nama, tanggal, jam mulai, toleransi keterlambatan (menit), cakupan unit kerja (satu/lebih unit, atau “semua unit” — opsi “semua unit” hanya tersedia untuk Superadmin/Admin Dinas), dan catatan opsional. | Tinggi        |
 | FR-EVT-02 | Admin UPT hanya dapat memilih unit kerjanya sendiri sebagai cakupan event.                                                                                                                                                                               | Tinggi        |
 | FR-EVT-03 | Sistem mencatat setiap kiosk yang login/aktif pada suatu event beserta alamat IP dan waktu aktivasi.                                                                                                                                                     | Tinggi        |
-| FR-EVT-04 | Admin dapat menutup (close) event yang sedang aktif; setelah ditutup, tap baru pada kiosk untuk event tersebut ditolak sistem.                                                                                                                           | Tinggi        |
+| FR-EVT-04 | Admin dapat menutup (close) event yang sedang aktif; setelah ditutup, tap baru pada kiosk untuk event tersebut ditolak sistem. Bila absen umum (FR-SET-05) menyala, tap sesudahnya dilayani sesi absen harian unit tersebut — bukan dicatat pada event yang sudah ditutup. | Tinggi        |
 | FR-EVT-05 | Admin dapat melihat detail event: daftar kiosk terhubung, jumlah absen masuk, dan status entry (dibuka/ditutup).                                                                                                                                         | Tinggi        |
-| FR-EVT-06 | Sistem hanya mengizinkan satu event dengan status “aktif” berjalan bersamaan per kombinasi kiosk-unit kerja pada rentang waktu yang sama, untuk mencegah ambiguitas saat tap.                                                                            | Sedang        |
+| FR-EVT-06 | Sistem hanya mengizinkan satu event kegiatan berstatus “aktif” per cakupan unit kerja pada satu waktu, untuk mencegah ambiguitas saat tap. Sesi absen umum (FR-SET-05) tidak ikut dihitung: ia justru mengalah ketika ada kegiatan yang berjalan.        | Sedang        |
 
 ## 3.4 Kelola Absen — Rekap Absen
 
@@ -90,6 +90,7 @@ SI-ABSEN adalah aplikasi web dengan dua front-end: (1) Panel Admin untuk Superad
 | FR-SET-02 | Admin dapat menetapkan toleransi keterlambatan default (menit) yang berlaku untuk event baru, dan dapat dioverride per-event saat pembuatan event. | Tinggi        |
 | FR-SET-03 | Admin dapat menetapkan ambang kecocokan wajah (persentase) yang digunakan modul verifikasi wajah di sisi klien.                                    | Tinggi        |
 | FR-SET-04 | Admin dapat memilih tingkat kompresi foto absen (dimensi maksimum piksel dan kualitas JPEG) untuk membatasi ukuran berkas yang disimpan.           | Tinggi        |
+| FR-SET-05 | Admin dapat menyalakan/mematikan absen umum harian beserta jam masuknya. Saat menyala, sistem membuka sesi absen harian per unit kerja ketika tidak ada event kegiatan yang berjalan, sehingga pegawai dapat mencatat kehadiran rutin tanpa admin membuat event lebih dahulu. | Sedang        |
 
 ## 3.6 Kelola Absen — Setting Unit Kerja
 
