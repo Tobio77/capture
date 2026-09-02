@@ -4,6 +4,7 @@ import { router, usePage } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
 import Ikon from '@/Components/Ikon.vue'
 import KolomCari from '@/Components/UI/KolomCari.vue'
+import Pilihan from '@/Components/UI/Pilihan.vue'
 import Lencana from '@/Components/UI/Lencana.vue'
 import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
 
@@ -29,6 +30,14 @@ const JEDA_SEGAR_MS = 15000
 const barisRekap = ref(props.rekap)
 const angka = ref(props.ringkasan)
 const statusEvent = ref(props.event?.status ?? null)
+const opsiEvent = computed(() =>
+  props.daftar_event.map((item) => ({
+    nilai: item.id,
+    label: item.nama,
+    keterangan: `${item.tanggal} · ${item.status_label}`,
+  })),
+)
+
 const eventTerpilih = ref(props.event?.id ?? '')
 const cari = ref('')
 
@@ -118,10 +127,10 @@ function tanggalPanjang(iso) {
 }
 
 const kartu = computed(() => [
-  { label: 'Hadir', nilai: angka.value.hadir, warna: 'text-navy-700', ikon: 'pegawai', latar: 'bg-navy-50 text-navy-600' },
-  { label: 'Tepat Waktu', nilai: angka.value.tepat, warna: 'text-emerald-700', ikon: 'cek', latar: 'bg-emerald-50 text-emerald-600' },
-  { label: 'Terlambat', nilai: angka.value.terlambat, warna: 'text-amber-700', ikon: 'jam', latar: 'bg-amber-50 text-amber-600' },
-  { label: 'Sudah Pulang', nilai: angka.value.sudah_pulang, warna: 'text-slate-600', ikon: 'keluar', latar: 'bg-slate-100 text-slate-500' },
+  { label: 'Hadir', nilai: angka.value.hadir, warna: 'text-utama', ikon: 'pegawai', latar: 'bg-info-lembut text-info-teks' },
+  { label: 'Tepat Waktu', nilai: angka.value.tepat, warna: 'text-berhasil-teks', ikon: 'cek', latar: 'bg-berhasil-lembut text-berhasil' },
+  { label: 'Terlambat', nilai: angka.value.terlambat, warna: 'text-peringatan-teks', ikon: 'jam', latar: 'bg-peringatan-lembut text-peringatan' },
+  { label: 'Sudah Pulang', nilai: angka.value.sudah_pulang, warna: 'text-sekunder', ikon: 'keluar', latar: 'bg-permukaan-2 text-redup' },
 ])
 </script>
 
@@ -134,21 +143,21 @@ const kartu = computed(() => [
       <div class="flex flex-wrap items-center gap-2 print:hidden">
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 active:scale-95"
+          class="inline-flex items-center gap-1.5 rounded-md border border-garis bg-permukaan px-3 py-2 text-sm font-medium text-utama transition hover:bg-permukaan-hover active:scale-95"
           @click="cetak"
         >
           <Ikon nama="cetak" ukuran="h-4 w-4" /> Cetak
         </button>
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 active:scale-95"
+          class="inline-flex items-center gap-1.5 rounded-md border border-garis bg-permukaan px-3 py-2 text-sm font-medium text-utama transition hover:bg-permukaan-hover active:scale-95"
           @click="unduh('csv')"
         >
           <Ikon nama="unduh" ukuran="h-4 w-4" /> CSV
         </button>
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 active:scale-95"
+          class="inline-flex items-center gap-1.5 rounded-md bg-aksen px-4 py-2 text-sm font-semibold text-white bayang transition hover:bg-aksen-kuat active:scale-95"
           @click="unduh('pdf')"
         >
           <Ikon nama="unduh" ukuran="h-4 w-4" /> Unduh PDF
@@ -159,24 +168,20 @@ const kartu = computed(() => [
     <!-- Pemilih event dan pencarian -->
     <div class="mb-5 grid gap-3 sm:grid-cols-2 print:hidden">
       <div>
-        <label for="event" class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-slate-500">
+        <label for="event" class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup">
           Event
         </label>
-        <select
+        <Pilihan
           id="event"
           v-model="eventTerpilih"
-          class="block w-full rounded-md border-slate-300 text-sm shadow-sm focus:border-teal-500 focus:ring-teal-500"
-          @change="pilihEvent"
-        >
-          <option value="" disabled>Pilih event…</option>
-          <option v-for="item in daftar_event" :key="item.id" :value="item.id">
-            {{ item.nama }} — {{ item.tanggal }} ({{ item.status_label }})
-          </option>
-        </select>
+          :opsi="opsiEvent"
+          placeholder="Pilih event…"
+          @update:model-value="pilihEvent"
+        />
       </div>
 
       <div v-if="event">
-        <span class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-slate-500">
+        <span class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup">
           Cari Peserta
         </span>
         <KolomCari v-model="cari" placeholder="Nama, NIP, atau unit kerja…" :jeda="0" />
@@ -191,15 +196,15 @@ const kartu = computed(() => [
     />
 
     <template v-else>
-      <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm print:border-0 print:p-0 print:shadow-none">
+      <div class="rounded-lg border border-garis bg-permukaan p-6 bayang print:border-0 print:p-0 print:shadow-none">
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 class="font-display text-lg font-semibold text-navy-700">{{ event.nama }}</h2>
-            <p class="mt-1 text-sm text-slate-600">
+            <h2 class="font-display text-lg font-semibold text-utama">{{ event.nama }}</h2>
+            <p class="mt-1 text-sm text-sekunder">
               {{ tanggalPanjang(event.tanggal) }} · mulai {{ event.jam_mulai }} ·
               toleransi {{ event.toleransi_menit }} menit
             </p>
-            <p class="mt-0.5 text-xs text-slate-500">
+            <p class="mt-0.5 text-xs text-redup">
               Cakupan tampilan:
               {{ pengguna.lintas_unit ? 'seluruh unit kerja' : pengguna.unit_kerja?.nama }}
             </p>
@@ -211,10 +216,10 @@ const kartu = computed(() => [
         </div>
 
         <dl class="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <div v-for="item in kartu" :key="item.label" class="rounded-md border border-slate-200 px-4 py-3">
+          <div v-for="item in kartu" :key="item.label" class="rounded-md border border-garis px-4 py-3">
             <div class="flex items-start justify-between gap-2">
               <div>
-                <dt class="text-xs uppercase tracking-wider text-slate-500">{{ item.label }}</dt>
+                <dt class="text-xs uppercase tracking-wider text-redup">{{ item.label }}</dt>
                 <dd class="mt-1 font-display text-2xl font-semibold tabular-nums" :class="item.warna">
                   {{ item.nilai }}
                 </dd>
@@ -228,39 +233,46 @@ const kartu = computed(() => [
       </div>
 
       <!-- FR-REK-01 -->
-      <div class="mt-6 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm print:border-0 print:shadow-none">
-        <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-slate-200 text-sm">
-            <thead class="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+      <div class="mt-6 overflow-hidden rounded-lg border border-garis bg-permukaan bayang print:border-0 print:shadow-none">
+        <div class="tabel-gulir gulir-halus">
+          <table class="min-w-full divide-y divide-garis text-sm">
+            <thead class="border-b border-garis bg-permukaan-2 text-xs uppercase tracking-wider text-redup">
               <tr>
                 <th scope="col" class="px-4 py-3 text-left font-medium">No</th>
                 <th scope="col" class="px-4 py-3 text-left font-medium">NIP</th>
                 <th scope="col" class="px-4 py-3 text-left font-medium">Nama</th>
                 <th scope="col" class="px-4 py-3 text-left font-medium">Unit Kerja</th>
-                <th scope="col" class="px-4 py-3 text-left font-medium">Jam Masuk</th>
-                <th scope="col" class="px-4 py-3 text-left font-medium">Jam Pulang</th>
+                <th scope="col" class="whitespace-nowrap px-4 py-3 text-left font-medium">Jam Masuk</th>
+                <th scope="col" class="whitespace-nowrap px-4 py-3 text-left font-medium">Jam Pulang</th>
                 <th scope="col" class="px-4 py-3 text-left font-medium">Metode</th>
                 <th scope="col" class="px-4 py-3 text-left font-medium">Status</th>
                 <th scope="col" class="px-4 py-3 text-left font-medium print:hidden">Foto</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100">
+            <tbody class="divide-y divide-garis">
               <tr
                 v-for="(baris, urutan) in barisTampil"
                 :key="baris.pegawai_id"
-                class="transition-colors hover:bg-slate-50/70"
+                class="transition-colors hover:bg-permukaan-hover"
               >
-                <td class="px-4 py-2.5 font-display tabular-nums text-slate-500">{{ urutan + 1 }}</td>
-                <td class="px-4 py-2.5 font-display tabular-nums text-slate-600">{{ baris.nip }}</td>
-                <td class="px-4 py-2.5 font-medium text-navy-700">{{ baris.nama }}</td>
-                <td class="px-4 py-2.5 text-slate-600">{{ baris.unit_kerja ?? '—' }}</td>
-                <td class="px-4 py-2.5 font-display tabular-nums text-slate-700">
+                <td class="px-4 py-2.5 font-display tabular-nums text-redup">{{ urutan + 1 }}</td>
+                <td class="px-4 py-2.5 font-display tabular-nums text-sekunder">{{ baris.nip }}</td>
+                <td class="whitespace-nowrap px-4 py-2.5 font-medium text-utama">
+                  {{ baris.nama }}
+                </td>
+                <td
+                  class="max-w-[14rem] truncate px-4 py-2.5 text-sekunder"
+                  :title="baris.unit_kerja"
+                >
+                  {{ baris.unit_kerja ?? '—' }}
+                </td>
+                <td class="px-4 py-2.5 font-display tabular-nums text-utama">
                   {{ baris.jam_masuk ?? '—' }}
                 </td>
-                <td class="px-4 py-2.5 font-display tabular-nums text-slate-700">
+                <td class="px-4 py-2.5 font-display tabular-nums text-utama">
                   {{ baris.jam_pulang ?? '—' }}
                 </td>
-                <td class="px-4 py-2.5 text-slate-600">{{ baris.metode }}</td>
+                <td class="px-4 py-2.5 text-sekunder">{{ baris.metode }}</td>
                 <td class="px-4 py-2.5">
                   <Lencana
                     v-if="baris.status_label"
@@ -268,16 +280,16 @@ const kartu = computed(() => [
                   >
                     {{ baris.status_label }}
                   </Lencana>
-                  <span v-else class="text-xs text-slate-400">—</span>
+                  <span v-else class="text-xs text-redup">—</span>
                 </td>
                 <td class="px-4 py-2.5 print:hidden">
                   <img
                     v-if="baris.foto_url"
                     :src="baris.foto_url"
                     :alt="`Foto absen ${baris.nama}`"
-                    class="h-9 w-9 rounded object-cover ring-1 ring-slate-200"
+                    class="h-9 w-9 rounded object-cover ring-1 ring-[var(--tema-garis)]"
                   />
-                  <span v-else class="text-xs text-slate-400">—</span>
+                  <span v-else class="text-xs text-redup">—</span>
                 </td>
               </tr>
             </tbody>
@@ -297,12 +309,12 @@ const kartu = computed(() => [
 
         <p
           v-else-if="cari"
-          class="border-t border-slate-200 px-4 py-3 text-xs text-slate-500 print:hidden"
+          class="border-t border-garis px-4 py-3 text-xs text-redup print:hidden"
         >
           Menampilkan
-          <span class="font-display tabular-nums text-slate-700">{{ barisTampil.length }}</span>
+          <span class="font-display tabular-nums text-utama">{{ barisTampil.length }}</span>
           dari
-          <span class="font-display tabular-nums text-slate-700">{{ barisRekap.length }}</span>
+          <span class="font-display tabular-nums text-utama">{{ barisRekap.length }}</span>
           peserta
         </p>
       </div>

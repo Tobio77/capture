@@ -53,7 +53,7 @@ const lepas = () => {
     <template #aksi>
       <button
         type="button"
-        class="rounded-md border border-white/20 px-3 py-1.5 text-xs font-medium text-navy-100 transition hover:bg-white/10 hover:text-white active:scale-95"
+        class="rounded-lg border border-sidebar-garis px-3 py-2 text-xs font-medium text-sidebar-redup transition-colors duration-150 hover:bg-white/10 hover:text-sidebar-teks active:scale-95"
         @click="lepas"
       >
         Lepas Perangkat

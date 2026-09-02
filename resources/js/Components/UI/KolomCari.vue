@@ -35,22 +35,22 @@ function bersihkan() {
 
 <template>
   <div
-    class="relative flex items-center rounded-md border bg-white transition"
-    :class="fokus ? 'border-teal-500 ring-1 ring-teal-500' : 'border-slate-300'"
+    class="relative flex items-center rounded-md border bg-permukaan transition"
+    :class="fokus ? 'border-aksen ring-1 ring-teal-500' : 'border-garis'"
   >
-    <Ikon nama="cari" ukuran="h-4 w-4" class="pointer-events-none absolute left-3 text-slate-400" />
+    <Ikon nama="cari" ukuran="h-4 w-4" class="pointer-events-none absolute left-3 text-redup" />
     <input
       v-model="model"
       type="search"
       :placeholder="placeholder"
-      class="w-full border-0 bg-transparent py-2 pl-9 pr-9 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-0"
+      class="w-full border-0 bg-transparent py-2 pl-9 pr-9 text-sm placeholder:text-redup focus:outline-none focus:ring-0"
       @focus="fokus = true"
       @blur="fokus = false"
     />
     <button
       v-if="model"
       type="button"
-      class="absolute right-2 rounded p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+      class="absolute right-2 rounded p-1 text-redup transition hover:bg-permukaan-hover hover:text-utama"
       aria-label="Bersihkan pencarian"
       @click="bersihkan"
     >

@@ -5,7 +5,12 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
  * Panel Capture Foto & Entry Absen (UIUX §4.2.1).
  *
  * Panel ini menampilkan keadaan, tidak memutuskan apa pun: verifikasi wajah
- * (S15) dan penyimpanan absen (S16) mengendalikannya lewat prop `tahap`.
+ * dan penyimpanan absen mengendalikannya lewat prop `tahap`.
+ *
+ * Pratinjau kamera sengaja menjadi elemen terbesar di layar. Orang yang
+ * berdiri di depan titik absen perlu melihat wajahnya sendiri untuk
+ * memposisikan diri; kotak kecil membuat mereka mencondong dan memperlambat
+ * antrean.
  */
 
 const props = defineProps({
@@ -32,13 +37,16 @@ const gagal = computed(() => props.tahap === 'gagal')
 
 const status = computed(() => {
   const daftar = {
-    menunggu_event: { teks: 'Menunggu event dibuka', warna: 'text-slate-400' },
-    menunggu_tap: { teks: 'Silakan tap kartu atau ketik NIP', warna: 'text-slate-300' },
-    memindai: { teks: 'Memindai wajah…', warna: 'text-teal-300' },
+    menunggu_event: { teks: 'Menunggu event dibuka', warna: 'text-redup' },
+    menunggu_tap: { teks: 'Silakan tap kartu atau ketik NIP', warna: 'text-sekunder' },
+    memindai: { teks: 'Memindai wajah…', warna: 'text-aksen-teks' },
     berhasil: props.hasil?.tertunda
-      ? { teks: 'Absen tersimpan di perangkat, menunggu jaringan pulih', warna: 'text-amber-400' }
-      : { teks: 'Absen berhasil dicatat', warna: 'text-emerald-400' },
-    gagal: { teks: props.pesan ?? 'Verifikasi gagal, silakan ulangi', warna: 'text-amber-400' },
+      ? {
+          teks: 'Absen tersimpan di perangkat, menunggu jaringan pulih',
+          warna: 'text-peringatan-teks',
+        }
+      : { teks: 'Absen berhasil dicatat', warna: 'text-berhasil-teks' },
+    gagal: { teks: props.pesan ?? 'Verifikasi gagal, silakan ulangi', warna: 'text-peringatan-teks' },
   }
 
   return daftar[props.tahap] ?? daftar.menunggu_tap
@@ -46,11 +54,11 @@ const status = computed(() => {
 
 /** Bingkai pratinjau berubah warna mengikuti hasil verifikasi. */
 const warnaBingkai = computed(() => {
-  if (berhasil.value) return 'border-emerald-500'
-  if (gagal.value) return 'border-amber-500'
-  if (memindai.value) return 'border-teal-400'
+  if (berhasil.value) return 'border-berhasil'
+  if (gagal.value) return 'border-peringatan'
+  if (memindai.value) return 'border-aksen'
 
-  return 'border-white/15'
+  return 'border-garis-kuat'
 })
 
 async function nyalakanKamera() {
@@ -68,7 +76,7 @@ async function nyalakanKamera() {
   } catch {
     // Kamera ditolak atau tidak ada: layar tetap dapat dipakai untuk absen
     // manual, jadi kegagalan ini diberitahukan, bukan menghentikan layar.
-    kameraGagal.value = 'Kamera tidak dapat diakses. Periksa izin kamera pada peramban kiosk.'
+    kameraGagal.value = 'Kamera tidak dapat diakses. Periksa izin kamera pada peramban perangkat.'
   }
 }
 
@@ -127,7 +135,7 @@ function kirim() {
   idCard.value = ''
 }
 
-// Kolom selalu kembali fokus (NFR-08): kiosk dioperasikan tanpa mouse.
+// Kolom selalu kembali fokus (NFR-08): titik absen dioperasikan tanpa mouse.
 function rebutFokus() {
   if (props.aktif) kolomId.value?.focus()
 }
@@ -149,7 +157,7 @@ onBeforeUnmount(() => {
  *
  * Dimensi dan kualitas berasal dari preset Setting Absen (FR-SET-04), dan
  * penyusutan dilakukan di sini — bukan di server — supaya yang melintasi
- * jaringan sudah berukuran akhir. Dipakai S16 saat menyimpan absen.
+ * jaringan sudah berukuran akhir.
  */
 function ambilFoto(kompresi) {
   const sumber = video.value
@@ -170,64 +178,96 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
 </script>
 
 <template>
-  <section class="rounded-lg border border-white/10 bg-white/5 p-5">
-    <h2 class="font-display text-sm font-semibold uppercase tracking-wider text-slate-400">
+  <section class="rounded-xl border border-garis bg-permukaan p-5 bayang">
+    <h2 class="font-display text-sm font-semibold uppercase tracking-wider text-redup">
       Capture Foto &amp; Entry Absen
     </h2>
 
-    <!-- Pratinjau kamera -->
+    <!--
+      Pratinjau kamera. Rasio 4:3 dan kolom yang lebar membuat luasnya sekitar
+      tiga kali lipat tata letak sebelumnya — inilah yang seharusnya pertama
+      dilihat orang yang berdiri di depan layar.
+    -->
     <div
       v-if="metode.wajah"
-      class="relative mt-4 aspect-video overflow-hidden rounded-lg border-2 bg-slate-950 transition-colors"
+      class="relative mt-4 aspect-[4/3] overflow-hidden rounded-xl border-4 bg-navy-900 transition-colors duration-300"
       :class="warnaBingkai"
     >
       <video ref="video" class="h-full w-full object-cover" autoplay muted playsinline></video>
 
-      <div v-if="kameraGagal" class="absolute inset-0 flex items-center justify-center bg-slate-950/85 px-6 text-center text-xs text-amber-300">
+      <div
+        v-if="kameraGagal"
+        class="absolute inset-0 flex items-center justify-center bg-navy-900/90 px-8 text-center text-sm text-amber-200"
+      >
         {{ kameraGagal }}
       </div>
 
       <span
         v-else
-        class="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-slate-950/70 px-2.5 py-1 text-xs font-medium text-slate-200"
+        class="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full bg-navy-900/70 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm"
       >
-        <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500"></span>
+        <span class="h-2 w-2 animate-pulse rounded-full bg-red-500"></span>
         LIVE
       </span>
 
-      <!-- Sudut bidik -->
+      <!--
+        Sudut bidik. Di atas gambar kamera yang isinya tak terduga, putih
+        semi-transparan tetap pilihan paling aman; saat verifikasi berjalan
+        ia berpindah ke teal terang agar terbaca sebagai keadaan aktif.
+      -->
       <template v-if="!kameraGagal">
-        <span class="pointer-events-none absolute left-6 top-6 h-8 w-8 border-l-2 border-t-2 border-white/50"></span>
-        <span class="pointer-events-none absolute right-6 top-6 h-8 w-8 border-r-2 border-t-2 border-white/50"></span>
-        <span class="pointer-events-none absolute bottom-6 left-6 h-8 w-8 border-b-2 border-l-2 border-white/50"></span>
-        <span class="pointer-events-none absolute bottom-6 right-6 h-8 w-8 border-b-2 border-r-2 border-white/50"></span>
+        <span
+          v-for="sudut in [
+            'left-6 top-6 border-l-4 border-t-4 rounded-tl-lg',
+            'right-6 top-6 border-r-4 border-t-4 rounded-tr-lg',
+            'bottom-6 left-6 border-b-4 border-l-4 rounded-bl-lg',
+            'bottom-6 right-6 border-b-4 border-r-4 rounded-br-lg',
+          ]"
+          :key="sudut"
+          class="pointer-events-none absolute h-12 w-12 transition-colors duration-300"
+          :class="[sudut, memindai ? 'border-teal-300' : 'border-white/60']"
+        ></span>
       </template>
 
       <!-- Garis pemindaian, hanya saat verifikasi berjalan -->
       <span
         v-if="memindai"
-        class="pointer-events-none absolute inset-x-0 h-0.5 animate-[pindai_1.6s_ease-in-out_infinite] bg-teal-400/80 shadow-[0_0_12px_2px_rgba(45,212,191,0.7)]"
+        class="pointer-events-none absolute inset-x-0 h-1 animate-[pindai_1.6s_ease-in-out_infinite] bg-teal-300 shadow-[0_0_16px_4px_rgba(94,234,212,0.8)]"
       ></span>
+
+      <!-- Skor kecocokan, tergambar di atas pratinjau saat hasil siap -->
+      <span
+        v-if="hasil?.skor != null && (berhasil || gagal)"
+        class="absolute bottom-4 right-4 rounded-lg px-3 py-1.5 font-display text-sm font-semibold text-white backdrop-blur-sm"
+        :class="berhasil ? 'bg-emerald-600/90' : 'bg-amber-600/90'"
+      >
+        {{ hasil.skor }}% cocok
+      </span>
     </div>
 
     <div
       v-else
-      class="mt-4 rounded-lg border border-dashed border-white/15 px-4 py-8 text-center text-xs text-slate-400"
+      class="mt-4 rounded-xl border border-dashed border-garis-kuat px-4 py-12 text-center text-sm text-redup"
     >
       Verifikasi wajah dinonaktifkan pada Setting Absen.
     </div>
 
     <!-- Jenis absen -->
     <div class="mt-5">
-      <span class="text-xs font-medium uppercase tracking-wider text-slate-400">Jenis Absen</span>
+      <span class="text-xs font-medium uppercase tracking-wider text-redup">Jenis Absen</span>
       <div class="mt-2 grid grid-cols-2 gap-2">
         <label
-          v-for="pilihan in [{ nilai: 'datang', label: 'Datang' }, { nilai: 'pulang', label: 'Pulang' }]"
+          v-for="pilihan in [
+            { nilai: 'datang', label: 'Datang' },
+            { nilai: 'pulang', label: 'Pulang' },
+          ]"
           :key="pilihan.nilai"
-          class="cursor-pointer rounded-md border px-4 py-2.5 text-center text-sm font-medium transition"
-          :class="jenis === pilihan.nilai
-            ? 'border-teal-500 bg-teal-500/15 text-teal-300'
-            : 'border-white/15 text-slate-300 hover:bg-white/5'"
+          class="cursor-pointer rounded-lg border px-4 py-3 text-center text-sm font-medium transition-colors duration-150"
+          :class="
+            jenis === pilihan.nilai
+              ? 'border-aksen bg-aksen-lembut text-aksen-teks'
+              : 'border-garis text-sekunder hover:bg-permukaan-hover'
+          "
         >
           <input v-model="jenis" type="radio" :value="pilihan.nilai" class="sr-only" />
           {{ pilihan.label }}
@@ -237,7 +277,7 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
 
     <!-- Kolom scan / ketik -->
     <div class="mt-4">
-      <label for="id-card" class="text-xs font-medium uppercase tracking-wider text-slate-400">
+      <label for="id-card" class="text-xs font-medium uppercase tracking-wider text-redup">
         Scan / Ketik ID Card
       </label>
       <input
@@ -249,7 +289,7 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
         autocomplete="off"
         :disabled="!aktif"
         :placeholder="aktif ? 'Tap kartu atau ketik NIP lalu tekan Enter' : 'Menunggu event dibuka'"
-        class="mt-2 block w-full rounded-md border border-white/15 bg-slate-950/60 px-4 py-3 font-display text-lg tabular-nums text-white placeholder:text-sm placeholder:font-sans placeholder:text-slate-500 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:opacity-50"
+        class="mt-2 block w-full rounded-lg border border-garis bg-permukaan-2 px-4 py-3.5 font-display text-xl tabular-nums text-utama transition-colors duration-150 placeholder:text-sm placeholder:font-sans placeholder:text-redup focus:border-aksen focus:bg-permukaan focus:outline-none focus:ring-1 focus:ring-aksen disabled:opacity-50"
         @keydown="tandaiKetukan"
         @keyup.enter="kirim"
         @blur="rebutFokus"
@@ -258,27 +298,35 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
 
     <!-- Hasil -->
     <dl class="mt-5 grid grid-cols-2 gap-x-4 gap-y-3">
-      <div v-for="medan in [
-        { kunci: 'nip', label: 'NIP' },
-        { kunci: 'nama', label: 'Nama' },
-        { kunci: 'unit_kerja', label: 'Unit Kerja' },
-        { kunci: 'jam', label: 'Jam Absen' },
-      ]" :key="medan.kunci">
-        <dt class="text-xs uppercase tracking-wider text-slate-500">{{ medan.label }}</dt>
-        <dd class="mt-0.5 truncate font-display text-sm text-white">{{ hasil?.[medan.kunci] ?? '—' }}</dd>
+      <div
+        v-for="medan in [
+          { kunci: 'nip', label: 'NIP' },
+          { kunci: 'nama', label: 'Nama' },
+          { kunci: 'unit_kerja', label: 'Unit Kerja' },
+          { kunci: 'jam', label: 'Jam Absen' },
+        ]"
+        :key="medan.kunci"
+      >
+        <dt class="text-xs uppercase tracking-wider text-redup">{{ medan.label }}</dt>
+        <dd class="mt-0.5 truncate font-display text-sm font-medium text-utama">
+          {{ hasil?.[medan.kunci] ?? '—' }}
+        </dd>
       </div>
     </dl>
 
     <!-- Status -->
-    <p class="mt-5 flex items-center gap-2 border-t border-white/10 pt-4 text-sm" :class="status.warna">
+    <p
+      class="mt-5 flex items-center gap-2 border-t border-garis pt-4 text-sm font-medium"
+      :class="status.warna"
+    >
       <span
-        class="h-2 w-2 rounded-full"
+        class="h-2.5 w-2.5 rounded-full"
         :class="{
-          'bg-slate-500': tahap === 'menunggu_event',
-          'bg-slate-400': tahap === 'menunggu_tap',
-          'animate-pulse bg-teal-400': memindai,
-          'bg-emerald-500': berhasil,
-          'bg-amber-500': gagal,
+          'bg-redup/50': tahap === 'menunggu_event',
+          'bg-redup': tahap === 'menunggu_tap',
+          'animate-pulse bg-aksen': memindai,
+          'bg-berhasil': berhasil,
+          'bg-peringatan': gagal,
         }"
       ></span>
       {{ status.teks }}
@@ -288,8 +336,16 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
 
 <style>
 @keyframes pindai {
-  0% { top: 8%; }
-  50% { top: 92%; }
-  100% { top: 8%; }
+  0% {
+    top: 6%;
+  }
+
+  50% {
+    top: 94%;
+  }
+
+  100% {
+    top: 6%;
+  }
 }
 </style>

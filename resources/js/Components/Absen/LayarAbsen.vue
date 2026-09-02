@@ -320,38 +320,50 @@ function pulihkan() {
 </script>
 
 <template>
-  <div class="flex min-h-screen flex-col bg-slate-900 text-slate-100">
-    <header class="border-b border-white/10 bg-navy-700">
-      <div class="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-4 px-6 py-4">
-        <div class="flex items-center gap-5">
-          <div>
-            <p class="font-display text-lg font-semibold text-white">
+  <!--
+    Tema terang, bukan gelap. Titik absen berdiri di aula dan lorong yang
+    terang benderang saat apel atau senam pagi; layar gelap di sana memantul
+    dan sulit dibaca dari jarak berdiri.
+  -->
+  <div class="flex min-h-screen flex-col bg-kertas text-utama">
+    <header class="border-b border-sidebar-garis bg-sidebar text-sidebar-teks">
+      <div
+        class="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6"
+      >
+        <div class="flex flex-wrap items-center gap-3 sm:gap-5">
+          <div class="min-w-0">
+            <p class="truncate font-display text-lg font-semibold">
               {{ eventAktif?.nama ?? judul_kosong }}
             </p>
-            <p v-if="titik" class="text-sm text-navy-200">{{ titik }}</p>
+            <p v-if="titik" class="truncate text-sm text-sidebar-redup">{{ titik }}</p>
           </div>
 
           <span
-            class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium"
-            :class="entryDibuka ? 'bg-emerald-600/15 text-emerald-400' : 'bg-slate-500/15 text-slate-400'"
+            class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium transition-colors duration-300"
+            :class="
+              entryDibuka ? 'bg-emerald-500/20 text-emerald-200' : 'bg-white/10 text-sidebar-redup'
+            "
           >
-            <span class="h-2 w-2 rounded-full" :class="entryDibuka ? 'bg-emerald-500' : 'bg-slate-500'"></span>
+            <span
+              class="h-2 w-2 rounded-full"
+              :class="entryDibuka ? 'animate-pulse bg-emerald-400' : 'bg-sidebar-redup'"
+            ></span>
             {{ entryDibuka ? 'Entry Dibuka' : 'Entry Ditutup' }}
           </span>
         </div>
 
-        <div class="flex items-center gap-4">
+        <div class="flex flex-wrap items-center gap-3 sm:gap-4">
           <!-- NFR-05: absen yang tertahan jaringan tetap terlihat petugas. -->
           <span
             v-if="antrian.length > 0"
-            class="inline-flex items-center gap-2 rounded-full bg-amber-500/15 px-3 py-1 text-xs font-medium text-amber-300"
+            class="inline-flex items-center gap-2 rounded-full bg-amber-500/20 px-3 py-1 text-xs font-medium text-amber-200"
             :title="`${antrian.length} absen tersimpan di perangkat dan menunggu jaringan pulih`"
           >
-            <span class="h-2 w-2 animate-pulse rounded-full bg-amber-400"></span>
+            <span class="h-2 w-2 animate-pulse rounded-full bg-amber-300"></span>
             {{ antrian.length }} menunggu terkirim
           </span>
 
-          <p v-if="eventAktif" class="text-right text-xs text-navy-200">
+          <p v-if="eventAktif" class="text-right text-xs text-sidebar-redup">
             Mulai {{ eventAktif.jam_mulai }} · toleransi {{ eventAktif.toleransi_menit }} menit
           </p>
 
@@ -361,7 +373,14 @@ function pulihkan() {
       </div>
     </header>
 
-    <main class="mx-auto grid w-full max-w-[1600px] flex-1 gap-5 px-6 py-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+    <!--
+      Kolom kiri jauh lebih lebar daripada sebelumnya (640px, dari 420px) dan
+      pratinjaunya berasio 4:3 alih-alih 16:9 — luas kameranya menjadi sekitar
+      tiga kali lipat, dan ia menjadi elemen pertama yang tertangkap mata.
+    -->
+    <main
+      class="mx-auto grid w-full max-w-[1600px] flex-1 gap-5 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,640px)_minmax(0,1fr)]"
+    >
       <PanelEntry
         ref="panel"
         v-model:jenis="jenis"

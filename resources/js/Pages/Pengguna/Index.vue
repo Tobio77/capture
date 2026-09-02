@@ -9,6 +9,7 @@ import KolomCari from '@/Components/UI/KolomCari.vue'
 import Lencana from '@/Components/UI/Lencana.vue'
 import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
 import TombolAksi from '@/Components/UI/TombolAksi.vue'
+import Pilihan from '@/Components/UI/Pilihan.vue'
 
 /**
  * Kelola akun admin (FR-USR-01).
@@ -28,6 +29,19 @@ const sandiSementara = computed(() => page.props.flash.sandi_sementara ?? null)
 /* ------------------------------------------------------------------ filter */
 
 const filter = reactive({ ...props.filter })
+
+const opsiPeran = computed(() =>
+  props.peran.map((p) => ({ nilai: p.nilai, label: p.label })),
+)
+
+const opsiPeranFilter = computed(() => [
+  { nilai: '', label: 'Semua peran' },
+  ...opsiPeran.value,
+])
+
+const opsiUnitForm = computed(() =>
+  props.unit_kerja.map((u) => ({ nilai: u.id, label: u.nama, keterangan: u.kode })),
+)
 
 const kueri = computed(() =>
   Object.fromEntries(Object.entries(filter).filter(([, nilai]) => nilai !== '' && nilai !== null)),
@@ -144,7 +158,7 @@ const warnaPeran = (role) => (role === 'superadmin' ? 'navy' : role === 'admin_d
     <template #aksi>
       <button
         type="button"
-        class="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 active:scale-95"
+        class="inline-flex items-center gap-1.5 rounded-md bg-aksen px-4 py-2 text-sm font-semibold text-white bayang transition hover:bg-aksen-kuat active:scale-95"
         @click="bukaTambah"
       >
         <Ikon nama="tambah" ukuran="h-4 w-4" /> Tambah Akun Admin
@@ -159,26 +173,26 @@ const warnaPeran = (role) => (role === 'superadmin' ? 'navy' : role === 'admin_d
     >
       <div
         v-if="sandiSementara"
-        class="mb-5 rounded-lg border border-amber-300 bg-amber-50 px-5 py-4"
+        class="mb-5 rounded-lg border border-peringatan bg-peringatan-lembut px-5 py-4"
       >
-        <p class="flex items-center gap-1.5 text-sm font-medium text-amber-900">
+        <p class="flex items-center gap-1.5 text-sm font-medium text-peringatan-teks">
           <Ikon nama="kunci" ukuran="h-4 w-4" /> Kata sandi sementara
         </p>
-        <p class="mt-1 text-xs text-amber-800">
+        <p class="mt-1 text-xs text-peringatan-teks">
           Catat sekarang — kata sandi ini tidak dapat ditampilkan lagi setelah halaman berpindah.
         </p>
         <div class="mt-3 flex flex-wrap items-center gap-3">
-          <code class="rounded bg-white px-3 py-1.5 font-display text-sm text-navy-700">
+          <code class="rounded bg-permukaan px-3 py-1.5 font-display text-sm text-utama">
             {{ sandiSementara.email }}
           </code>
           <code
-            class="rounded bg-white px-3 py-1.5 font-display text-sm font-semibold text-navy-700"
+            class="rounded bg-permukaan px-3 py-1.5 font-display text-sm font-semibold text-utama"
           >
             {{ sandiSementara.sandi }}
           </code>
           <button
             type="button"
-            class="inline-flex items-center gap-1.5 rounded-md border border-amber-400 px-3 py-1.5 text-xs font-medium text-amber-900 transition hover:bg-amber-100 active:scale-95"
+            class="inline-flex items-center gap-1.5 rounded-md border border-peringatan px-3 py-1.5 text-xs font-medium text-peringatan-teks transition hover:bg-peringatan-lembut active:scale-95"
             @click="salin(sandiSementara.sandi)"
           >
             <Ikon :nama="tersalin ? 'cek' : 'detail'" ukuran="h-3.5 w-3.5" />
@@ -188,10 +202,10 @@ const warnaPeran = (role) => (role === 'superadmin' ? 'navy' : role === 'admin_d
       </div>
     </Transition>
 
-    <div class="mb-5 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <div class="mb-5 rounded-lg border border-garis bg-permukaan p-4 bayang">
       <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <span class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-slate-500">
+          <span class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup">
             Cari Akun
           </span>
           <KolomCari v-model="filter.cari" placeholder="Nama atau surel…" @cari="terapkan" />
@@ -199,45 +213,40 @@ const warnaPeran = (role) => (role === 'superadmin' ? 'navy' : role === 'admin_d
         <div>
           <label
             for="peran"
-            class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-slate-500"
+            class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup"
           >
             Peran
           </label>
-          <select
+          <Pilihan
             id="peran"
             v-model="filter.role"
-            class="block w-full rounded-md border-slate-300 text-sm shadow-sm focus:border-teal-500 focus:ring-teal-500"
-            @change="terapkan"
-          >
-            <option value="">Semua peran</option>
-            <option v-for="item in peran" :key="item.nilai" :value="item.nilai">
-              {{ item.label }}
-            </option>
-          </select>
+            :opsi="opsiPeranFilter"
+            @update:model-value="terapkan"
+          />
         </div>
         <div>
           <label
             for="status"
-            class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-slate-500"
+            class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup"
           >
             Status
           </label>
-          <select
+          <Pilihan
             id="status"
             v-model="filter.status"
-            class="block w-full rounded-md border-slate-300 text-sm shadow-sm focus:border-teal-500 focus:ring-teal-500"
-            @change="terapkan"
-          >
-            <option value="">Semua status</option>
-            <option value="aktif">Aktif</option>
-            <option value="nonaktif">Nonaktif</option>
-          </select>
+            :opsi="[
+              { nilai: '', label: 'Semua status' },
+              { nilai: 'aktif', label: 'Aktif' },
+              { nilai: 'nonaktif', label: 'Nonaktif' },
+            ]"
+            @update:model-value="terapkan"
+          />
         </div>
         <div class="flex items-end">
           <button
             v-if="adaPenyaring"
             type="button"
-            class="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 active:scale-95"
+            class="inline-flex items-center gap-1.5 rounded-md border border-garis px-3 py-2 text-sm font-medium text-sekunder transition hover:bg-permukaan-hover active:scale-95"
             @click="bersihkan"
           >
             <Ikon nama="tutup" ukuran="h-4 w-4" /> Bersihkan filter
@@ -246,11 +255,11 @@ const warnaPeran = (role) => (role === 'superadmin' ? 'navy' : role === 'admin_d
       </div>
     </div>
 
-    <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-      <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-slate-200 text-sm">
+    <div class="overflow-hidden rounded-lg border border-garis bg-permukaan bayang">
+      <div class="tabel-gulir tabel-aksi gulir-halus">
+        <table class="min-w-full divide-y divide-garis text-sm">
           <thead
-            class="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wider text-slate-500"
+            class="border-b border-garis bg-permukaan-2 text-xs uppercase tracking-wider text-redup"
           >
             <tr>
               <th scope="col" class="px-4 py-3 text-left font-medium">Nama</th>
@@ -261,26 +270,29 @@ const warnaPeran = (role) => (role === 'superadmin' ? 'navy' : role === 'admin_d
               <th scope="col" class="px-4 py-3 text-right font-medium">Aksi</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-100">
+          <tbody class="divide-y divide-garis">
             <tr
               v-for="item in daftar.data"
               :key="item.id"
-              class="transition-colors hover:bg-slate-50/70"
-              :class="{ 'bg-slate-50/60': !item.aktif }"
+              class="transition-colors hover:bg-permukaan-hover"
+              :class="{ 'baris-redup bg-permukaan-2/60': !item.aktif }"
             >
-              <td class="px-4 py-3 font-medium text-navy-700">
+              <td class="px-4 py-3 font-medium text-utama">
                 {{ item.nama }}
-                <span v-if="item.id === sayaId" class="ml-1.5 text-xs font-normal text-slate-500">
+                <span v-if="item.id === sayaId" class="ml-1.5 text-xs font-normal text-redup">
                   (Anda)
                 </span>
               </td>
-              <td class="px-4 py-3 text-slate-600">{{ item.email }}</td>
+              <td class="px-4 py-3 text-sekunder">{{ item.email }}</td>
               <td class="px-4 py-3">
                 <Lencana :warna="warnaPeran(item.role)" :titik="false">
                   {{ item.role_label }}
                 </Lencana>
               </td>
-              <td class="px-4 py-3 text-slate-600">
+              <td
+                class="max-w-[14rem] truncate px-4 py-3 text-sekunder"
+                :title="item.unit_kerja?.nama ?? 'Seluruh unit kerja'"
+              >
                 {{ item.unit_kerja?.nama ?? 'Seluruh unit kerja' }}
               </td>
               <td class="px-4 py-3">
@@ -320,7 +332,7 @@ const warnaPeran = (role) => (role === 'superadmin' ? 'navy' : role === 'admin_d
         <button
           v-if="adaPenyaring"
           type="button"
-          class="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+          class="inline-flex items-center gap-1.5 rounded-md border border-garis px-3 py-1.5 text-xs font-medium text-sekunder transition hover:bg-permukaan-hover"
           @click="bersihkan"
         >
           <Ikon nama="tutup" ukuran="h-3.5 w-3.5" /> Bersihkan filter
@@ -333,66 +345,55 @@ const warnaPeran = (role) => (role === 'superadmin' ? 'navy' : role === 'admin_d
     <Modal :terbuka="modalTerbuka" :judul="judulForm" @tutup="tutup">
       <div class="space-y-4">
         <div>
-          <label for="nama" class="block text-sm font-medium text-slate-700">Nama</label>
+          <label for="nama" class="block text-sm font-medium text-utama">Nama</label>
           <input
             id="nama"
             v-model="form.nama"
             type="text"
-            class="mt-1 block w-full rounded-md border-slate-300 shadow-sm transition focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+            class="mt-1 block w-full rounded-md border-garis bayang transition focus:border-aksen focus:ring-aksen sm:text-sm"
           />
-          <p v-if="form.errors.nama" class="mt-1.5 text-xs text-amber-700">{{ form.errors.nama }}</p>
+          <p v-if="form.errors.nama" class="mt-1.5 text-xs text-peringatan-teks">{{ form.errors.nama }}</p>
         </div>
 
         <div>
-          <label for="email" class="block text-sm font-medium text-slate-700">Alamat Surel</label>
+          <label for="email" class="block text-sm font-medium text-utama">Alamat Surel</label>
           <input
             id="email"
             v-model="form.email"
             type="email"
-            class="mt-1 block w-full rounded-md border-slate-300 shadow-sm transition focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+            class="mt-1 block w-full rounded-md border-garis bayang transition focus:border-aksen focus:ring-aksen sm:text-sm"
           />
-          <p v-if="form.errors.email" class="mt-1.5 text-xs text-amber-700">
+          <p v-if="form.errors.email" class="mt-1.5 text-xs text-peringatan-teks">
             {{ form.errors.email }}
           </p>
         </div>
 
         <div>
-          <label for="role" class="block text-sm font-medium text-slate-700">Peran</label>
-          <select
-            id="role"
-            v-model="form.role"
-            class="mt-1 block w-full rounded-md border-slate-300 shadow-sm transition focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
-          >
-            <option v-for="item in peran" :key="item.nilai" :value="item.nilai">
-              {{ item.label }}
-            </option>
-          </select>
-          <p v-if="form.errors.role" class="mt-1.5 text-xs text-amber-700">{{ form.errors.role }}</p>
+          <label for="role" class="block text-sm font-medium text-utama">Peran</label>
+          <Pilihan id="role" v-model="form.role" :opsi="opsiPeran" class="mt-1" />
+          <p v-if="form.errors.role" class="mt-1.5 text-xs text-peringatan-teks">{{ form.errors.role }}</p>
         </div>
 
         <div v-if="perluUnit">
-          <label for="unit" class="block text-sm font-medium text-slate-700">Unit Kerja</label>
-          <select
+          <label for="unit" class="block text-sm font-medium text-utama">Unit Kerja</label>
+          <Pilihan
             id="unit"
             v-model="form.unit_kerja_id"
-            class="mt-1 block w-full rounded-md border-slate-300 shadow-sm transition focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
-          >
-            <option value="" disabled>Pilih unit kerja…</option>
-            <option v-for="unit in unit_kerja" :key="unit.id" :value="unit.id">
-              {{ unit.nama }}
-            </option>
-          </select>
-          <p class="mt-1.5 text-xs text-slate-500">
+            :opsi="opsiUnitForm"
+            placeholder="Pilih unit kerja…"
+            class="mt-1"
+          />
+          <p class="mt-1.5 text-xs text-redup">
             Cakupannya meliputi unit ini beserta seluruh seksi/subbag di bawahnya.
           </p>
-          <p v-if="form.errors.unit_kerja_id" class="mt-1.5 text-xs text-amber-700">
+          <p v-if="form.errors.unit_kerja_id" class="mt-1.5 text-xs text-peringatan-teks">
             {{ form.errors.unit_kerja_id }}
           </p>
         </div>
 
         <p
           v-else
-          class="flex items-start gap-2 rounded-md bg-navy-50 px-3 py-2 text-xs text-navy-700"
+          class="flex items-start gap-2 rounded-md bg-info-lembut px-3 py-2 text-xs text-utama"
         >
           <Ikon nama="info" ukuran="h-4 w-4 shrink-0" />
           Peran ini mencakup seluruh unit kerja, sehingga tidak terikat pada satu unit.
@@ -400,7 +401,7 @@ const warnaPeran = (role) => (role === 'superadmin' ? 'navy' : role === 'admin_d
 
         <p
           v-if="!sedangDiubah"
-          class="flex items-start gap-2 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600"
+          class="flex items-start gap-2 rounded-md bg-permukaan-2 px-3 py-2 text-xs text-sekunder"
         >
           <Ikon nama="kunci" ukuran="h-4 w-4 shrink-0" />
           Kata sandi sementara diterbitkan otomatis dan ditampilkan sekali setelah akun tersimpan.
@@ -410,14 +411,14 @@ const warnaPeran = (role) => (role === 'superadmin' ? 'navy' : role === 'admin_d
       <template #aksi>
         <button
           type="button"
-          class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 active:scale-95"
+          class="rounded-lg px-4 py-2 text-sm font-medium text-sekunder transition hover:bg-permukaan-hover active:scale-95"
           @click="tutup"
         >
           Batal
         </button>
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-teal-700 active:scale-95 disabled:opacity-50"
+          class="inline-flex items-center gap-1.5 rounded-lg bg-aksen px-4 py-2 text-sm font-medium text-white transition hover:bg-aksen-kuat active:scale-95 disabled:opacity-50"
           :disabled="form.processing"
           @click="simpan"
         >

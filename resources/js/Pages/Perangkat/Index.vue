@@ -9,6 +9,7 @@ import KolomCari from '@/Components/UI/KolomCari.vue'
 import Lencana from '@/Components/UI/Lencana.vue'
 import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
 import TombolAksi from '@/Components/UI/TombolAksi.vue'
+import Pilihan from '@/Components/UI/Pilihan.vue'
 
 /**
  * Kelola perangkat absen (FR-USR-02, FR-USR-03).
@@ -26,6 +27,15 @@ const kodeAktivasi = computed(() => page.props.flash.kode_aktivasi ?? null)
 /* ------------------------------------------------------------------ filter */
 
 const filter = reactive({ ...props.filter })
+
+const opsiUnit = computed(() => [
+  { nilai: '', label: 'Semua unit dalam cakupan' },
+  ...props.unit_kerja.map((u) => ({ nilai: u.id, label: u.nama, keterangan: u.kode })),
+])
+
+const opsiUnitForm = computed(() =>
+  props.unit_kerja.map((u) => ({ nilai: u.id, label: u.nama, keterangan: u.kode })),
+)
 
 const kueri = computed(() =>
   Object.fromEntries(Object.entries(filter).filter(([, nilai]) => nilai !== '' && nilai !== null)),
@@ -167,7 +177,7 @@ const pemasangan = (item) =>
     <template #aksi>
       <button
         type="button"
-        class="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 active:scale-95"
+        class="inline-flex items-center gap-1.5 rounded-md bg-aksen px-4 py-2 text-sm font-semibold text-white bayang transition hover:bg-aksen-kuat active:scale-95"
         @click="bukaTambah"
       >
         <Ikon nama="tambah" ukuran="h-4 w-4" /> Daftarkan Perangkat
@@ -180,23 +190,23 @@ const pemasangan = (item) =>
       enter-from-class="-translate-y-2 opacity-0"
       enter-to-class="translate-y-0 opacity-100"
     >
-      <div v-if="kodeAktivasi" class="mb-5 rounded-lg border border-amber-300 bg-amber-50 px-5 py-4">
-        <p class="flex items-center gap-1.5 text-sm font-medium text-amber-900">
+      <div v-if="kodeAktivasi" class="mb-5 rounded-lg border border-peringatan bg-peringatan-lembut px-5 py-4">
+        <p class="flex items-center gap-1.5 text-sm font-medium text-peringatan-teks">
           <Ikon nama="perangkat" ukuran="h-4 w-4" />
           Kode aktivasi — {{ kodeAktivasi.nama_titik }}
         </p>
-        <p class="mt-1 text-xs text-amber-800">
+        <p class="mt-1 text-xs text-peringatan-teks">
           Berlaku 24 jam. Masukkan kode ini pada layar aktivasi perangkat di lokasi.
         </p>
         <div class="mt-3 flex flex-wrap items-center gap-3">
           <code
-            class="rounded bg-white px-4 py-2 font-display text-lg font-semibold tracking-widest text-navy-700"
+            class="rounded bg-permukaan px-4 py-2 font-display text-lg font-semibold tracking-widest text-utama"
           >
             {{ kodeAktivasi.kode }}
           </code>
           <button
             type="button"
-            class="inline-flex items-center gap-1.5 rounded-md border border-amber-400 px-3 py-1.5 text-xs font-medium text-amber-900 transition hover:bg-amber-100 active:scale-95"
+            class="inline-flex items-center gap-1.5 rounded-md border border-peringatan px-3 py-1.5 text-xs font-medium text-peringatan-teks transition hover:bg-peringatan-lembut active:scale-95"
             @click="salin(kodeAktivasi.kode)"
           >
             <Ikon :nama="tersalin ? 'cek' : 'detail'" ukuran="h-3.5 w-3.5" />
@@ -206,10 +216,10 @@ const pemasangan = (item) =>
       </div>
     </Transition>
 
-    <div class="mb-5 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <div class="mb-5 rounded-lg border border-garis bg-permukaan p-4 bayang">
       <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <span class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-slate-500">
+          <span class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup">
             Cari Perangkat
           </span>
           <KolomCari v-model="filter.cari" placeholder="Nama titik absen…" @cari="terapkan" />
@@ -217,46 +227,41 @@ const pemasangan = (item) =>
         <div>
           <label
             for="unit"
-            class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-slate-500"
+            class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup"
           >
             Unit Kerja
           </label>
-          <select
+          <Pilihan
             id="unit"
             v-model="filter.unit_kerja_id"
-            class="block w-full rounded-md border-slate-300 text-sm shadow-sm focus:border-teal-500 focus:ring-teal-500"
-            @change="terapkan"
-          >
-            <option value="">Semua unit dalam cakupan</option>
-            <option v-for="unit in unit_kerja" :key="unit.id" :value="unit.id">
-              {{ unit.nama }}
-            </option>
-          </select>
+            :opsi="opsiUnit"
+            @update:model-value="terapkan"
+          />
         </div>
         <div>
           <label
             for="status"
-            class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-slate-500"
+            class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup"
           >
             Status
           </label>
-          <select
+          <Pilihan
             id="status"
             v-model="filter.status"
-            class="block w-full rounded-md border-slate-300 text-sm shadow-sm focus:border-teal-500 focus:ring-teal-500"
-            @change="terapkan"
-          >
-            <option value="">Semua status</option>
-            <option value="terpasang">Terpasang</option>
-            <option value="belum">Belum diaktifkan</option>
-            <option value="nonaktif">Nonaktif</option>
-          </select>
+            :opsi="[
+              { nilai: '', label: 'Semua status' },
+              { nilai: 'terpasang', label: 'Terpasang' },
+              { nilai: 'belum', label: 'Belum diaktifkan' },
+              { nilai: 'nonaktif', label: 'Nonaktif' },
+            ]"
+            @update:model-value="terapkan"
+          />
         </div>
         <div class="flex items-end">
           <button
             v-if="adaPenyaring"
             type="button"
-            class="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 active:scale-95"
+            class="inline-flex items-center gap-1.5 rounded-md border border-garis px-3 py-2 text-sm font-medium text-sekunder transition hover:bg-permukaan-hover active:scale-95"
             @click="bersihkan"
           >
             <Ikon nama="tutup" ukuran="h-4 w-4" /> Bersihkan filter
@@ -265,52 +270,63 @@ const pemasangan = (item) =>
       </div>
     </div>
 
-    <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-      <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-slate-200 text-sm">
+    <div class="overflow-hidden rounded-lg border border-garis bg-permukaan bayang">
+      <div class="tabel-gulir tabel-aksi gulir-halus">
+        <table class="min-w-full divide-y divide-garis text-sm">
           <thead
-            class="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wider text-slate-500"
+            class="border-b border-garis bg-permukaan-2 text-xs uppercase tracking-wider text-redup"
           >
             <tr>
               <th scope="col" class="px-4 py-3 text-left font-medium">Titik Absen</th>
               <th scope="col" class="px-4 py-3 text-left font-medium">Unit Kerja</th>
               <th scope="col" class="px-4 py-3 text-left font-medium">Pemasangan</th>
-              <th scope="col" class="px-4 py-3 text-left font-medium">Alamat IP</th>
-              <th scope="col" class="px-4 py-3 text-left font-medium">Terakhir Aktif</th>
+              <th scope="col" class="hidden px-4 py-3 text-left font-medium 2xl:table-cell">
+                Alamat IP
+              </th>
+              <th scope="col" class="hidden whitespace-nowrap px-4 py-3 text-left font-medium lg:table-cell">
+                Terakhir Aktif
+              </th>
               <th scope="col" class="px-4 py-3 text-left font-medium">Status</th>
               <th scope="col" class="px-4 py-3 text-right font-medium">Aksi</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-100">
+          <tbody class="divide-y divide-garis">
             <tr
               v-for="item in daftar.data"
               :key="item.id"
-              class="transition-colors hover:bg-slate-50/70"
-              :class="{ 'bg-slate-50/60': !item.aktif }"
+              class="transition-colors hover:bg-permukaan-hover"
+              :class="{ 'baris-redup bg-permukaan-2/60': !item.aktif }"
             >
               <td class="px-4 py-3">
                 <div class="flex items-center gap-2">
                   <span
                     class="rounded-md p-1.5"
                     :class="
-                      item.terpasang ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'
+                      item.terpasang ? 'bg-berhasil-lembut text-berhasil' : 'bg-permukaan-2 text-redup'
                     "
                   >
                     <Ikon nama="perangkat" ukuran="h-4 w-4" />
                   </span>
-                  <span class="font-medium text-navy-700">{{ item.nama_titik }}</span>
+                  <span class="whitespace-nowrap font-medium text-utama">{{ item.nama_titik }}</span>
                 </div>
               </td>
-              <td class="px-4 py-3 text-slate-600">{{ item.unit_kerja?.nama ?? '—' }}</td>
+              <td
+                class="max-w-[11rem] truncate px-4 py-3 text-sekunder"
+                :title="item.unit_kerja?.nama"
+              >
+                {{ item.unit_kerja?.nama ?? '—' }}
+              </td>
               <td class="px-4 py-3">
                 <Lencana :warna="pemasangan(item).warna" :titik="false">
                   {{ pemasangan(item).label }}
                 </Lencana>
               </td>
-              <td class="px-4 py-3 font-display tabular-nums text-slate-600">
+              <td class="hidden px-4 py-3 font-display tabular-nums text-sekunder 2xl:table-cell">
                 {{ item.ip_terakhir ?? '—' }}
               </td>
-              <td class="px-4 py-3 text-xs text-slate-500">{{ waktu(item.login_terakhir_at) }}</td>
+              <td class="hidden whitespace-nowrap px-4 py-3 text-xs text-redup lg:table-cell">
+                {{ waktu(item.login_terakhir_at) }}
+              </td>
               <td class="px-4 py-3">
                 <Lencana :warna="item.aktif ? 'emerald' : 'slate'">
                   {{ item.aktif ? 'Aktif' : 'Nonaktif' }}
@@ -361,7 +377,7 @@ const pemasangan = (item) =>
         <button
           v-if="adaPenyaring"
           type="button"
-          class="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+          class="inline-flex items-center gap-1.5 rounded-md border border-garis px-3 py-1.5 text-xs font-medium text-sekunder transition hover:bg-permukaan-hover"
           @click="bersihkan"
         >
           <Ikon nama="tutup" ukuran="h-3.5 w-3.5" /> Bersihkan filter
@@ -375,7 +391,7 @@ const pemasangan = (item) =>
     <Modal :terbuka="modalTerbuka" :judul="judulForm" @tutup="tutup">
       <div class="space-y-4">
         <div>
-          <label for="nama_titik" class="block text-sm font-medium text-slate-700">
+          <label for="nama_titik" class="block text-sm font-medium text-utama">
             Nama Titik Absen
           </label>
           <input
@@ -383,33 +399,30 @@ const pemasangan = (item) =>
             v-model="form.nama_titik"
             type="text"
             placeholder="mis. Aula Utama BLK Singosari"
-            class="mt-1 block w-full rounded-md border-slate-300 shadow-sm transition focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+            class="mt-1 block w-full rounded-md border-garis bayang transition focus:border-aksen focus:ring-aksen sm:text-sm"
           />
-          <p v-if="form.errors.nama_titik" class="mt-1.5 text-xs text-amber-700">
+          <p v-if="form.errors.nama_titik" class="mt-1.5 text-xs text-peringatan-teks">
             {{ form.errors.nama_titik }}
           </p>
         </div>
 
         <div>
-          <label for="unit_form" class="block text-sm font-medium text-slate-700">Unit Kerja</label>
-          <select
+          <label for="unit_form" class="block text-sm font-medium text-utama">Unit Kerja</label>
+          <Pilihan
             id="unit_form"
             v-model="form.unit_kerja_id"
-            class="mt-1 block w-full rounded-md border-slate-300 shadow-sm transition focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
-          >
-            <option value="" disabled>Pilih unit kerja…</option>
-            <option v-for="unit in unit_kerja" :key="unit.id" :value="unit.id">
-              {{ unit.nama }}
-            </option>
-          </select>
-          <p v-if="form.errors.unit_kerja_id" class="mt-1.5 text-xs text-amber-700">
+            :opsi="opsiUnitForm"
+            placeholder="Pilih unit kerja…"
+            class="mt-1"
+          />
+          <p v-if="form.errors.unit_kerja_id" class="mt-1.5 text-xs text-peringatan-teks">
             {{ form.errors.unit_kerja_id }}
           </p>
         </div>
 
         <p
           v-if="!sedangDiubah"
-          class="flex items-start gap-2 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600"
+          class="flex items-start gap-2 rounded-md bg-permukaan-2 px-3 py-2 text-xs text-sekunder"
         >
           <Ikon nama="info" ukuran="h-4 w-4 shrink-0" />
           Kode aktivasi diterbitkan otomatis setelah perangkat tersimpan, dan berlaku 24 jam.
@@ -419,14 +432,14 @@ const pemasangan = (item) =>
       <template #aksi>
         <button
           type="button"
-          class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 active:scale-95"
+          class="rounded-lg px-4 py-2 text-sm font-medium text-sekunder transition hover:bg-permukaan-hover active:scale-95"
           @click="tutup"
         >
           Batal
         </button>
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-teal-700 active:scale-95 disabled:opacity-50"
+          class="inline-flex items-center gap-1.5 rounded-lg bg-aksen px-4 py-2 text-sm font-medium text-white transition hover:bg-aksen-kuat active:scale-95 disabled:opacity-50"
           :disabled="form.processing"
           @click="simpan"
         >
@@ -442,18 +455,18 @@ const pemasangan = (item) =>
       :judul="`Riwayat — ${perangkatRiwayat?.nama_titik ?? ''}`"
       @tutup="riwayatTerbuka = false"
     >
-      <p v-if="riwayat === null" class="flex items-center gap-2 text-sm text-slate-500">
+      <p v-if="riwayat === null" class="flex items-center gap-2 text-sm text-redup">
         <Ikon nama="segarkan" ukuran="h-4 w-4 animate-spin" /> Memuat riwayat…
       </p>
 
-      <ol v-else-if="riwayat.length > 0" class="relative space-y-4 border-l border-slate-200 pl-5">
+      <ol v-else-if="riwayat.length > 0" class="relative space-y-4 border-l border-garis pl-5">
         <li v-for="baris in riwayat" :key="baris.id" class="relative text-sm">
           <span
-            class="absolute -left-[1.55rem] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-teal-500"
+            class="absolute -left-[1.55rem] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-aksen-lembut0"
           ></span>
-          <p class="font-medium text-navy-700">{{ baris.aksi }}</p>
-          <p class="mt-0.5 text-xs text-slate-600">{{ baris.deskripsi }}</p>
-          <p class="mt-1 text-xs text-slate-500">
+          <p class="font-medium text-utama">{{ baris.aksi }}</p>
+          <p class="mt-0.5 text-xs text-sekunder">{{ baris.deskripsi }}</p>
+          <p class="mt-1 text-xs text-redup">
             {{ waktu(baris.waktu) }}
             <span v-if="baris.ip"> · IP {{ baris.ip }}</span>
             <span v-if="baris.oleh"> · oleh {{ baris.oleh }}</span>
@@ -471,7 +484,7 @@ const pemasangan = (item) =>
       <template #aksi>
         <button
           type="button"
-          class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 active:scale-95"
+          class="rounded-lg px-4 py-2 text-sm font-medium text-sekunder transition hover:bg-permukaan-hover active:scale-95"
           @click="riwayatTerbuka = false"
         >
           Tutup

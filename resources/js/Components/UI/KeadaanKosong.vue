@@ -18,11 +18,11 @@ defineProps({
 
 <template>
   <div class="flex flex-col items-center px-6 py-14 text-center">
-    <span class="rounded-full bg-slate-100 p-3 text-slate-400">
+    <span class="rounded-full bg-permukaan-2 p-3 text-redup">
       <Ikon :nama="ikon" ukuran="h-6 w-6" />
     </span>
-    <p class="mt-3 text-sm font-medium text-slate-700">{{ judul }}</p>
-    <p v-if="keterangan" class="mt-1 max-w-sm text-xs text-slate-500">{{ keterangan }}</p>
+    <p class="mt-3 text-sm font-medium text-utama">{{ judul }}</p>
+    <p v-if="keterangan" class="mt-1 max-w-sm text-xs text-redup">{{ keterangan }}</p>
     <div class="mt-4"><slot /></div>
   </div>
 </template>

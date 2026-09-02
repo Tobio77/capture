@@ -9,6 +9,8 @@ import KolomCari from '@/Components/UI/KolomCari.vue'
 import Lencana from '@/Components/UI/Lencana.vue'
 import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
 import TombolAksi from '@/Components/UI/TombolAksi.vue'
+import Pilihan from '@/Components/UI/Pilihan.vue'
+import RentangTanggal from '@/Components/UI/RentangTanggal.vue'
 
 /**
  * Daftar Event (FR-EVT-01 s.d. FR-EVT-05).
@@ -47,6 +49,16 @@ const judulForm = computed(() => (sedangDiubah.value ? 'Ubah Event' : 'Buat Even
 const unitTunggal = computed(() => props.unit_kerja.length === 1)
 
 const adaFilter = computed(() => Object.values(filter).some((n) => n !== '' && n !== null))
+
+const opsiStatus = computed(() => [
+  { nilai: '', label: 'Semua status' },
+  ...props.status_pilihan.map((s) => ({ nilai: s.nilai, label: s.label })),
+])
+
+const opsiUnit = computed(() => [
+  { nilai: '', label: 'Semua unit kerja' },
+  ...props.unit_kerja.map((u) => ({ nilai: u.id, label: u.nama, keterangan: u.kode })),
+])
 
 const kueri = computed(() =>
   Object.fromEntries(Object.entries(filter).filter(([, n]) => n !== '' && n !== null)),
@@ -172,21 +184,21 @@ function waktuSingkat(iso) {
       <div class="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 active:scale-95"
+          class="inline-flex items-center gap-1.5 rounded-md border border-garis bg-permukaan px-3 py-2 text-sm font-medium text-utama transition hover:bg-permukaan-hover active:scale-95"
           @click="unduh('csv')"
         >
           <Ikon nama="unduh" ukuran="h-4 w-4" /> CSV
         </button>
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 active:scale-95"
+          class="inline-flex items-center gap-1.5 rounded-md border border-garis bg-permukaan px-3 py-2 text-sm font-medium text-utama transition hover:bg-permukaan-hover active:scale-95"
           @click="unduh('pdf')"
         >
           <Ikon nama="cetak" ukuran="h-4 w-4" /> PDF
         </button>
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 active:scale-95"
+          class="inline-flex items-center gap-1.5 rounded-md bg-aksen px-4 py-2 text-sm font-semibold text-white bayang transition hover:bg-aksen-kuat active:scale-95"
           @click="bukaBuat"
         >
           <Ikon nama="tambah" ukuran="h-4 w-4" /> Buat Event
@@ -194,62 +206,36 @@ function waktuSingkat(iso) {
       </div>
     </template>
 
-    <div class="mb-5 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <div class="mb-5 rounded-lg border border-garis bg-permukaan p-4 bayang">
       <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <div class="lg:col-span-2">
           <KolomCari v-model="filter.cari" placeholder="Cari nama event atau catatan…" @cari="terapkan" />
         </div>
-        <select
-          v-model="filter.status"
-          aria-label="Saring status"
-          class="rounded-md border-slate-300 text-sm shadow-sm focus:border-teal-500 focus:ring-teal-500"
-          @change="terapkan"
-        >
-          <option value="">Semua status</option>
-          <option v-for="s in status_pilihan" :key="s.nilai" :value="s.nilai">{{ s.label }}</option>
-        </select>
-        <select
-          v-model="filter.unit_kerja_id"
-          aria-label="Saring unit kerja"
-          class="rounded-md border-slate-300 text-sm shadow-sm focus:border-teal-500 focus:ring-teal-500"
-          @change="terapkan"
-        >
-          <option value="">Semua unit kerja</option>
-          <option v-for="unit in unit_kerja" :key="unit.id" :value="unit.id">{{ unit.nama }}</option>
-        </select>
-        <div class="flex items-center gap-2">
-          <input
-            v-model="filter.dari"
-            type="date"
-            aria-label="Tanggal awal"
-            class="w-full rounded-md border-slate-300 text-sm shadow-sm focus:border-teal-500 focus:ring-teal-500"
-            @change="terapkan"
-          />
-          <span class="text-xs text-slate-400">—</span>
-          <input
-            v-model="filter.sampai"
-            type="date"
-            aria-label="Tanggal akhir"
-            class="w-full rounded-md border-slate-300 text-sm shadow-sm focus:border-teal-500 focus:ring-teal-500"
-            @change="terapkan"
-          />
-        </div>
+        <Pilihan v-model="filter.status" :opsi="opsiStatus" @update:model-value="terapkan" />
+        <Pilihan v-model="filter.unit_kerja_id" :opsi="opsiUnit" @update:model-value="terapkan" />
+
+        <RentangTanggal
+          v-model:dari="filter.dari"
+          v-model:sampai="filter.sampai"
+          jajar="kanan"
+          @ubah="terapkan"
+        />
       </div>
 
       <button
         v-if="adaFilter"
         type="button"
-        class="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 transition hover:text-slate-700"
+        class="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-redup transition hover:text-utama"
         @click="bersihkanFilter"
       >
         <Ikon nama="tutup" ukuran="h-3.5 w-3.5" /> Bersihkan penyaringan
       </button>
     </div>
 
-    <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-      <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-slate-200 text-sm">
-          <thead class="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+    <div class="overflow-hidden rounded-lg border border-garis bg-permukaan bayang">
+      <div class="tabel-gulir tabel-aksi gulir-halus">
+        <table class="min-w-full divide-y divide-garis text-sm">
+          <thead class="border-b border-garis bg-permukaan-2 text-xs uppercase tracking-wider text-redup">
             <tr>
               <th scope="col" class="px-4 py-3 text-left font-medium">Nama Event</th>
               <th scope="col" class="px-4 py-3 text-left font-medium">Cakupan</th>
@@ -261,11 +247,11 @@ function waktuSingkat(iso) {
               <th scope="col" class="px-4 py-3 text-right font-medium">Aksi</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-100">
-            <tr v-for="event in daftar.data" :key="event.id" class="transition-colors hover:bg-slate-50/70">
+          <tbody class="divide-y divide-garis">
+            <tr v-for="event in daftar.data" :key="event.id" class="transition-colors hover:bg-permukaan-hover">
               <td class="px-4 py-3">
-                <span class="font-medium text-navy-700">{{ event.nama }}</span>
-                <span v-if="event.catatan" class="mt-0.5 block max-w-xs truncate text-xs text-slate-500">
+                <span class="font-medium text-utama">{{ event.nama }}</span>
+                <span v-if="event.catatan" class="mt-0.5 block max-w-xs truncate text-xs text-redup">
                   {{ event.catatan }}
                 </span>
               </td>
@@ -273,27 +259,27 @@ function waktuSingkat(iso) {
                 <Lencana v-if="event.cakupan === cakupan_semua_unit" warna="navy" :titik="false">
                   Semua Unit
                 </Lencana>
-                <span v-else class="text-xs text-slate-600">
+                <span v-else class="text-xs text-sekunder">
                   {{ event.unit_kerja.map((u) => u.kode).join(', ') || '—' }}
                 </span>
               </td>
-              <td class="px-4 py-3 text-slate-600">
+              <td class="whitespace-nowrap px-4 py-3 text-sekunder">
                 <span class="flex items-center gap-1.5">
-                  <Ikon nama="kalender" ukuran="h-3.5 w-3.5" class="text-slate-400" />
+                  <Ikon nama="kalender" ukuran="h-3.5 w-3.5" class="text-redup" />
                   {{ tanggalPanjang(event.tanggal) }}
                 </span>
-                <span class="mt-0.5 flex items-center gap-1.5 font-display text-xs tabular-nums text-slate-500">
-                  <Ikon nama="jam" ukuran="h-3.5 w-3.5" class="text-slate-400" />
+                <span class="mt-0.5 flex items-center gap-1.5 font-display text-xs tabular-nums text-redup">
+                  <Ikon nama="jam" ukuran="h-3.5 w-3.5" class="text-redup" />
                   {{ event.jam_mulai }}
                 </span>
               </td>
-              <td class="px-4 py-3 text-right font-display tabular-nums text-slate-600">
+              <td class="px-4 py-3 text-right font-display tabular-nums text-sekunder">
                 {{ event.toleransi_menit }} mnt
               </td>
-              <td class="px-4 py-3 text-right font-display tabular-nums text-slate-600">
+              <td class="px-4 py-3 text-right font-display tabular-nums text-sekunder">
                 {{ event.jumlah_kiosk }}
               </td>
-              <td class="px-4 py-3 text-right font-display font-medium tabular-nums text-emerald-700">
+              <td class="px-4 py-3 text-right font-display font-medium tabular-nums text-berhasil-teks">
                 {{ event.jumlah_absensi }}
               </td>
               <td class="px-4 py-3">
@@ -336,51 +322,51 @@ function waktuSingkat(iso) {
     </div>
 
     <Modal :terbuka="detailTerbuka" judul="Detail Event" @tutup="detailTerbuka = false">
-      <p v-if="detailGagal" class="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+      <p v-if="detailGagal" class="rounded-md bg-peringatan-lembut px-3 py-2 text-sm text-peringatan-teks">
         {{ detailGagal }}
       </p>
 
-      <p v-else-if="!detail" class="flex items-center gap-2 text-sm text-slate-500">
+      <p v-else-if="!detail" class="flex items-center gap-2 text-sm text-redup">
         <span class="h-3 w-3 animate-spin rounded-full border-2 border-teal-600 border-t-transparent"></span>
         Memuat rincian…
       </p>
 
       <div v-else class="space-y-5">
-        <div class="rounded-lg bg-slate-50 px-4 py-3">
-          <p class="font-medium text-navy-700">{{ detail.nama }}</p>
-          <p class="mt-0.5 text-xs text-slate-500">
+        <div class="rounded-lg bg-permukaan-2 px-4 py-3">
+          <p class="font-medium text-utama">{{ detail.nama }}</p>
+          <p class="mt-0.5 text-xs text-redup">
             {{ tanggalPanjang(detail.tanggal) }} · {{ detail.jam_mulai }} · {{ detail.cakupan_label }}
           </p>
         </div>
 
         <div class="grid grid-cols-3 gap-3 text-center">
-          <div class="rounded-lg border border-slate-200 px-3 py-3">
-            <p class="font-display text-xl font-semibold tabular-nums text-navy-700">
+          <div class="rounded-lg border border-garis px-3 py-3">
+            <p class="font-display text-xl font-semibold tabular-nums text-utama">
               {{ detail.kiosk.length }}
             </p>
-            <p class="mt-0.5 text-xs text-slate-500">Perangkat terhubung</p>
+            <p class="mt-0.5 text-xs text-redup">Perangkat terhubung</p>
           </div>
-          <div class="rounded-lg border border-slate-200 px-3 py-3">
-            <p class="font-display text-xl font-semibold tabular-nums text-emerald-700">
+          <div class="rounded-lg border border-garis px-3 py-3">
+            <p class="font-display text-xl font-semibold tabular-nums text-berhasil-teks">
               {{ detail.jumlah_absensi }}
             </p>
-            <p class="mt-0.5 text-xs text-slate-500">Absen masuk</p>
+            <p class="mt-0.5 text-xs text-redup">Absen masuk</p>
           </div>
-          <div class="rounded-lg border border-slate-200 px-3 py-3">
+          <div class="rounded-lg border border-garis px-3 py-3">
             <p
               class="font-display text-sm font-semibold"
-              :class="detail.status === 'aktif' ? 'text-emerald-700' : 'text-slate-500'"
+              :class="detail.status === 'aktif' ? 'text-berhasil-teks' : 'text-redup'"
             >
               {{ detail.status_label }}
             </p>
-            <p class="mt-0.5 text-xs text-slate-500">
+            <p class="mt-0.5 text-xs text-redup">
               {{ detail.ditutup_pada ? waktuSingkat(detail.ditutup_pada) : 'Entry dibuka' }}
             </p>
           </div>
         </div>
 
         <div>
-          <p class="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">
+          <p class="mb-2 text-xs font-medium uppercase tracking-wider text-redup">
             Perangkat Absen Terhubung
           </p>
 
@@ -392,23 +378,23 @@ function waktuSingkat(iso) {
           />
 
           <table v-else class="min-w-full text-sm">
-            <thead class="text-xs uppercase tracking-wider text-slate-500">
+            <thead class="text-xs uppercase tracking-wider text-redup">
               <tr>
                 <th scope="col" class="py-2 text-left font-medium">Titik</th>
                 <th scope="col" class="py-2 text-left font-medium">Alamat IP</th>
                 <th scope="col" class="py-2 text-right font-medium">Terakhir Aktif</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100">
+            <tbody class="divide-y divide-garis">
               <tr v-for="kiosk in detail.kiosk" :key="kiosk.id">
-                <td class="py-2 text-slate-700">
+                <td class="py-2 text-utama">
                   {{ kiosk.nama_titik }}
-                  <span class="ml-1 font-display text-xs tabular-nums text-slate-400">
+                  <span class="ml-1 font-display text-xs tabular-nums text-redup">
                     {{ kiosk.unit_kerja_kode }}
                   </span>
                 </td>
-                <td class="py-2 font-display tabular-nums text-slate-600">{{ kiosk.ip_address ?? '—' }}</td>
-                <td class="py-2 text-right text-xs text-slate-500">
+                <td class="py-2 font-display tabular-nums text-sekunder">{{ kiosk.ip_address ?? '—' }}</td>
+                <td class="py-2 text-right text-xs text-redup">
                   {{ waktuSingkat(kiosk.terakhir_aktif_pada) }}
                 </td>
               </tr>
@@ -420,7 +406,7 @@ function waktuSingkat(iso) {
       <template #aksi>
         <button
           type="button"
-          class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+          class="rounded-lg px-4 py-2 text-sm font-medium text-sekunder hover:bg-permukaan-hover"
           @click="detailTerbuka = false"
         >
           Tutup
@@ -431,70 +417,70 @@ function waktuSingkat(iso) {
     <Modal :terbuka="formTerbuka" :judul="judulForm" @tutup="tutupForm">
       <div class="space-y-4">
         <div>
-          <label for="nama" class="block text-sm font-medium text-slate-700">Nama Event</label>
+          <label for="nama" class="block text-sm font-medium text-utama">Nama Event</label>
           <input
             id="nama"
             v-model="form.nama"
             type="text"
-            class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+            class="mt-1 block w-full rounded-md border-garis bayang focus:border-aksen focus:ring-aksen sm:text-sm"
             placeholder="mis. Apel Pagi Senin"
           />
-          <p v-if="form.errors.nama" class="mt-1 text-xs text-amber-700">{{ form.errors.nama }}</p>
+          <p v-if="form.errors.nama" class="mt-1 text-xs text-peringatan-teks">{{ form.errors.nama }}</p>
         </div>
 
         <div class="grid gap-4 sm:grid-cols-3">
           <div>
-            <label for="tanggal" class="block text-sm font-medium text-slate-700">Tanggal</label>
+            <label for="tanggal" class="block text-sm font-medium text-utama">Tanggal</label>
             <input
               id="tanggal"
               v-model="form.tanggal"
               type="date"
-              class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+              class="mt-1 block w-full rounded-md border-garis bayang focus:border-aksen focus:ring-aksen sm:text-sm"
             />
-            <p v-if="form.errors.tanggal" class="mt-1 text-xs text-amber-700">{{ form.errors.tanggal }}</p>
+            <p v-if="form.errors.tanggal" class="mt-1 text-xs text-peringatan-teks">{{ form.errors.tanggal }}</p>
           </div>
           <div>
-            <label for="jam_mulai" class="block text-sm font-medium text-slate-700">Jam Mulai</label>
+            <label for="jam_mulai" class="block text-sm font-medium text-utama">Jam Mulai</label>
             <input
               id="jam_mulai"
               v-model="form.jam_mulai"
               type="time"
-              class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+              class="mt-1 block w-full rounded-md border-garis bayang focus:border-aksen focus:ring-aksen sm:text-sm"
             />
-            <p v-if="form.errors.jam_mulai" class="mt-1 text-xs text-amber-700">{{ form.errors.jam_mulai }}</p>
+            <p v-if="form.errors.jam_mulai" class="mt-1 text-xs text-peringatan-teks">{{ form.errors.jam_mulai }}</p>
           </div>
           <div>
-            <label for="toleransi" class="block text-sm font-medium text-slate-700">Toleransi</label>
+            <label for="toleransi" class="block text-sm font-medium text-utama">Toleransi</label>
             <div class="mt-1 flex items-center gap-2">
               <input
                 id="toleransi"
                 v-model.number="form.toleransi_menit"
                 type="number"
                 min="0"
-                class="block w-full rounded-md border-slate-300 font-display tabular-nums shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+                class="block w-full rounded-md border-garis font-display tabular-nums bayang focus:border-aksen focus:ring-aksen sm:text-sm"
               />
-              <span class="text-sm text-slate-500">mnt</span>
+              <span class="text-sm text-redup">mnt</span>
             </div>
-            <p v-if="form.errors.toleransi_menit" class="mt-1 text-xs text-amber-700">
+            <p v-if="form.errors.toleransi_menit" class="mt-1 text-xs text-peringatan-teks">
               {{ form.errors.toleransi_menit }}
             </p>
           </div>
         </div>
 
         <div>
-          <span class="block text-sm font-medium text-slate-700">Cakupan Unit Kerja</span>
+          <span class="block text-sm font-medium text-utama">Cakupan Unit Kerja</span>
 
           <div v-if="boleh_semua_unit" class="mt-2 flex gap-4">
-            <label class="flex items-center gap-2 text-sm text-slate-700">
-              <input v-model="form.cakupan" type="radio" value="unit" class="text-teal-600 focus:ring-teal-500" />
+            <label class="flex items-center gap-2 text-sm text-utama">
+              <input v-model="form.cakupan" type="radio" value="unit" class="text-aksen focus:ring-aksen" />
               Unit terpilih
             </label>
-            <label class="flex items-center gap-2 text-sm text-slate-700">
+            <label class="flex items-center gap-2 text-sm text-utama">
               <input
                 v-model="form.cakupan"
                 type="radio"
                 :value="cakupan_semua_unit"
-                class="text-teal-600 focus:ring-teal-500"
+                class="text-aksen focus:ring-aksen"
               />
               Semua unit
             </label>
@@ -502,61 +488,61 @@ function waktuSingkat(iso) {
 
           <div
             v-if="!semuaUnit"
-            class="mt-2 max-h-48 space-y-1.5 overflow-y-auto rounded-md border border-slate-200 p-3"
+            class="mt-2 max-h-48 space-y-1.5 overflow-y-auto rounded-md border border-garis p-3"
           >
             <label
               v-for="unit in unit_kerja"
               :key="unit.id"
-              class="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-sm text-slate-700 transition hover:bg-slate-50"
+              class="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-sm text-utama transition hover:bg-permukaan-hover"
             >
               <input
                 v-model="form.unit_kerja_id"
                 type="checkbox"
                 :value="unit.id"
-                class="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                class="h-4 w-4 rounded border-garis text-aksen focus:ring-aksen"
               />
-              <span class="font-display text-xs tabular-nums text-slate-500">{{ unit.kode }}</span>
+              <span class="font-display text-xs tabular-nums text-redup">{{ unit.kode }}</span>
               <span>{{ unit.nama }}</span>
             </label>
-            <p v-if="unit_kerja.length === 0" class="px-1.5 py-1 text-xs text-slate-500">
+            <p v-if="unit_kerja.length === 0" class="px-1.5 py-1 text-xs text-redup">
               Belum ada unit kerja aktif yang dapat dipilih.
             </p>
           </div>
 
-          <p v-else class="mt-2 flex items-start gap-2 rounded-md bg-navy-50 px-3 py-2 text-xs text-navy-700">
+          <p v-else class="mt-2 flex items-start gap-2 rounded-md bg-info-lembut px-3 py-2 text-xs text-utama">
             <Ikon nama="info" ukuran="h-4 w-4" class="mt-px shrink-0" />
             Event berlaku untuk seluruh unit kerja, termasuk unit yang ditambahkan setelah event ini dibuat.
           </p>
 
-          <p v-if="form.errors.cakupan" class="mt-1 text-xs text-amber-700">{{ form.errors.cakupan }}</p>
-          <p v-if="form.errors.unit_kerja_id" class="mt-1 text-xs text-amber-700">
+          <p v-if="form.errors.cakupan" class="mt-1 text-xs text-peringatan-teks">{{ form.errors.cakupan }}</p>
+          <p v-if="form.errors.unit_kerja_id" class="mt-1 text-xs text-peringatan-teks">
             {{ form.errors.unit_kerja_id }}
           </p>
         </div>
 
         <div>
-          <label for="catatan" class="block text-sm font-medium text-slate-700">Catatan (opsional)</label>
+          <label for="catatan" class="block text-sm font-medium text-utama">Catatan (opsional)</label>
           <textarea
             id="catatan"
             v-model="form.catatan"
             rows="2"
-            class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+            class="mt-1 block w-full rounded-md border-garis bayang focus:border-aksen focus:ring-aksen sm:text-sm"
           ></textarea>
-          <p v-if="form.errors.catatan" class="mt-1 text-xs text-amber-700">{{ form.errors.catatan }}</p>
+          <p v-if="form.errors.catatan" class="mt-1 text-xs text-peringatan-teks">{{ form.errors.catatan }}</p>
         </div>
       </div>
 
       <template #aksi>
         <button
           type="button"
-          class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+          class="rounded-lg px-4 py-2 text-sm font-medium text-sekunder hover:bg-permukaan-hover"
           @click="tutupForm"
         >
           Batal
         </button>
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-teal-700 active:scale-95 disabled:opacity-50"
+          class="inline-flex items-center gap-1.5 rounded-lg bg-aksen px-4 py-2 text-sm font-medium text-white transition hover:bg-aksen-kuat active:scale-95 disabled:opacity-50"
           :disabled="form.processing"
           @click="simpan"
         >

@@ -1,9 +1,11 @@
 <script setup>
 import { onMounted, onUnmounted, watch } from 'vue'
+import Ikon from '@/Components/Ikon.vue'
 
 const props = defineProps({
   terbuka: { type: Boolean, default: false },
   judul: { type: String, required: true },
+  lebar: { type: String, default: 'max-w-lg' },
 })
 
 const emit = defineEmits(['tutup'])
@@ -28,44 +30,58 @@ onUnmounted(() => {
 
 <template>
   <Teleport to="body">
+    <!-- Tirai dan panel dianimasikan terpisah: tirai memudar, panel naik
+         sedikit sambil membesar, sehingga asal-usulnya terbaca. -->
     <Transition
-      enter-active-class="transition duration-150 ease-out"
+      enter-active-class="transition-opacity duration-200 ease-out"
       enter-from-class="opacity-0"
-      leave-active-class="transition duration-100 ease-in"
+      leave-active-class="transition-opacity duration-150 ease-in"
       leave-to-class="opacity-0"
     >
       <div v-if="terbuka" class="fixed inset-0 z-50 overflow-y-auto">
-        <div class="fixed inset-0 bg-navy-900/60" @click="emit('tutup')"></div>
+        <div
+          class="fixed inset-0 bg-navy-900/60 backdrop-blur-[2px]"
+          @click="emit('tutup')"
+        ></div>
 
         <div class="relative flex min-h-full items-center justify-center p-4">
-          <div
-            class="w-full max-w-lg rounded-lg bg-white shadow-xl"
-            role="dialog"
-            aria-modal="true"
-            :aria-label="judul"
+          <Transition
+            appear
+            enter-active-class="transition duration-200 ease-out"
+            enter-from-class="translate-y-3 scale-95 opacity-0"
+            enter-to-class="translate-y-0 scale-100 opacity-100"
           >
-            <div class="flex items-start justify-between border-b border-slate-200 px-6 py-4">
-              <h2 class="font-display text-base font-semibold text-navy-700">{{ judul }}</h2>
-              <button
-                type="button"
-                class="-mr-1 rounded p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-                aria-label="Tutup"
-                @click="emit('tutup')"
+            <div
+              class="w-full rounded-xl border border-garis bg-permukaan shadow-2xl"
+              :class="lebar"
+              role="dialog"
+              aria-modal="true"
+              :aria-label="judul"
+            >
+              <div class="flex items-start justify-between border-b border-garis px-6 py-4">
+                <h2 class="font-display text-base font-semibold text-utama">{{ judul }}</h2>
+                <button
+                  type="button"
+                  class="-mr-1 rounded-md p-1.5 text-redup transition-colors duration-150 hover:bg-permukaan-hover hover:text-utama"
+                  aria-label="Tutup"
+                  @click="emit('tutup')"
+                >
+                  <Ikon nama="tutup" ukuran="h-5 w-5" />
+                </button>
+              </div>
+
+              <div class="px-6 py-5">
+                <slot />
+              </div>
+
+              <div
+                v-if="$slots.aksi"
+                class="flex justify-end gap-3 border-t border-garis px-6 py-4"
               >
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-                </svg>
-              </button>
+                <slot name="aksi" />
+              </div>
             </div>
-
-            <div class="px-6 py-5">
-              <slot />
-            </div>
-
-            <div v-if="$slots.aksi" class="flex justify-end gap-3 border-t border-slate-200 px-6 py-4">
-              <slot name="aksi" />
-            </div>
-          </div>
+          </Transition>
         </div>
       </div>
     </Transition>

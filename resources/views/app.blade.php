@@ -8,10 +8,30 @@
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700|lexend:400,500,600,700" rel="stylesheet">
 
+    {{--
+        Tema dipasang sebelum CSS dimuat, bukan setelah Vue hidup.
+        Tanpa ini, pengguna mode gelap melihat kilatan putih pada setiap
+        perpindahan halaman — halaman sempat tergambar dengan token terang
+        sebelum skripnya sempat berjalan.
+    --}}
+    <script>
+        (function () {
+            try {
+                var mode = localStorage.getItem('capture.tema');
+
+                if (mode === 'terang' || mode === 'gelap') {
+                    document.documentElement.setAttribute('data-tema', mode);
+                }
+            } catch (e) {
+                // Penyimpanan lokal diblokir; tema mengikuti sistem.
+            }
+        })();
+    </script>
+
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @inertiaHead
 </head>
-<body class="font-sans antialiased bg-slate-50 text-slate-800">
+<body class="font-sans antialiased bg-kertas text-utama">
     @inertia
 </body>
 </html>

@@ -66,35 +66,35 @@ const kartu = computed(() => [
     nilai: props.statistik.total_pegawai,
     keterangan: 'pegawai aktif dalam cakupan Anda',
     ikon: 'pegawai',
-    warna: 'text-navy-700',
-    latar: 'bg-navy-50 text-navy-600',
+    warna: 'text-utama',
+    latar: 'bg-info-lembut text-info-teks',
   },
   {
     label: 'Perangkat Aktif',
     nilai: props.statistik.kiosk_aktif,
     keterangan: `dari ${props.kesiapan.perangkat} perangkat terdaftar`,
     ikon: 'perangkat',
-    warna: 'text-teal-700',
-    latar: 'bg-teal-50 text-teal-600',
+    warna: 'text-aksen-teks',
+    latar: 'bg-aksen-lembut text-aksen',
   },
   {
     label: 'Event Berlangsung',
     nilai: props.statistik.event_berlangsung,
     keterangan: 'entry masih dibuka',
     ikon: 'absen',
-    warna: 'text-teal-700',
-    latar: 'bg-teal-50 text-teal-600',
+    warna: 'text-aksen-teks',
+    latar: 'bg-aksen-lembut text-aksen',
   },
   {
     label: 'Kehadiran Hari Ini',
     nilai: `${props.statistik.persentase_kehadiran}%`,
     keterangan: `${props.statistik.hadir_hari_ini} dari ${props.statistik.total_pegawai} pegawai`,
     ikon: props.statistik.persentase_kehadiran >= 75 ? 'naik' : 'turun',
-    warna: props.statistik.persentase_kehadiran >= 75 ? 'text-emerald-700' : 'text-amber-700',
+    warna: props.statistik.persentase_kehadiran >= 75 ? 'text-berhasil-teks' : 'text-peringatan-teks',
     latar:
       props.statistik.persentase_kehadiran >= 75
-        ? 'bg-emerald-50 text-emerald-600'
-        : 'bg-amber-50 text-amber-600',
+        ? 'bg-berhasil-lembut text-berhasil'
+        : 'bg-peringatan-lembut text-peringatan',
   },
 ])
 
@@ -154,11 +154,11 @@ function waktuRelatif(iso) {
       <div
         v-for="item in kartu"
         :key="item.label"
-        class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md"
+        class="rounded-lg border border-garis bg-permukaan p-5 bayang transition hover:shadow-md"
       >
         <div class="flex items-start justify-between gap-3">
           <div>
-            <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ item.label }}</p>
+            <p class="text-xs font-medium uppercase tracking-wider text-redup">{{ item.label }}</p>
             <p class="mt-2 font-display text-3xl font-semibold tabular-nums" :class="item.warna">
               {{ item.nilai }}
             </p>
@@ -167,18 +167,18 @@ function waktuRelatif(iso) {
             <Ikon :nama="item.ikon" ukuran="h-5 w-5" />
           </span>
         </div>
-        <p class="mt-1 text-xs text-slate-500">{{ item.keterangan }}</p>
+        <p class="mt-1 text-xs text-redup">{{ item.keterangan }}</p>
       </div>
     </div>
 
     <!-- Event berjalan -->
     <div
       v-if="event_berjalan.length > 0"
-      class="mt-6 rounded-lg border border-emerald-200 bg-emerald-50/50 p-5"
+      class="mt-6 rounded-lg border border-berhasil bg-berhasil-lembut/50 p-5"
     >
       <div class="flex items-center gap-2">
         <span class="h-2 w-2 animate-pulse rounded-full bg-emerald-600"></span>
-        <h2 class="font-display text-sm font-semibold text-navy-700">Sedang Berlangsung</h2>
+        <h2 class="font-display text-sm font-semibold text-utama">Sedang Berlangsung</h2>
       </div>
 
       <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -186,15 +186,15 @@ function waktuRelatif(iso) {
           v-for="event in event_berjalan"
           :key="event.id"
           :href="`/admin/kelola-absen/rekap?event_absen_id=${event.id}`"
-          class="rounded-lg border border-emerald-200 bg-white px-4 py-3 transition hover:border-emerald-400 hover:shadow-sm"
+          class="rounded-lg border border-berhasil bg-permukaan px-4 py-3 transition hover:border-emerald-400 hover:bayang"
         >
-          <p class="truncate font-medium text-navy-700">{{ event.nama }}</p>
-          <p class="mt-0.5 truncate text-xs text-slate-500">
+          <p class="truncate font-medium text-utama">{{ event.nama }}</p>
+          <p class="mt-0.5 truncate text-xs text-redup">
             {{ event.jam_mulai }} · {{ event.cakupan }}
           </p>
-          <p class="mt-2 font-display text-lg font-semibold tabular-nums text-emerald-700">
+          <p class="mt-2 font-display text-lg font-semibold tabular-nums text-berhasil-teks">
             {{ event.hadir }}
-            <span class="text-xs font-normal text-slate-500">sudah absen</span>
+            <span class="text-xs font-normal text-redup">sudah absen</span>
           </p>
         </Link>
       </div>
@@ -203,10 +203,10 @@ function waktuRelatif(iso) {
     <div class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
       <div class="space-y-6">
         <!-- FR-DASH-02 -->
-        <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="rounded-lg border border-garis bg-permukaan p-6 bayang">
           <div class="flex items-baseline justify-between">
-            <h2 class="font-display text-base font-semibold text-navy-700">Tren Kehadiran</h2>
-            <p class="text-xs text-slate-500">7 hari terakhir</p>
+            <h2 class="font-display text-base font-semibold text-utama">Tren Kehadiran</h2>
+            <p class="text-xs text-redup">7 hari terakhir</p>
           </div>
 
           <KeadaanKosong
@@ -261,7 +261,7 @@ function waktuRelatif(iso) {
               >
                 {{ t.jumlah }}
               </text>
-              <text :x="t.x" :y="TINGGI - 8" text-anchor="middle" class="fill-slate-500 text-[12px]">
+              <text :x="t.x" :y="TINGGI - 8" text-anchor="middle" class="fill-[var(--tema-redup)] text-[12px]">
                 {{ t.label }}
               </text>
             </g>
@@ -270,42 +270,42 @@ function waktuRelatif(iso) {
 
         <!-- Ketepatan & kesiapan -->
         <div class="grid gap-6 md:grid-cols-2">
-          <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 class="font-display text-base font-semibold text-navy-700">Ketepatan Hari Ini</h2>
+          <div class="rounded-lg border border-garis bg-permukaan p-6 bayang">
+            <h2 class="font-display text-base font-semibold text-utama">Ketepatan Hari Ini</h2>
 
-            <p v-if="totalKetepatan === 0" class="mt-4 text-sm text-slate-500">
+            <p v-if="totalKetepatan === 0" class="mt-4 text-sm text-redup">
               Belum ada absen masuk hari ini.
             </p>
 
             <template v-else>
-              <div class="mt-4 flex h-3 overflow-hidden rounded-full bg-slate-100">
+              <div class="mt-4 flex h-3 overflow-hidden rounded-full bg-permukaan-2">
                 <div
-                  class="bg-emerald-500 transition-all duration-500"
+                  class="bg-berhasil transition-all duration-500"
                   :style="{ width: `${bagianTepat}%` }"
                 ></div>
-                <div class="flex-1 bg-amber-500 transition-all duration-500"></div>
+                <div class="flex-1 bg-peringatan transition-all duration-500"></div>
               </div>
 
               <div class="mt-4 grid grid-cols-2 gap-4">
                 <div>
-                  <p class="font-display text-2xl font-semibold tabular-nums text-emerald-700">
+                  <p class="font-display text-2xl font-semibold tabular-nums text-berhasil-teks">
                     {{ ketepatan.tepat }}
                   </p>
-                  <p class="text-xs text-slate-500">tepat waktu ({{ bagianTepat }}%)</p>
+                  <p class="text-xs text-redup">tepat waktu ({{ bagianTepat }}%)</p>
                 </div>
                 <div>
-                  <p class="font-display text-2xl font-semibold tabular-nums text-amber-700">
+                  <p class="font-display text-2xl font-semibold tabular-nums text-peringatan-teks">
                     {{ ketepatan.terlambat }}
                   </p>
-                  <p class="text-xs text-slate-500">terlambat</p>
+                  <p class="text-xs text-redup">terlambat</p>
                 </div>
               </div>
             </template>
           </div>
 
-          <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 class="font-display text-base font-semibold text-navy-700">Kesiapan Sistem</h2>
-            <p class="mt-1 text-xs text-slate-500">
+          <div class="rounded-lg border border-garis bg-permukaan p-6 bayang">
+            <h2 class="font-display text-base font-semibold text-utama">Kesiapan Sistem</h2>
+            <p class="mt-1 text-xs text-redup">
               Yang biasanya menjelaskan kegagalan absen di lapangan.
             </p>
 
@@ -315,22 +315,22 @@ function waktuRelatif(iso) {
                 { label: 'Kartu RFID terdaftar', nilai: kesiapan.kartu_terdaftar, total: kesiapan.pegawai, persen: kesiapan.kartu_persen },
               ]" :key="baris.label">
                 <div class="flex items-baseline justify-between text-xs">
-                  <span class="text-slate-600">{{ baris.label }}</span>
-                  <span class="font-display tabular-nums text-slate-700">
+                  <span class="text-sekunder">{{ baris.label }}</span>
+                  <span class="font-display tabular-nums text-utama">
                     {{ baris.nilai }}/{{ baris.total }} · {{ baris.persen }}%
                   </span>
                 </div>
-                <div class="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
+                <div class="mt-1 h-2 overflow-hidden rounded-full bg-permukaan-2">
                   <div
                     class="h-full rounded-full transition-all duration-500"
-                    :class="baris.persen >= 80 ? 'bg-emerald-500' : baris.persen >= 40 ? 'bg-teal-500' : 'bg-amber-500'"
+                    :class="baris.persen >= 80 ? 'bg-berhasil' : baris.persen >= 40 ? 'bg-aksen-lembut0' : 'bg-peringatan'"
                     :style="{ width: `${Math.max(baris.persen, 2)}%` }"
                   ></div>
                 </div>
               </div>
 
-              <div class="flex items-center justify-between border-t border-slate-100 pt-3 text-xs">
-                <span class="text-slate-600">Perangkat terpasang</span>
+              <div class="flex items-center justify-between border-t border-garis pt-3 text-xs">
+                <span class="text-sekunder">Perangkat terpasang</span>
                 <Lencana :warna="kesiapan.perangkat_terpasang === kesiapan.perangkat ? 'emerald' : 'amber'">
                   {{ kesiapan.perangkat_terpasang }} dari {{ kesiapan.perangkat }}
                 </Lencana>
@@ -340,22 +340,22 @@ function waktuRelatif(iso) {
         </div>
 
         <!-- Peringkat unit -->
-        <div v-if="peringkat_unit.length > 0" class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 class="font-display text-base font-semibold text-navy-700">Kehadiran per Unit Kerja</h2>
-          <p class="mt-1 text-xs text-slate-500">Hari ini, diurutkan menurut persentase kehadiran.</p>
+        <div v-if="peringkat_unit.length > 0" class="rounded-lg border border-garis bg-permukaan p-6 bayang">
+          <h2 class="font-display text-base font-semibold text-utama">Kehadiran per Unit Kerja</h2>
+          <p class="mt-1 text-xs text-redup">Hari ini, diurutkan menurut persentase kehadiran.</p>
 
           <div class="mt-4 space-y-3">
             <div v-for="unit in peringkat_unit" :key="unit.kode">
               <div class="flex items-baseline justify-between gap-3 text-sm">
-                <span class="truncate text-slate-700">{{ unit.nama }}</span>
-                <span class="shrink-0 font-display text-xs tabular-nums text-slate-500">
+                <span class="truncate text-utama">{{ unit.nama }}</span>
+                <span class="shrink-0 font-display text-xs tabular-nums text-redup">
                   {{ unit.hadir }}/{{ unit.pegawai }} · {{ unit.persen }}%
                 </span>
               </div>
-              <div class="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
+              <div class="mt-1 h-2 overflow-hidden rounded-full bg-permukaan-2">
                 <div
                   class="h-full rounded-full transition-all duration-700"
-                  :class="unit.persen >= 75 ? 'bg-emerald-500' : unit.persen >= 40 ? 'bg-teal-500' : 'bg-amber-500'"
+                  :class="unit.persen >= 75 ? 'bg-berhasil' : unit.persen >= 40 ? 'bg-aksen-lembut0' : 'bg-peringatan'"
                   :style="{ width: `${Math.max(unit.persen, 2)}%` }"
                 ></div>
               </div>
@@ -365,9 +365,9 @@ function waktuRelatif(iso) {
       </div>
 
       <!-- FR-DASH-03 -->
-      <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="rounded-lg border border-garis bg-permukaan p-6 bayang">
         <div class="flex items-baseline justify-between">
-          <h2 class="font-display text-base font-semibold text-navy-700">Aktivitas Terbaru</h2>
+          <h2 class="font-display text-base font-semibold text-utama">Aktivitas Terbaru</h2>
           <Lencana warna="emerald" denyut>live</Lencana>
         </div>
 
@@ -375,33 +375,33 @@ function waktuRelatif(iso) {
           <li
             v-for="baris in aktivitasTerkini"
             :key="baris.id"
-            class="flex items-start gap-3 border-b border-slate-100 pb-3 last:border-0 last:pb-0"
+            class="flex items-start gap-3 border-b border-garis pb-3 last:border-0 last:pb-0"
           >
             <span
               class="mt-0.5 rounded-full p-1.5"
               :class="baris.status_ketepatan === 'terlambat'
-                ? 'bg-amber-50 text-amber-600'
-                : 'bg-emerald-50 text-emerald-600'"
+                ? 'bg-peringatan-lembut text-peringatan'
+                : 'bg-berhasil-lembut text-berhasil'"
             >
               <Ikon :nama="baris.metode === 'rfid' ? 'kartu' : 'pegawai'" ukuran="h-3.5 w-3.5" />
             </span>
 
             <div class="min-w-0 flex-1">
-              <p class="truncate text-sm font-medium text-navy-700">{{ baris.nama }}</p>
-              <p class="truncate text-xs text-slate-500">{{ baris.unit_kerja ?? '—' }}</p>
-              <p class="mt-0.5 text-xs text-slate-500">
+              <p class="truncate text-sm font-medium text-utama">{{ baris.nama }}</p>
+              <p class="truncate text-xs text-redup">{{ baris.unit_kerja ?? '—' }}</p>
+              <p class="mt-0.5 text-xs text-redup">
                 <span class="font-display tabular-nums">{{ baris.jam }}</span>
                 · {{ baris.jenis_label }} · {{ baris.metode_label }}
                 <span
                   v-if="baris.status_label"
-                  :class="baris.status_ketepatan === 'terlambat' ? 'text-amber-700' : 'text-emerald-700'"
+                  :class="baris.status_ketepatan === 'terlambat' ? 'text-peringatan-teks' : 'text-berhasil-teks'"
                 >
                   · {{ baris.status_label }}
                 </span>
               </p>
             </div>
 
-            <span class="shrink-0 whitespace-nowrap text-xs text-slate-400">
+            <span class="shrink-0 whitespace-nowrap text-xs text-redup">
               {{ waktuRelatif(baris.waktu) }}
             </span>
           </li>

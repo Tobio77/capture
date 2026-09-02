@@ -18,13 +18,13 @@ defineProps({
 <template>
   <div
     v-if="data.total > 0"
-    class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 print:hidden"
+    class="flex flex-wrap items-center justify-between gap-3 border-t border-garis px-4 py-3 print:hidden"
   >
-    <p class="text-xs text-slate-500">
+    <p class="text-xs text-redup">
       Menampilkan
-      <span class="font-display tabular-nums text-slate-700">{{ data.from ?? 0 }}–{{ data.to ?? 0 }}</span>
+      <span class="font-display tabular-nums text-utama">{{ data.from ?? 0 }}–{{ data.to ?? 0 }}</span>
       dari
-      <span class="font-display tabular-nums text-slate-700">{{ data.total }}</span>
+      <span class="font-display tabular-nums text-utama">{{ data.total }}</span>
       baris
     </p>
 
@@ -39,9 +39,9 @@ defineProps({
         class="inline-flex h-8 min-w-8 items-center justify-center rounded-md px-2 text-sm transition"
         :class="[
           tautan.active
-            ? 'bg-teal-600 font-semibold text-white shadow-sm'
-            : 'text-slate-600 hover:bg-slate-100',
-          !tautan.url && 'cursor-default text-slate-300 hover:bg-transparent',
+            ? 'bg-aksen font-semibold text-white bayang'
+            : 'text-sekunder hover:bg-permukaan-hover',
+          !tautan.url && 'cursor-default text-redup/50 hover:bg-transparent',
         ]"
       >
         <Ikon v-if="urutan === 0" nama="kiri" ukuran="h-4 w-4" />

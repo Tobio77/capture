@@ -1,7 +1,8 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import Ikon from '@/Components/Ikon.vue'
+import SaklarTema from '@/Components/UI/SaklarTema.vue'
 
 defineProps({
   judul: { type: String, required: true },
@@ -22,8 +23,19 @@ const cakupan = computed(() =>
 
 const aktif = (rute) => ruteSaatIni.value === rute
 
-/* Sidebar menumpuk di layar sempit; di lg ke atas selalu terbuka. */
-const menuTerbuka = ref(false)
+/*
+ * Di bawah `md` sidebar menjadi laci yang meluncur dari kiri di atas isi
+ * halaman, bukan menumpuk di atasnya: menu proyek ini punya sebelas butir,
+ * dan menumpuknya akan mendorong isi halaman jauh ke bawah lipatan.
+ */
+const laciTerbuka = ref(false)
+
+// Berpindah halaman menutup laci; tanpa ini ia menutupi halaman tujuan.
+watch(ruteSaatIni, () => (laciTerbuka.value = false))
+
+watch(laciTerbuka, (terbuka) => {
+  document.body.style.overflow = terbuka ? 'hidden' : ''
+})
 
 const keluar = () => router.post('/keluar')
 </script>
@@ -31,117 +43,151 @@ const keluar = () => router.post('/keluar')
 <template>
   <Head :title="judul" />
 
-  <div class="min-h-screen bg-slate-50 lg:flex">
-    <!-- Bilah atas khusus layar sempit -->
-    <div
-      class="flex items-center justify-between bg-navy-700 px-4 py-3 text-white lg:hidden print:hidden"
+  <div class="min-h-screen bg-kertas md:flex">
+    <!-- Bilah atas; hanya di layar sempit. -->
+    <header
+      class="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-sidebar-garis bg-sidebar px-4 py-3 text-sidebar-teks md:hidden print:hidden"
     >
-      <p class="font-display text-base font-semibold">Capture</p>
       <button
         type="button"
-        class="rounded-md p-2 transition hover:bg-white/10 active:scale-95"
-        :aria-expanded="menuTerbuka"
+        class="-ml-1 rounded-lg p-2 transition-colors duration-150 hover:bg-white/10"
+        :aria-expanded="laciTerbuka"
         aria-label="Buka menu navigasi"
-        @click="menuTerbuka = !menuTerbuka"
+        @click="laciTerbuka = true"
       >
-        <Ikon :nama="menuTerbuka ? 'tutup' : 'dashboard'" ukuran="h-5 w-5" />
+        <Ikon nama="menu" ukuran="h-5 w-5" />
       </button>
-    </div>
 
-    <!-- Sidebar; tidak ikut tercetak — lembar cetak hanya memuat isinya (FR-REK-03). -->
-    <aside
-      class="flex-col bg-navy-700 text-navy-100 lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-72 lg:shrink-0 print:hidden"
-      :class="menuTerbuka ? 'flex' : 'hidden'"
+      <p class="font-display text-base font-semibold">Capture</p>
+
+      <SaklarTema varian="sidebar" />
+    </header>
+
+    <!-- Tirai laci -->
+    <Transition
+      enter-active-class="transition-opacity duration-200 ease-out"
+      enter-from-class="opacity-0"
+      leave-active-class="transition-opacity duration-150 ease-in"
+      leave-to-class="opacity-0"
     >
-      <div class="hidden border-b border-white/10 px-6 py-5 lg:block">
-        <p class="flex items-center gap-2 font-display text-lg font-semibold text-white">
-          <span class="rounded-md bg-teal-600 p-1.5">
-            <Ikon nama="absen" ukuran="h-4 w-4" />
-          </span>
-          Capture
-        </p>
-        <p class="mt-1.5 text-xs text-navy-200">Absensi Kegiatan Berbasis Event</p>
-      </div>
+      <div
+        v-if="laciTerbuka"
+        class="fixed inset-0 z-40 bg-navy-900/60 backdrop-blur-[2px] md:hidden"
+        @click="laciTerbuka = false"
+      ></div>
+    </Transition>
 
-      <nav class="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-        <template v-for="item in menu" :key="item.label">
-          <!-- Menu induk dengan submenu -->
-          <div v-if="item.anak" class="pt-2">
-            <p
-              class="flex items-center gap-2 px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-navy-300"
-            >
-              <Ikon :nama="item.ikon" ukuran="h-4 w-4" />
-              {{ item.label }}
+    <!--
+      Sidebar. Selalu tergambar; yang berpindah hanya posisinya, sehingga
+      lacinya meluncur alih-alih berkedip muncul. Tidak ikut tercetak —
+      lembar cetak hanya memuat isinya (FR-REK-03).
+    -->
+    <aside
+      class="fixed inset-y-0 left-0 z-40 flex w-72 flex-col bg-sidebar text-sidebar-teks transition-transform duration-200 ease-out md:sticky md:top-0 md:z-auto md:h-screen md:shrink-0 md:translate-x-0 md:shadow-none print:hidden"
+      :class="laciTerbuka ? 'translate-x-0 shadow-2xl' : '-translate-x-full'"
+    >
+        <div class="flex items-center justify-between border-b border-sidebar-garis px-6 py-5">
+          <div>
+            <p class="flex items-center gap-2 font-display text-lg font-semibold">
+              <span class="rounded-lg bg-aksen p-1.5 text-white">
+                <Ikon nama="absen" ukuran="h-4 w-4" />
+              </span>
+              Capture
             </p>
-            <Link
-              v-for="anak in item.anak"
-              :key="anak.rute"
-              :href="anak.url"
-              class="relative block rounded-md py-2 pl-10 pr-3 text-sm transition-all duration-150"
-              :class="
-                aktif(anak.rute)
-                  ? 'bg-teal-600 font-medium text-white shadow-sm'
-                  : 'text-navy-100 hover:translate-x-0.5 hover:bg-white/10 hover:text-white'
-              "
-              @click="menuTerbuka = false"
-            >
-              <span
-                v-if="aktif(anak.rute)"
-                class="absolute left-3 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-white"
-              ></span>
-              {{ anak.label }}
-            </Link>
+            <p class="mt-1.5 text-xs text-sidebar-redup">Absensi Kegiatan Berbasis Event</p>
           </div>
 
-          <!-- Menu tunggal -->
-          <Link
-            v-else
-            :href="item.url"
-            class="flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-all duration-150"
-            :class="
-              aktif(item.rute)
-                ? 'bg-teal-600 font-medium text-white shadow-sm'
-                : 'text-navy-100 hover:translate-x-0.5 hover:bg-white/10 hover:text-white'
-            "
-            @click="menuTerbuka = false"
+          <button
+            type="button"
+            class="-mr-2 rounded-lg p-2 text-sidebar-redup transition-colors duration-150 hover:bg-white/10 hover:text-sidebar-teks md:hidden"
+            aria-label="Tutup menu navigasi"
+            @click="laciTerbuka = false"
           >
-            <Ikon :nama="item.ikon" ukuran="h-5 w-5 shrink-0" />
-            {{ item.label }}
-          </Link>
-        </template>
-      </nav>
+            <Ikon nama="tutup" ukuran="h-5 w-5" />
+          </button>
+        </div>
 
-      <!-- Indikator peran & cakupan unit kerja -->
-      <div class="border-t border-white/10 px-6 py-4">
-        <div class="flex items-center gap-3">
-          <span
-            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-600 font-display text-sm font-semibold text-white"
-          >
-            {{ pengguna.nama.charAt(0).toUpperCase() }}
-          </span>
-          <div class="min-w-0">
-            <p class="truncate text-sm font-medium text-white">{{ pengguna.nama }}</p>
-            <p class="truncate text-xs text-teal-300">{{ pengguna.role_label }}</p>
+        <nav class="gulir-halus flex-1 space-y-1 overflow-y-auto px-3 py-4">
+          <template v-for="item in menu" :key="item.label">
+            <!-- Menu induk dengan submenu -->
+            <div v-if="item.anak" class="pt-2">
+              <p
+                class="flex items-center gap-2 px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-sidebar-redup"
+              >
+                <Ikon :nama="item.ikon" ukuran="h-4 w-4" />
+                {{ item.label }}
+              </p>
+              <Link
+                v-for="anak in item.anak"
+                :key="anak.rute"
+                :href="anak.url"
+                class="tautan-aksi relative flex items-center rounded-lg py-2 pl-10 pr-3 text-sm transition-all duration-150"
+                :class="
+                  aktif(anak.rute)
+                    ? 'bg-aksen font-medium text-white shadow-sm'
+                    : 'text-sidebar-teks/85 hover:translate-x-0.5 hover:bg-white/10 hover:text-sidebar-teks'
+                "
+              >
+                <span
+                  v-if="aktif(anak.rute)"
+                  class="absolute left-3.5 h-1.5 w-1.5 rounded-full bg-white"
+                ></span>
+                {{ anak.label }}
+              </Link>
+            </div>
+
+            <!-- Menu tunggal -->
+            <Link
+              v-else
+              :href="item.url"
+              class="tautan-aksi flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-150"
+              :class="
+                aktif(item.rute)
+                  ? 'bg-aksen font-medium text-white shadow-sm'
+                  : 'text-sidebar-teks/85 hover:translate-x-0.5 hover:bg-white/10 hover:text-sidebar-teks'
+              "
+            >
+              <Ikon :nama="item.ikon" ukuran="h-5 w-5 shrink-0" />
+              {{ item.label }}
+            </Link>
+          </template>
+        </nav>
+
+        <!-- Indikator peran & cakupan unit kerja -->
+        <div class="border-t border-sidebar-garis px-6 py-4">
+          <div class="flex items-center gap-3">
+            <span
+              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-aksen font-display text-sm font-semibold text-white"
+            >
+              {{ pengguna.nama.charAt(0).toUpperCase() }}
+            </span>
+            <div class="min-w-0">
+              <p class="truncate text-sm font-medium">{{ pengguna.nama }}</p>
+              <p class="truncate text-xs text-aksen-kuat">{{ pengguna.role_label }}</p>
+            </div>
+          </div>
+          <p class="mt-2 truncate text-xs text-sidebar-redup" :title="cakupan">{{ cakupan }}</p>
+
+          <div class="mt-3 flex items-center gap-2">
+            <button
+              type="button"
+              class="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-sidebar-garis px-3 py-2 text-xs font-medium text-sidebar-redup transition-colors duration-150 hover:bg-white/10 hover:text-sidebar-teks"
+              @click="keluar"
+            >
+              <Ikon nama="keluar" ukuran="h-4 w-4" /> Keluar
+            </button>
+            <SaklarTema varian="sidebar" class="hidden md:block" />
           </div>
         </div>
-        <p class="mt-2 truncate text-xs text-navy-300" :title="cakupan">{{ cakupan }}</p>
-        <button
-          type="button"
-          class="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-white/20 px-3 py-2 text-xs font-medium text-navy-100 transition hover:bg-white/10 hover:text-white active:scale-95"
-          @click="keluar"
-        >
-          <Ikon nama="keluar" ukuran="h-4 w-4" /> Keluar
-        </button>
-      </div>
     </aside>
 
     <!-- Konten -->
     <div class="min-w-0 flex-1">
-      <main class="mx-auto max-w-6xl px-6 py-8">
+      <main class="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
         <div class="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 class="font-display text-2xl font-semibold text-navy-700">{{ judul }}</h1>
-            <p v-if="deskripsi" class="mt-1 text-sm text-slate-600">{{ deskripsi }}</p>
+          <div class="min-w-0">
+            <h1 class="font-display text-xl font-semibold text-utama sm:text-2xl">{{ judul }}</h1>
+            <p v-if="deskripsi" class="mt-1 text-sm text-sekunder">{{ deskripsi }}</p>
           </div>
           <slot name="aksi" />
         </div>
@@ -153,7 +199,7 @@ const keluar = () => router.post('/keluar')
         >
           <div
             v-if="flash.sukses"
-            class="mt-6 flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 print:hidden"
+            class="mt-6 flex items-start gap-2 rounded-lg border border-garis bg-berhasil-lembut px-4 py-3 text-sm text-berhasil-teks print:hidden"
           >
             <Ikon nama="cek" ukuran="h-4 w-4 shrink-0 mt-0.5" />
             <span>{{ flash.sukses }}</span>
@@ -166,16 +212,31 @@ const keluar = () => router.post('/keluar')
         >
           <div
             v-if="flash.gagal"
-            class="mt-6 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 print:hidden"
+            class="mt-6 flex items-start gap-2 rounded-lg border border-garis bg-peringatan-lembut px-4 py-3 text-sm text-peringatan-teks print:hidden"
           >
             <Ikon nama="peringatan" ukuran="h-4 w-4 shrink-0 mt-0.5" />
             <span>{{ flash.gagal }}</span>
           </div>
         </Transition>
 
-        <div class="mt-6">
-          <slot />
-        </div>
+        <!--
+          Transisi antar halaman: isi lama memudar keluar, isi baru masuk
+          naik sedikit. `:key` pada rute yang membuatnya berjalan; tanpa itu
+          Vue menggunakan ulang simpul yang sama dan tidak ada yang beralih.
+        -->
+        <Transition
+          mode="out-in"
+          enter-active-class="transition duration-200 ease-out"
+          enter-from-class="translate-y-2 opacity-0"
+          enter-to-class="translate-y-0 opacity-100"
+          leave-active-class="transition duration-100 ease-in"
+          leave-from-class="opacity-100"
+          leave-to-class="opacity-0"
+        >
+          <div :key="ruteSaatIni" class="mt-6">
+            <slot />
+          </div>
+        </Transition>
       </main>
     </div>
   </div>

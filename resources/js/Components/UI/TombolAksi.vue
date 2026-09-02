@@ -11,11 +11,11 @@ defineProps({
 })
 
 const palet = {
-  teal: 'text-teal-700 hover:bg-teal-50',
-  navy: 'text-navy-700 hover:bg-navy-50',
-  amber: 'text-amber-700 hover:bg-amber-50',
-  emerald: 'text-emerald-700 hover:bg-emerald-50',
-  slate: 'text-slate-600 hover:bg-slate-100',
+  teal: 'text-aksen-teks hover:bg-aksen-lembut',
+  navy: 'text-utama hover:bg-info-lembut',
+  amber: 'text-peringatan-teks hover:bg-peringatan-lembut',
+  emerald: 'text-berhasil-teks hover:bg-berhasil-lembut',
+  slate: 'text-sekunder hover:bg-permukaan-hover',
 }
 </script>
 

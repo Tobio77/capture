@@ -72,6 +72,7 @@ Rencana pengerjaan dibagi menjadi fase dan sesi, mengikuti pola yang telah terbu
 | **Sesi** | **Fokus**                             | **Deliverable**                                                                                       |
 |----------|---------------------------------------|-------------------------------------------------------------------------------------------------------|
 | S13      | Layar kiosk — kerangka                | Implementasi tampilan dua panel (Capture Foto/Entry Absen + Daftar e-Presensi) sesuai UIUX-ABSEN-2026 |
+| S13c     | Refresh desain & tema                 | Sistem token warna tiga mode (terang/gelap/sistem), dropdown & date picker kustom, animasi yang menghormati `prefers-reduced-motion`, tata letak mobile, layar absen bertema terang |
 | S14      | Input tap (manual & RFID)             | Kolom auto-focus, penerimaan input HID, pemilihan jenis Datang/Pulang (FR-TAP-02, FR-TAP-03)          |
 | S15      | Integrasi face-api.js                 | Muat model di klien, ambil embedding referensi dari server, deteksi & hitung embedding capture        |
 | S16      | Logika verifikasi & penyimpanan absen | Pencocokan skor terhadap ambang, kompresi foto, kirim & simpan hasil absen (FR-TAP-04 s.d. FR-TAP-07) |

@@ -28,29 +28,29 @@ const kirim = () => form.post('/kiosk/aktivasi')
         <p class="mt-1 text-sm text-navy-200">Perangkat Titik Absen</p>
       </div>
 
-      <div class="mt-8 rounded-lg bg-white p-8 shadow-lg">
-        <h2 class="font-display text-lg font-semibold text-navy-700">Aktivasi Perangkat</h2>
-        <p class="mt-1 text-sm text-slate-500">
+      <div class="mt-8 rounded-lg bg-permukaan p-8 shadow-lg">
+        <h2 class="font-display text-lg font-semibold text-utama">Aktivasi Perangkat</h2>
+        <p class="mt-1 text-sm text-redup">
           Masukkan kode aktivasi yang diberikan admin untuk titik absen ini.
           Perangkat cukup diaktifkan satu kali.
         </p>
 
         <div
           v-if="flash.gagal"
-          class="mt-5 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700"
+          class="mt-5 rounded-md border border-peringatan bg-peringatan-lembut px-4 py-3 text-sm text-peringatan-teks"
         >
           {{ flash.gagal }}
         </div>
         <div
           v-if="flash.sukses"
-          class="mt-5 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+          class="mt-5 rounded-md border border-berhasil bg-berhasil-lembut px-4 py-3 text-sm text-berhasil-teks"
         >
           {{ flash.sukses }}
         </div>
 
         <form class="mt-6 space-y-5" @submit.prevent="kirim">
           <div>
-            <label for="kode" class="block text-sm font-medium text-slate-700">Kode Aktivasi</label>
+            <label for="kode" class="block text-sm font-medium text-utama">Kode Aktivasi</label>
             <input
               id="kode"
               :value="form.kode_aktivasi"
@@ -60,10 +60,10 @@ const kirim = () => form.post('/kiosk/aktivasi')
               autofocus
               required
               placeholder="XXXX-XXXX"
-              class="mt-1 block w-full rounded-md border border-slate-300 px-4 py-3 text-center font-display text-2xl tracking-[0.3em] uppercase shadow-sm focus:border-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-600"
+              class="mt-1 block w-full rounded-md border border-garis px-4 py-3 text-center font-display text-2xl tracking-[0.3em] uppercase bayang focus:border-aksen focus:outline-none focus:ring-1 focus:ring-aksen"
               @input="rapikan"
             />
-            <p v-if="form.errors.kode_aktivasi" class="mt-1.5 text-sm text-amber-700">
+            <p v-if="form.errors.kode_aktivasi" class="mt-1.5 text-sm text-peringatan-teks">
               {{ form.errors.kode_aktivasi }}
             </p>
           </div>
@@ -71,13 +71,13 @@ const kirim = () => form.post('/kiosk/aktivasi')
           <button
             type="submit"
             :disabled="form.processing"
-            class="w-full rounded-md bg-teal-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 disabled:opacity-60"
+            class="w-full rounded-md bg-aksen px-4 py-3 text-sm font-semibold text-white bayang transition hover:bg-aksen-kuat focus:outline-none focus:ring-2 focus:ring-aksen focus:ring-offset-2 disabled:opacity-60"
           >
             {{ form.processing ? 'Memproses…' : 'Aktifkan Perangkat' }}
           </button>
         </form>
 
-        <p class="mt-6 border-t border-slate-200 pt-4 text-xs text-slate-500">
+        <p class="mt-6 border-t border-garis pt-4 text-xs text-redup">
           Kode aktivasi diterbitkan admin melalui menu Kelola User / Role dan berlaku 24 jam.
           Alamat IP perangkat ini tercatat otomatis saat aktivasi.
         </p>

@@ -176,10 +176,28 @@ Setelah aktivasi, layar utama menampilkan header status event (nama event aktif,
 
 # 6. Prinsip Desain
 
-- Palet warna: navy (elemen struktural/sidebar), teal (aksi utama), emerald (status berhasil/tepat waktu), amber (status terlambat/peringatan) — tanpa penggunaan ungu/indigo.
+- Palet warna: navy (elemen struktural/sidebar), teal (aksi utama), emerald (status berhasil/tepat waktu), amber (status terlambat/peringatan) — tanpa penggunaan ungu/indigo. Nuansanya dilunakkan menjadi pastel: latar halaman dan kartu memakai tint pucat dari warna-warna itu, sementara kejenuhan penuh disimpan untuk elemen interaktif (tombol, lencana status, tautan) supaya mata langsung menemukannya.
+
+- **Token warna, bukan warna hardcode.** Seluruh warna aplikasi berasal dari token peran pada `resources/css/tema.css` — `kertas`, `permukaan`, `garis`, `utama`, `sekunder`, `redup`, `aksen`, `berhasil`, `peringatan`, `sidebar`. Komponen tidak pernah menyebut `bg-white` atau `text-slate-600` langsung. Itulah yang membuat mode gelap cukup mendefinisikan ulang tokennya, bukan menambah varian `dark:` pada setiap elemen di setiap halaman.
+
+- **Tiga mode tampilan.** Terang (bawaan), Gelap, dan Sistem (mengikuti `prefers-color-scheme`). Pilihan disimpan di `localStorage` perangkat — bukan di akun, karena satu admin dapat memakai laptop terang di kantor dan tablet gelap di lapangan. Mode "Sistem" tidak dibekukan saat dipilih: ia tetap mendengarkan perubahan tema OS selagi aplikasi terbuka. Temanya dipasang oleh skrip kecil di `app.blade.php` sebelum CSS dimuat, supaya tidak ada kilatan putih pada setiap perpindahan halaman.
+
+- **Gerak menghormati `prefers-reduced-motion`.** Aturannya ditulis sekali secara global di `tema.css` — animasi dan transisi dipangkas menjadi 0,01 ms bagi pengguna yang memintanya di OS — sehingga tidak bergantung pada setiap komponen mengingatnya sendiri.
 
 - Tipografi: Lexend untuk judul dan angka (keterbacaan tinggi, sesuai konteks lembaga pelatihan kerja), Inter untuk teks isi/antarmuka.
+
+- **Layar absen bertema terang.** Titik absen berdiri di aula dan lorong yang terang benderang saat apel atau senam pagi; layar gelap di sana memantul dan sulit dibaca dari jarak berdiri. Berlaku sama untuk layar perangkat absen maupun layar Absen Umum di peramban admin — keduanya memakai satu komponen, sehingga identitasnya tidak terbelah.
+
+- **Pratinjau kamera adalah fokus visual layar absen.** Berasio 4:3 pada kolom selebar 640px — kira-kira tiga kali luas tata letak sebelumnya. Orang yang berdiri di depan titik absen perlu melihat wajahnya sendiri untuk memposisikan diri; kotak kecil membuat mereka mencondong dan memperlambat antrean. Sudut bidik dan garis pemindaian tetap ada, warnanya disesuaikan agar kontras di atas latar terang.
 
 - Kiosk dirancang untuk dioperasikan cepat tanpa mouse: fokus otomatis pada kolom input dan alur berbasis tap/keyboard.
 
 - Kepadatan informasi pada tabel (rekap, e-presensi) mengikuti pola sistem sejenis yang sudah dikenal pengguna di lingkungan Disnakertrans, agar transisi penggunaan lebih mudah.
+
+- **Dropdown dan pemilih tanggal digambar sendiri**, bukan `<select>` dan `<input type="date"` bawaan peramban. Keduanya tidak dapat ditata: pada mode gelap, daftar opsi `<select>` muncul sebagai kotak putih asing di tengah halaman, dan di luar Chrome kolom tanggal tampil sebagai "dd/mm/yyyy" polos tanpa kalender. Basisnya Headless UI (Vue 3), yang menyediakan perilaku papan ketik dan ARIA tanpa gaya bawaan yang perlu dilawan.
+
+- **Tabel lebar digulir, bukan diubah menjadi kartu bertumpuk.** Tabel di aplikasi ini dibaca untuk *membandingkan* baris — jam datang antar pegawai, capaian antar unit; tampilan kartu menghilangkan gulir mendatar tetapi sekaligus menghancurkan perbandingan itu. Sebagai gantinya tabel digulir di dalam wadahnya sendiri (tidak pernah meluber keluar viewport), dengan bayangan tepi yang menandakan masih ada isi tersembunyi, kolom pertama lengket di layar sempit, dan kolom aksi lengket di tepi kanan supaya tombolnya selalu terjangkau.
+
+- **Target sentuh ~44px** pada perangkat tanpa penunjuk halus (`pointer: coarse`), tanpa membesarkan tampilan di layar desktop yang memakai tetikus.
+
+- **Navigasi di layar sempit** memakai laci yang meluncur dari kiri di atas isi halaman, dipicu tombol menu pada bilah atas. Menu proyek ini punya sebelas butir; menumpuknya di atas konten akan mendorong isi halaman jauh ke bawah lipatan.

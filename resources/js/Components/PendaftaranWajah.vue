@@ -134,34 +134,34 @@ function cabut() {
 <template>
   <Modal :terbuka="terbuka" :judul="sudahTerdaftar ? 'Perbarui Foto Referensi Wajah' : 'Daftarkan Foto Referensi Wajah'" @tutup="tutup">
     <div v-if="pegawai" class="space-y-4">
-      <div class="rounded-lg bg-slate-50 px-4 py-3">
-        <p class="font-medium text-navy-700">{{ pegawai.nama }}</p>
-        <p class="font-display text-xs tabular-nums text-slate-500">{{ pegawai.nip }}</p>
+      <div class="rounded-lg bg-permukaan-2 px-4 py-3">
+        <p class="font-medium text-utama">{{ pegawai.nama }}</p>
+        <p class="font-display text-xs tabular-nums text-redup">{{ pegawai.nip }}</p>
       </div>
 
       <div class="grid gap-4 sm:grid-cols-2">
         <div v-if="sudahTerdaftar">
-          <p class="mb-1.5 text-xs font-medium uppercase tracking-wider text-slate-500">Terdaftar saat ini</p>
+          <p class="mb-1.5 text-xs font-medium uppercase tracking-wider text-redup">Terdaftar saat ini</p>
           <img
             :src="`/admin/pegawai/${pegawai.id}/wajah`"
             :alt="`Foto referensi ${pegawai.nama}`"
-            class="aspect-square w-full rounded-lg border border-slate-200 object-cover"
+            class="aspect-square w-full rounded-lg border border-garis object-cover"
           />
         </div>
 
         <div :class="sudahTerdaftar ? '' : 'sm:col-span-2'">
-          <p class="mb-1.5 text-xs font-medium uppercase tracking-wider text-slate-500">
+          <p class="mb-1.5 text-xs font-medium uppercase tracking-wider text-redup">
             {{ sudahTerdaftar ? 'Foto pengganti' : 'Foto referensi' }}
           </p>
           <img
             v-if="pratinjau"
             :src="pratinjau"
             alt="Pratinjau foto referensi"
-            class="aspect-square w-full rounded-lg border border-slate-200 object-cover"
+            class="aspect-square w-full rounded-lg border border-garis object-cover"
           />
           <div
             v-else
-            class="flex aspect-square w-full items-center justify-center rounded-lg border border-dashed border-slate-300 text-center text-xs text-slate-400"
+            class="flex aspect-square w-full items-center justify-center rounded-lg border border-dashed border-garis text-center text-xs text-redup"
           >
             Belum ada foto dipilih
           </div>
@@ -169,27 +169,27 @@ function cabut() {
       </div>
 
       <div>
-        <label class="mb-1.5 block text-sm font-medium text-slate-700" for="berkas-wajah">Pilih foto</label>
+        <label class="mb-1.5 block text-sm font-medium text-utama" for="berkas-wajah">Pilih foto</label>
         <input
           id="berkas-wajah"
           type="file"
           accept="image/jpeg,image/png"
-          class="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-navy-700 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-navy-800"
+          class="block w-full text-sm text-sekunder file:mr-3 file:rounded-md file:border-0 file:bg-navy-700 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-navy-800"
           @change="pilihBerkas"
         />
-        <p class="mt-1.5 text-xs text-slate-500">
+        <p class="mt-1.5 text-xs text-redup">
           Foto tampak depan, satu orang, pencahayaan cukup. JPG atau PNG, maksimal 5 MB.
         </p>
       </div>
 
-      <p v-if="statusPeriksa" class="flex items-center gap-2 text-sm text-slate-600">
+      <p v-if="statusPeriksa" class="flex items-center gap-2 text-sm text-sekunder">
         <span class="h-3 w-3 animate-spin rounded-full border-2 border-teal-600 border-t-transparent"></span>
         {{ statusPeriksa }}
       </p>
 
-      <p v-if="galat" class="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">{{ galat }}</p>
+      <p v-if="galat" class="rounded-lg bg-peringatan-lembut px-3 py-2 text-sm text-peringatan-teks">{{ galat }}</p>
 
-      <p v-if="embedding" class="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+      <p v-if="embedding" class="rounded-lg bg-berhasil-lembut px-3 py-2 text-sm text-berhasil-teks">
         Wajah terdeteksi. Foto siap disimpan.
       </p>
     </div>
@@ -198,7 +198,7 @@ function cabut() {
       <button
         v-if="sudahTerdaftar"
         type="button"
-        class="mr-auto rounded-lg px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+        class="mr-auto rounded-lg px-3 py-2 text-sm font-medium text-peringatan-teks hover:bg-peringatan-lembut disabled:opacity-50"
         :disabled="mengirim"
         @click="cabut"
       >
@@ -206,14 +206,14 @@ function cabut() {
       </button>
       <button
         type="button"
-        class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+        class="rounded-lg px-4 py-2 text-sm font-medium text-sekunder hover:bg-permukaan-hover"
         @click="tutup"
       >
         Batal
       </button>
       <button
         type="button"
-        class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
+        class="rounded-lg bg-aksen px-4 py-2 text-sm font-medium text-white hover:bg-aksen-kuat disabled:cursor-not-allowed disabled:opacity-50"
         :disabled="!embedding || mengirim"
         @click="simpan"
       >

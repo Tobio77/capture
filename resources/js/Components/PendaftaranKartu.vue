@@ -66,18 +66,18 @@ function cabut() {
     @tutup="tutup"
   >
     <div v-if="pegawai" class="space-y-4">
-      <div class="rounded-lg bg-slate-50 px-4 py-3">
-        <p class="font-medium text-navy-700">{{ pegawai.nama }}</p>
-        <p class="font-display text-xs tabular-nums text-slate-500">{{ pegawai.nip }}</p>
+      <div class="rounded-lg bg-permukaan-2 px-4 py-3">
+        <p class="font-medium text-utama">{{ pegawai.nama }}</p>
+        <p class="font-display text-xs tabular-nums text-redup">{{ pegawai.nip }}</p>
       </div>
 
-      <div v-if="sudahPunya" class="rounded-md border border-slate-200 px-4 py-3">
-        <p class="text-xs uppercase tracking-wider text-slate-500">Kartu terdaftar saat ini</p>
-        <p class="mt-1 font-display text-sm tabular-nums text-navy-700">{{ pegawai.uid_kartu }}</p>
+      <div v-if="sudahPunya" class="rounded-md border border-garis px-4 py-3">
+        <p class="text-xs uppercase tracking-wider text-redup">Kartu terdaftar saat ini</p>
+        <p class="mt-1 font-display text-sm tabular-nums text-utama">{{ pegawai.uid_kartu }}</p>
       </div>
 
       <div>
-        <label for="uid-kartu" class="block text-sm font-medium text-slate-700">
+        <label for="uid-kartu" class="block text-sm font-medium text-utama">
           {{ sudahPunya ? 'UID kartu pengganti' : 'UID kartu' }}
         </label>
         <input
@@ -87,14 +87,14 @@ function cabut() {
           type="text"
           autocomplete="off"
           placeholder="Tempelkan kartu pada reader…"
-          class="mt-2 block w-full rounded-md border-slate-300 font-display tabular-nums shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+          class="mt-2 block w-full rounded-md border-garis font-display tabular-nums bayang focus:border-aksen focus:ring-aksen sm:text-sm"
           @keyup.enter="simpan"
         />
-        <p class="mt-1.5 text-xs text-slate-500">
+        <p class="mt-1.5 text-xs text-redup">
           Reader 13,56 MHz akan mengetikkan UID kartu sendiri ke kolom ini. Huruf besar/kecil dan
           tanda pemisah diabaikan.
         </p>
-        <p v-if="form.errors.uid_kartu" class="mt-1.5 text-xs text-amber-700">{{ form.errors.uid_kartu }}</p>
+        <p v-if="form.errors.uid_kartu" class="mt-1.5 text-xs text-peringatan-teks">{{ form.errors.uid_kartu }}</p>
       </div>
     </div>
 
@@ -102,7 +102,7 @@ function cabut() {
       <button
         v-if="sudahPunya"
         type="button"
-        class="mr-auto rounded-lg px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+        class="mr-auto rounded-lg px-3 py-2 text-sm font-medium text-peringatan-teks hover:bg-peringatan-lembut disabled:opacity-50"
         :disabled="form.processing"
         @click="cabut"
       >
@@ -110,14 +110,14 @@ function cabut() {
       </button>
       <button
         type="button"
-        class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+        class="rounded-lg px-4 py-2 text-sm font-medium text-sekunder hover:bg-permukaan-hover"
         @click="tutup"
       >
         Batal
       </button>
       <button
         type="button"
-        class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
+        class="rounded-lg bg-aksen px-4 py-2 text-sm font-medium text-white hover:bg-aksen-kuat disabled:cursor-not-allowed disabled:opacity-50"
         :disabled="form.processing || form.uid_kartu.trim() === ''"
         @click="simpan"
       >
