@@ -167,6 +167,18 @@
     --tema-garis: #dce3d8;
     --tema-garis-kuat: #bfcbb9;
 
+    /*
+     * Garis skala ukur (S32).
+     *
+     * Motif halaman depan diambil dari irisan tiga kejuruan BLK — meteran
+     * penjahit, mistar las, sigmat otomotif — yang semuanya dibangun dari
+     * satu hal yang sama dengan piringan jam: deret garis ukur bergradasi.
+     * Warnanya dipisahkan sebagai token karena ia harus ikut berbalik di tema
+     * gelap; digambar dengan tinta tetap, motifnya lenyap di sana.
+     */
+    --tema-tik: rgb(15 42 67 / 0.16);
+    --tema-tik-kuat: rgb(15 42 67 / 0.3);
+
     /* Tinta tetap navy: identitas struktural proyek tidak ikut bergeser. */
     --tema-utama: #0f2a43;
     --tema-sekunder: #445f76;
@@ -240,6 +252,9 @@
         --tema-garis: #21455f;
         --tema-garis-kuat: #2f5c80;
 
+        --tema-tik: rgb(233 242 248 / 0.18);
+        --tema-tik-kuat: rgb(233 242 248 / 0.34);
+
         --tema-utama: #e9f2f8;
         --tema-sekunder: #b6cbdc;
         --tema-redup: #849fb6;
@@ -289,6 +304,9 @@
 
     --tema-garis: #21455f;
     --tema-garis-kuat: #2f5c80;
+
+    --tema-tik: rgb(233 242 248 / 0.18);
+    --tema-tik-kuat: rgb(233 242 248 / 0.34);
 
     --tema-utama: #e9f2f8;
     --tema-sekunder: #b6cbdc;
@@ -589,6 +607,23 @@ button:focus-visible {
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
         scroll-behavior: auto !important;
+
+        /*
+         * JEDA ikut dinolkan, bukan hanya durasinya.
+         *
+         * Tanpa baris ini, animasi bertahap yang memakai `animation-delay`
+         * beserta `animation-fill-mode: both` membuat elemennya bertahan di
+         * keadaan AWAL — pada koreografi masuk halaman depan, keadaan awal itu
+         * `opacity: 0`. Akibatnya pengguna yang meminta gerak minimal justru
+         * menerima halaman yang kosong total selama 0,8 detik, lalu isinya
+         * muncul serentak: persis kebalikan dari yang ia minta.
+         *
+         * Ini terlihat hanya karena diperiksa dengan `prefers-reduced-motion`
+         * dinyalakan; durasi yang dinolkan sendirian tampak seperti sudah
+         * cukup.
+         */
+        animation-delay: 0s !important;
+        transition-delay: 0s !important;
     }
 }
 
@@ -967,4 +1002,213 @@ button:focus-visible {
     .tabel-gulir tbody tr:hover > :first-child {
         box-shadow: inset 3px 0 0 var(--tema-aksen);
     }
+}
+
+/* ==========================================================================
+ * Halaman depan titik absen — "Pelat Bengkel" (S32).
+ *
+ * SEMUANYA DI `@layer components`. Alasannya sama seperti blok komponen di
+ * atas: CSS tanpa layer mengalahkan SELURUH utility Tailwind berapa pun
+ * spesifisitasnya, sehingga `pelat-navy rounded-none` pernah tetap melengkung.
+ *
+ * Motifnya satu: deret garis ukur. Ia diambil dari irisan tiga kejuruan BLK —
+ * meteran penjahit, mistar las, sigmat otomotif — yang ternyata satu primitif
+ * dengan piringan jam. Ikon kalender dan jam generik tidak menyatakan apa pun
+ * tentang tempat ini; skala ukur menyatakannya tanpa perlu digambar sebagai
+ * ilustrasi.
+ *
+ * Ia dipasang di DUA tempat saja, bukan tiga seperti rancangan awal: tepi
+ * bawah pelat navy dan sisi kiri kartu jam. Penempatan ketiga di latar sage
+ * dibatalkan setelah dilihat — tiga tempat membuat motifnya berhenti terbaca
+ * sebagai penanda dan mulai terbaca sebagai tekstur.
+ * ======================================================================== */
+@layer components {
+    /*
+     * Bidang navy bergradasi dengan cahaya teal di luar pusat.
+     *
+     * Cahayanya sengaja tidak di tengah: pusat bidang ini akan ditimpa kartu
+     * jam, dan cahaya tepat di belakangnya hanya akan menurunkan kontras
+     * angka yang justru paling perlu terbaca.
+     */
+    .pelat-navy {
+        background-color: var(--navy-pelat, #0f2a43);
+        background-image:
+            radial-gradient(
+                40rem 24rem at 82% 6%,
+                rgb(13 148 136 / 0.62),
+                rgb(13 148 136 / 0) 72%
+            ),
+            radial-gradient(30rem 20rem at 4% 96%, rgb(5 150 105 / 0.34), rgb(5 150 105 / 0) 74%),
+            linear-gradient(148deg, #0f2a43 0%, #0b2035 62%, #0a1c2f 100%);
+        color: var(--tema-sidebar-teks);
+    }
+
+    /*
+     * Deret garis ukur. Dua lapis: tik kecil tiap 8px, tik besar tiap 40px —
+     * takaran yang sama dengan meteran sungguhan, dan itu sebabnya ia terbaca
+     * sebagai alat ukur alih-alih sebagai garis-garis hias.
+     */
+    .skala-ukur {
+        background-image:
+            repeating-linear-gradient(
+                to right,
+                var(--tik, var(--tema-tik)) 0 1px,
+                transparent 1px 8px
+            ),
+            repeating-linear-gradient(
+                to right,
+                var(--tik-kuat, var(--tema-tik-kuat)) 0 1px,
+                transparent 1px 40px
+            );
+        background-repeat: repeat-x;
+        background-position:
+            left bottom,
+            left bottom;
+        background-size:
+            100% 0.375rem,
+            100% 0.75rem;
+    }
+
+    /* Di atas pelat navy tiknya terang; tinta navy lenyap di sana. */
+    .skala-terang {
+        --tik: rgb(230 239 246 / 0.28);
+        --tik-kuat: rgb(230 239 246 / 0.55);
+    }
+
+    /* Skala tegak di sisi kartu jam: penanda kedua, bukan pengulangan. */
+    .skala-tegak {
+        background-image:
+            repeating-linear-gradient(
+                to bottom,
+                var(--tema-tik-kuat) 0 1.5px,
+                transparent 1.5px 9px
+            ),
+            repeating-linear-gradient(
+                to bottom,
+                var(--tema-aksen) 0 1.5px,
+                transparent 1.5px 36px
+            );
+        background-repeat: repeat-y;
+        background-position:
+            left top,
+            left top;
+        background-size:
+            0.5rem 100%,
+            1rem 100%;
+    }
+
+    /*
+     * Kartu jam. Bayangannya lebar dan tipis, bukan pekat: yang memberi
+     * kedalaman di sini adalah kartu yang MELANGGAR perbatasan navy–sage,
+     * bukan bayangan yang ditebalkan.
+     */
+    .kartu-jam {
+        background-color: var(--tema-permukaan);
+        border: 1px solid var(--tema-garis);
+        border-radius: 1.5rem;
+        box-shadow:
+            0 1px 2px rgb(15 42 67 / 0.06),
+            0 18px 40px -18px rgb(15 42 67 / 0.35),
+            0 40px 80px -60px rgb(15 42 67 / 0.45);
+    }
+
+    /*
+     * Dua pilihan absen. Keduanya selebar layar dan bertumpuk — ergonomi
+     * layar sentuh yang dioperasikan sambil berdiri, kerap dengan satu tangan
+     * memegang kartu identitas, dan sasaran selebar layar jauh lebih mudah
+     * dikenai. Yang dibedakan bobotnya, bukan lebarnya: kartu kembar identik
+     * justru pola yang dibuang.
+     */
+    .pita-utama {
+        background-image: linear-gradient(112deg, #0d9488 0%, #0f766e 58%, #0b6157 100%);
+        color: #fff;
+        border-radius: 1.25rem;
+    }
+
+    .pita-utama:hover {
+        background-image: linear-gradient(112deg, #0f766e 0%, #0b6157 58%, #095049 100%);
+    }
+
+    .pita-kedua {
+        background-color: var(--tema-permukaan);
+        border: 2px solid var(--tema-garis-kuat);
+        border-radius: 1.25rem;
+    }
+
+    .pita-kedua:hover {
+        border-color: var(--tema-aksen);
+    }
+}
+
+/* --------------------------------------------------------------------------
+ * Satu momen masuk yang dikoreografikan.
+ *
+ * Bukan efek per elemen: urutannya menceritakan bagaimana layar ini dirakit —
+ * pelatnya turun, skalanya tergambar, kartu jamnya mendarat di atas
+ * perbatasan, lalu dua pilihannya naik. Keping status muncul PALING AKHIR
+ * karena ia vonis, dan vonis datang setelah jamnya terbaca.
+ *
+ * Sesudah itu tidak ada yang bergerak selain detik. Aturan
+ * `prefers-reduced-motion` global di atas memangkas seluruh durasi menjadi
+ * 0,01 ms; karena semuanya memakai `animation-fill-mode: both`, hasilnya
+ * bukan halaman kosong melainkan halaman yang langsung berada di keadaan
+ * akhirnya.
+ * ------------------------------------------------------------------------ */
+@keyframes pelat-turun {
+    from {
+        transform: translateY(-101%);
+    }
+}
+
+@keyframes skala-tergambar {
+    from {
+        clip-path: inset(0 100% 0 0);
+    }
+}
+
+@keyframes kartu-mendarat {
+    from {
+        opacity: 0;
+        transform: translateY(1.5rem) scale(0.985);
+    }
+}
+
+@keyframes pita-naik {
+    from {
+        opacity: 0;
+        transform: translateY(0.875rem);
+    }
+}
+
+@keyframes redup-masuk {
+    from {
+        opacity: 0;
+    }
+}
+
+.tahap {
+    animation-delay: var(--tunda, 0ms);
+    animation-duration: var(--lama, 420ms);
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    animation-fill-mode: both;
+}
+
+.tahap-pelat {
+    animation-name: pelat-turun;
+}
+
+.tahap-skala {
+    animation-name: skala-tergambar;
+}
+
+.tahap-kartu {
+    animation-name: kartu-mendarat;
+}
+
+.tahap-pita {
+    animation-name: pita-naik;
+}
+
+.tahap-redup {
+    animation-name: redup-masuk;
 }

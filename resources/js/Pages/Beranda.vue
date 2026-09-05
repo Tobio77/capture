@@ -2,30 +2,42 @@
 import { computed, ref } from 'vue'
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3'
 import Ikon from '@/Components/Ikon.vue'
+import TandaAbsen from '@/Components/UI/TandaAbsen.vue'
 import SaklarTema from '@/Components/UI/SaklarTema.vue'
 import { useJamServer } from '@/Composables/useJamServer'
 
 /**
- * Halaman depan titik absen — "Papan Jam" (S31).
+ * Halaman depan titik absen — "Pelat Bengkel" (S32).
  *
  * Layar ini menempel di pintu masuk kantor dinas atau ruang praktik BLK, dan
  * dilihat orang yang sama setiap pagi. Setelah hari ketiga tidak ada lagi yang
  * membaca sambutan; yang dicari hanya dua hal — pukul berapa sekarang, dan
- * tombol mana yang ditekan.
+ * tombol mana yang ditekan. Karena itu jam tetap elemen terbesar, dan dua
+ * pilihan absen tetap baris tekan selebar layar yang bertumpuk: layar sentuh
+ * ini dioperasikan sambil berdiri, kerap dengan satu tangan memegang kartu
+ * identitas, dan sasaran selebar layar jauh lebih mudah dikenai daripada dua
+ * kartu yang berbagi lebar.
  *
- * Karena itu jam menjadi elemen pertama dan terbesar, bukan judul. Susunan
- * sebelumnya (eyebrow "TITIK ABSEN", judul "Selamat datang", dua kartu ikon
- * bersebelahan) adalah susunan halaman pemasaran: ia memperkenalkan diri
- * kepada pengunjung baru, padahal di sini tidak pernah ada pengunjung baru.
+ * Yang berubah pada S32 adalah susunannya. Versi sebelumnya menumpuk semuanya
+ * di poros tengah — jam, tanggal, status, dua tombol — sehingga layarnya
+ * benar dan tenang tetapi datar: tidak ada bidang, tidak ada kedalaman, dan
+ * tidak ada apa pun yang menyatakan bahwa ini papan milik dinas
+ * ketenagakerjaan alih-alih aplikasi jam mana pun.
  *
- * Dua pilihan absen menjadi baris tekan selebar layar yang bertumpuk, bukan
- * kartu bersebelahan. Alasannya fungsional: layar sentuh ini dioperasikan
- * sambil berdiri, kerap dengan satu tangan memegang kartu identitas, dan
- * sasaran selebar layar jauh lebih mudah dikenai daripada dua kartu yang
- * berbagi lebar.
+ * Sekarang ada tiga bidang. Pelat navy bergradasi menempati bagian atas dan
+ * memuat identitas serta tanggal; tanahnya sage; dan kartu jam MELANGGAR
+ * perbatasan keduanya, digeser dari poros tengah. Perbatasan yang dilanggar
+ * itulah yang memberi kedalaman — bukan bayangan yang ditebalkan.
  *
- * Satu-satunya yang bergerak di layar ini adalah detik pada jam. Itulah yang
- * membuatnya terbaca sebagai papan jam yang hidup, bukan halaman yang gelisah.
+ * Motifnya deret garis ukur, diambil dari irisan tiga kejuruan BLK: meteran
+ * penjahit, mistar las, sigmat otomotif. Ketiganya satu primitif dengan
+ * piringan jam, sehingga motif itu menyambungkan jam raksasa di tengah layar
+ * dengan pekerjaan yang dilatih di gedung tempat layarnya menempel — tanpa
+ * satu pun ikon tempelan.
+ *
+ * Gerak: satu koreografi masuk (lihat tema.css), lalu diam. Sesudahnya tidak
+ * ada yang bergerak selain detik. Itulah yang membuatnya terbaca sebagai
+ * papan yang hidup, bukan halaman yang gelisah.
  */
 
 const props = defineProps({
@@ -113,18 +125,24 @@ const batasTertulis = computed(() =>
 )
 
 /*
- * Keping status di bawah jam.
- *
- * Inilah yang membuat angka sebesar itu punya konsekuensi: orang yang
- * membacanya langsung tahu ia masih tepat waktu atau sudah lewat, tanpa
- * menghitung sendiri selisihnya terhadap jam masuk. Sekaligus satu-satunya
- * tempat emerald dan amber muncul di layar ini — warnanya menyampaikan
- * keterangan, bukan menghias.
+ * Kepingnya kini berdiri di atas pelat navy, bukan di atas sage, sehingga
+ * warnanya harus versi terang dari keluarga yang sama: emerald dan amber
+ * pekat (#059669, #B45309) tidak terbaca di atas latar segelap itu. Yang
+ * dipertahankan justru bagian yang berarti — keduanya tetap DATAR, tanpa
+ * gradasi. Begitu warna semantik ikut dihias, ia berhenti menyatakan apa pun.
  */
 const status = computed(() =>
   masihTepat.value
-    ? { nada: 'nada-emerald', teks: `Masih tepat waktu — batas ${batasTertulis.value}` }
-    : { nada: 'nada-amber', teks: `Lewat batas ${batasTertulis.value} — tercatat terlambat` },
+    ? {
+        kelas: 'bg-emerald-400/15 text-emerald-200',
+        titik: 'bg-emerald-300',
+        teks: `Masih tepat waktu — batas ${batasTertulis.value}`,
+      }
+    : {
+        kelas: 'bg-amber-400/15 text-amber-200',
+        titik: 'bg-amber-300',
+        teks: `Lewat batas ${batasTertulis.value} — tercatat terlambat`,
+      },
 )
 
 const langkah = ref(null)
@@ -185,144 +203,201 @@ const tanggalRingkas = (nilai) =>
 
   <div class="flex min-h-screen flex-col bg-kertas text-utama">
     <!--
-      Strip identitas. Sengaja setipis dan sedatar mungkin: ia menjawab
-      pertanyaan yang hanya ditanyakan sekali ("mesin ini melayani unit mana?")
-      dan tidak boleh bersaing dengan jam.
+      PELAT NAVY.
+
+      Tingginya tidak dipatok angka: ia setinggi isinya, dan kartu jam ditarik
+      naik menimpa tepinya dengan margin negatif. Dengan begitu perbatasan
+      navy–sage selalu jatuh di tempat yang sama relatif terhadap kartu jam,
+      berapa pun tinggi layarnya — patokan yang tidak dapat diberikan oleh
+      tinggi tetap dalam satuan vh.
     -->
-    <header class="border-b border-garis">
-      <div class="mx-auto flex w-full max-w-4xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-3">
+    <div class="pelat-navy tahap tahap-pelat relative" style="--lama: 380ms">
+      <div class="mx-auto w-full max-w-5xl px-6">
         <!--
-          Identitas lembaga. Tanpa ini layar ini bisa jadi aplikasi jam mana
-          pun — dan papan yang menempel di pintu masuk kantor dinas justru
-          harus menyebut kantornya.
+          Strip identitas. Sengaja setipis mungkin: ia menjawab pertanyaan yang
+          hanya ditanyakan sekali ("mesin ini melayani unit mana?") dan tidak
+          boleh bersaing dengan jam.
         -->
-        <p class="flex min-w-0 items-center gap-2.5">
-          <span class="ubin-merek h-7 w-7 shrink-0">
-            <Ikon nama="absen" ukuran="h-3.5 w-3.5" />
-          </span>
-          <span class="min-w-0 leading-tight">
-            <span class="block truncate font-display text-sm font-semibold">Capture</span>
-            <span class="block truncate text-[0.6875rem] text-redup">
-              Disnakertrans Provinsi Jawa Timur
+        <header
+          class="tahap tahap-redup flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-4"
+          style="--tunda: 180ms"
+        >
+          <p class="flex min-w-0 items-center gap-2.5">
+            <span
+              class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/15 text-sidebar-teks"
+            >
+              <Ikon nama="absen" ukuran="h-3.5 w-3.5" />
             </span>
-          </span>
-        </p>
-
-        <div class="flex min-w-0 items-center gap-3">
-          <!--
-            Perangkat dadakan ditandai terpisah dan berwarna lain dari titik
-            hijau "tersambung": ia bukan keadaan sehat yang berjalan normal,
-            melainkan pengingat bahwa Mode Terbuka sedang menyala dan perangkat
-            ini belum pernah ditinjau siapa pun.
-          -->
-          <span v-if="perangkatAdHoc" class="keping nada-amber shrink-0 text-[0.6875rem]">
-            Ad-hoc
-          </span>
-
-          <p class="flex min-w-0 items-center gap-2 text-xs text-sekunder">
-            <span v-if="perangkatAktif" class="relative flex h-2 w-2 shrink-0">
-              <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-berhasil opacity-60"></span>
-              <span class="relative inline-flex h-2 w-2 rounded-full bg-berhasil"></span>
-            </span>
-            <span v-else class="h-2 w-2 shrink-0 rounded-full bg-redup"></span>
-
-            <span v-if="!perangkatAktif" class="truncate font-medium">
-              Perangkat belum diaktifkan
-            </span>
-
-            <span v-else class="min-w-0 leading-tight">
-              <span class="block truncate font-medium">{{ namaPerangkat }}</span>
-              <span v-if="unitPerangkat" class="block truncate text-[0.6875rem] text-redup">
-                {{ unitPerangkat }}
+            <span class="min-w-0 leading-tight">
+              <span class="block truncate font-display text-sm font-semibold text-sidebar-teks">
+                Capture
+              </span>
+              <span class="block truncate text-[0.6875rem] text-sidebar-redup">
+                Disnakertrans Provinsi Jawa Timur
               </span>
             </span>
           </p>
 
-          <SaklarTema />
+          <div class="flex min-w-0 items-center gap-3">
+            <!--
+              Perangkat dadakan ditandai terpisah dan berwarna lain dari titik
+              hijau "tersambung": ia bukan keadaan sehat yang berjalan normal,
+              melainkan pengingat bahwa Mode Terbuka sedang menyala dan
+              perangkat ini belum pernah ditinjau siapa pun.
+            -->
+            <span
+              v-if="perangkatAdHoc"
+              class="shrink-0 rounded-full bg-amber-400/20 px-2.5 py-1 text-[0.6875rem] font-semibold text-amber-200"
+            >
+              Ad-hoc
+            </span>
+
+            <p class="flex min-w-0 items-center gap-2 text-xs text-sidebar-redup">
+              <span v-if="perangkatAktif" class="relative flex h-2 w-2 shrink-0">
+                <span
+                  class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-60"
+                ></span>
+                <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-300"></span>
+              </span>
+              <span v-else class="h-2 w-2 shrink-0 rounded-full bg-sidebar-redup"></span>
+
+              <span v-if="!perangkatAktif" class="truncate font-medium">
+                Perangkat belum diaktifkan
+              </span>
+
+              <span v-else class="min-w-0 leading-tight">
+                <span class="block truncate font-medium text-sidebar-teks">
+                  {{ namaPerangkat }}
+                </span>
+                <span v-if="unitPerangkat" class="block truncate text-[0.6875rem]">
+                  {{ unitPerangkat }}
+                </span>
+              </span>
+            </p>
+
+            <SaklarTema />
+          </div>
+        </header>
+
+        <!--
+          Tanggal dan status dirapatkan ke KANAN pelat, bukan ditumpuk di bawah
+          jam. Bersama kartu jam yang digeser ke kiri, keduanya membentuk alur
+          baca menyerong — susunan yang tidak mungkin muncul dari satu poros
+          tengah, dan itulah bedanya dengan versi sebelumnya.
+        -->
+        <div class="flex justify-end pb-28 pt-7 text-right sm:pb-32">
+          <div class="max-w-sm">
+            <p
+              class="tahap tahap-redup font-display text-xl font-medium leading-tight text-sidebar-teks sm:text-2xl"
+              style="--tunda: 260ms"
+            >
+              {{ tanggalPanjang }}
+            </p>
+
+            <!--
+              Keping status. Satu-satunya tempat emerald dan amber muncul di
+              layar ini, dan keduanya menyampaikan keterangan yang tidak dapat
+              dibaca dari jam saja: apakah orang yang berdiri di sini masih
+              tepat waktu. Warnanya tetap datar — begitu warna semantik ikut
+              digradasi, ia berhenti berarti apa-apa.
+
+              Ia muncul PALING AKHIR dalam koreografi masuk, karena ia vonis,
+              dan vonis datang setelah jamnya terbaca.
+            -->
+            <p
+              class="tahap tahap-redup mt-3 inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[0.8125rem] font-medium"
+              :class="status.kelas"
+              style="--tunda: 780ms"
+            >
+              <span class="h-1.5 w-1.5 rounded-full" :class="status.titik"></span>
+              {{ status.teks }}
+            </p>
+
+            <p class="tahap tahap-redup mt-2 text-sm text-sidebar-redup" style="--tunda: 820ms">
+              {{ konteks }}
+            </p>
+          </div>
         </div>
       </div>
-    </header>
 
-    <main class="mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center px-5 py-8">
+      <!--
+        Deret garis ukur di tepi pelat: motif utama halaman ini, diambil dari
+        irisan tiga kejuruan BLK — meteran penjahit, mistar las, sigmat
+        otomotif — yang ternyata satu primitif dengan piringan jam.
+
+        Ia tergambar kiri ke kanan sebagai tahap kedua koreografi, seperti
+        meteran yang ditarik keluar.
+      -->
+      <div
+        class="skala-ukur skala-terang tahap tahap-skala absolute inset-x-0 bottom-0 h-3"
+        style="--tunda: 200ms; --lama: 560ms"
+        aria-hidden="true"
+      ></div>
+    </div>
+
+    <main class="mx-auto -mt-16 w-full max-w-5xl flex-1 px-6 pb-10 sm:-mt-20">
+      <!--
+        KARTU JAM. Melanggar perbatasan navy–sage, dan digeser dari poros
+        tengah. Perbatasan yang dilanggar itulah yang memberi kedalaman —
+        bukan bayangan yang ditebalkan.
+      -->
+      <div
+        class="kartu-jam tahap tahap-kartu relative inline-block overflow-hidden px-7 py-6 sm:px-9"
+        style="--tunda: 300ms; --lama: 560ms"
+      >
+        <!-- Penanda kedua motifnya, tegak, di sisi kartu. -->
+        <div class="skala-tegak absolute bottom-6 left-0 top-6 w-4" aria-hidden="true"></div>
+
+        <p class="flex items-center gap-4 pl-8 font-display tabular-nums">
+          <span
+            class="font-bold leading-[0.85] tracking-[-0.05em]"
+            style="font-size: clamp(4.25rem, 12vw, 7.5rem)"
+          >
+            {{ jam }}
+          </span>
+          <span
+            class="font-medium leading-none text-redup"
+            style="font-size: clamp(1.1rem, 2.8vw, 1.75rem)"
+          >
+            {{ detik }}
+          </span>
+        </p>
+      </div>
+
       <p
         v-if="sukses"
-        class="mb-6 rounded-xl bg-berhasil-lembut px-4 py-3 text-sm text-berhasil-teks"
+        class="mt-5 rounded-xl bg-berhasil-lembut px-4 py-3 text-sm text-berhasil-teks"
       >
         {{ sukses }}
       </p>
 
       <p
         v-if="gagal"
-        class="mb-6 rounded-xl bg-peringatan-lembut px-4 py-3 text-sm text-peringatan-teks"
+        class="mt-5 rounded-xl bg-peringatan-lembut px-4 py-3 text-sm text-peringatan-teks"
       >
         {{ gagal }}
       </p>
 
       <!--
-        Jam. Menit dan detik dipisah supaya angka menit tidak bergoyang setiap
-        detik: yang berdenyut hanya dua digit kecil di sampingnya.
+        Dua pilihan. Tetap selebar layar dan bertumpuk — ergonomi layar sentuh
+        yang dioperasikan sambil berdiri tidak diutak-atik. Yang dibedakan
+        BOBOTNYA: yang utama lebih tinggi dan bergradasi, yang kedua lebih
+        pendek dan bergaris. Dua kotak identik bersebelahan justru pola yang
+        sudah dibuang.
       -->
-      <section class="text-center">
-        <!--
-          Detik disejajarkan ke TENGAH tinggi angka jam.
-          
-          Menempel di garis dasar membuatnya terbaca seperti catatan kaki yang
-          terselip di pojok, sementara diletakkan di puncak ia terbaca sebagai
-          pangkat. Di tengah, dengan jarak yang sedikit dilebarkan, ia terbaca
-          sebagai satuan waktu yang lebih kecil — yang memang itulah dia.
-        -->
-        <p class="flex items-center justify-center gap-3.5 font-display tabular-nums">
-          <span
-            class="font-bold leading-[0.85] tracking-[-0.045em]"
-            style="font-size: clamp(4.5rem, 13vw, 8rem)"
-          >
-            {{ jam }}
-          </span>
-          <span
-            class="font-medium leading-none text-redup"
-            style="font-size: clamp(1.15rem, 3vw, 1.9rem)"
-          >
-            {{ detik }}
-          </span>
-        </p>
-
-        <p
-          class="mt-1 font-display font-medium text-sekunder"
-          style="font-size: clamp(1rem, 2.2vw, 1.375rem)"
-        >
-          {{ tanggalPanjang }}
-        </p>
-
-        <!--
-          Keping status. Satu-satunya tempat emerald dan amber muncul di layar
-          ini, dan keduanya menyampaikan keterangan yang tidak dapat dibaca
-          dari jam saja: apakah orang yang berdiri di sini masih tepat waktu.
-        -->
-        <p
-          class="keping mt-4 px-3.5 py-1.5 text-[0.8125rem]"
-          :class="status.nada"
-        >
-          <span class="h-1.5 w-1.5 rounded-full" :style="{ backgroundColor: 'var(--nada-kuat)' }"></span>
-          {{ status.teks }}
-        </p>
-
-        <p class="mt-3 text-sm text-sekunder">{{ konteks }}</p>
-      </section>
-
-      <!--
-        Dua pilihan. Baris selebar layar, bertumpuk, tinggi minimum 96px —
-        ukuran tombol papan, bukan kartu bacaan.
-      -->
-      <div class="mt-10 flex flex-col gap-3">
+      <div class="mt-8 flex flex-col gap-3.5">
         <button
           type="button"
-          class="tautan-aksi group flex min-h-[6rem] w-full items-center gap-4 rounded-2xl bg-aksen px-6 py-5 text-left text-white transition-[background-color,transform] duration-150 hover:bg-aksen-kuat active:scale-[0.995]"
+          class="pita-utama tautan-aksi tahap tahap-pita group flex min-h-[7rem] w-full items-center gap-5 px-6 py-5 text-left transition-transform duration-150 active:scale-[0.995] sm:px-8"
+          style="--tunda: 520ms"
           @click="pilihAbsenUmum"
         >
+          <TandaAbsen jenis="umum" ukuran="h-12 w-12 shrink-0 opacity-95" />
+
           <span class="min-w-0 flex-1">
             <span class="block font-display text-2xl font-semibold">Absen Umum</span>
-            <span class="mt-1 block text-sm text-white/75">
-              {{ absen_umum_aktif ? 'Datang & pulang harian' : 'Sedang dimatikan admin' }}
+            <span class="mt-0.5 block text-sm text-white/75">
+              {{ absen_umum_aktif ? 'Datang dan pulang harian' : 'Sedang dimatikan admin' }}
             </span>
           </span>
 
@@ -335,13 +410,16 @@ const tanggalRingkas = (nilai) =>
 
         <button
           type="button"
-          class="tautan-aksi group flex min-h-[6rem] w-full items-center gap-4 rounded-2xl border-2 border-garis-kuat bg-permukaan px-6 py-5 text-left transition-[border-color,transform] duration-150 hover:border-aksen active:scale-[0.995]"
+          class="pita-kedua tautan-aksi tahap tahap-pita group flex min-h-[6rem] w-full items-center gap-5 px-6 py-4 text-left transition-transform duration-150 active:scale-[0.995] sm:px-8"
           :class="langkah === 'event' && 'border-aksen'"
+          style="--tunda: 620ms"
           @click="pilihAbsenEvent"
         >
+          <TandaAbsen jenis="event" ukuran="h-11 w-11 shrink-0 text-aksen-teks" />
+
           <span class="min-w-0 flex-1">
-            <span class="block font-display text-2xl font-semibold">Absen Event</span>
-            <span class="mt-1 flex items-center gap-1.5 text-sm text-sekunder">
+            <span class="block font-display text-xl font-semibold">Absen Event</span>
+            <span class="mt-0.5 flex items-center gap-1.5 text-sm text-sekunder">
               <Ikon v-if="!sudahIkutEvent" nama="kunci" ukuran="h-3.5 w-3.5 shrink-0" />
               <span class="truncate">
                 {{
@@ -355,7 +433,7 @@ const tanggalRingkas = (nilai) =>
 
           <Ikon
             nama="kanan"
-            ukuran="h-7 w-7 shrink-0 text-sekunder"
+            ukuran="h-6 w-6 shrink-0 text-sekunder"
             class="transition-transform duration-200 group-hover:translate-x-1"
           />
         </button>
@@ -429,7 +507,7 @@ const tanggalRingkas = (nilai) =>
     <!-- Kaki: aksi yang jarang dipakai, dan memang tidak untuk yang mengantre. -->
     <footer class="border-t border-garis">
       <div
-        class="mx-auto flex w-full max-w-4xl flex-wrap items-center justify-between gap-3 px-5 py-3 text-xs"
+        class="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-6 py-3 text-xs"
       >
         <p v-if="!perangkatAktif" class="text-redup">
           {{
