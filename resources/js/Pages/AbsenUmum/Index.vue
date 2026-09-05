@@ -148,7 +148,7 @@ const tanggalPanjang = (iso) =>
       <div class="flex flex-wrap items-center gap-2 print:hidden">
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 rounded-md border border-garis bg-permukaan px-3 py-2 text-sm font-medium text-utama transition hover:bg-permukaan-hover active:scale-95"
+          class="tombol tombol-garis"
           @click="cetak"
         >
           <Ikon nama="cetak" ukuran="h-4 w-4" /> Cetak
@@ -156,7 +156,7 @@ const tanggalPanjang = (iso) =>
         <button
           type="button"
           :disabled="sesi === null"
-          class="inline-flex items-center gap-1.5 rounded-md border border-garis bg-permukaan px-3 py-2 text-sm font-medium text-utama transition hover:bg-permukaan-hover active:scale-95 disabled:opacity-50"
+          class="tombol tombol-garis disabled:opacity-50"
           @click="unduh('csv')"
         >
           <Ikon nama="unduh" ukuran="h-4 w-4" /> CSV
@@ -164,7 +164,7 @@ const tanggalPanjang = (iso) =>
         <button
           type="button"
           :disabled="sesi === null"
-          class="inline-flex items-center gap-1.5 rounded-md border border-garis bg-permukaan px-3 py-2 text-sm font-medium text-utama transition hover:bg-permukaan-hover active:scale-95 disabled:opacity-50"
+          class="tombol tombol-garis disabled:opacity-50"
           @click="unduh('pdf')"
         >
           <Ikon nama="unduh" ukuran="h-4 w-4" /> PDF
@@ -199,7 +199,7 @@ const tanggalPanjang = (iso) =>
     </div>
 
     <!-- Penyaring -->
-    <div class="mb-5 rounded-lg border border-garis bg-permukaan p-4 bayang print:hidden">
+    <div class="mb-5 panel p-4 print:hidden">
       <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <label
@@ -235,7 +235,7 @@ const tanggalPanjang = (iso) =>
 
     <!-- Kepala sesi; ikut tercetak -->
     <div
-      class="rounded-lg border border-garis bg-permukaan p-6 bayang print:border-0 print:p-0 print:shadow-none"
+      class="panel p-6 print:border-0 print:p-0 print:shadow-none"
     >
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -289,7 +289,7 @@ const tanggalPanjang = (iso) =>
 
     <!-- Daftar kehadiran -->
     <div
-      class="mt-6 overflow-hidden rounded-lg border border-garis bg-permukaan bayang print:border-0 print:shadow-none"
+      class="mt-6 overflow-hidden panel print:border-0 print:shadow-none"
     >
       <div class="tabel-gulir gulir-halus">
         <table class="min-w-full divide-y divide-garis text-sm">

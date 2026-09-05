@@ -60,7 +60,7 @@ const waktuWorka = (iso) =>
   >
     <div class="grid gap-6 lg:grid-cols-3">
       <div class="lg:col-span-2">
-        <form class="rounded-lg border border-garis bg-permukaan p-6 bayang" @submit.prevent="simpan">
+        <form class="panel p-6" @submit.prevent="simpan">
           <div class="space-y-5">
             <div>
               <label for="api_url" class="block text-sm font-medium text-utama">Alamat API WORKA</label>
@@ -70,7 +70,7 @@ const waktuWorka = (iso) =>
                 type="url"
                 required
                 placeholder="http://worka.test"
-                class="mt-1 block w-full rounded-md border border-garis px-3 py-2 text-sm bayang focus:border-aksen focus:outline-none focus:ring-1 focus:ring-aksen"
+                class="kolom-isian mt-1"
               />
               <p v-if="form.errors.api_url" class="mt-1.5 text-sm text-peringatan-teks">{{ form.errors.api_url }}</p>
               <p v-else class="mt-1.5 text-xs text-redup">
@@ -87,7 +87,7 @@ const waktuWorka = (iso) =>
                   :type="tampilkanToken ? 'text' : 'password'"
                   autocomplete="off"
                   :placeholder="token_terisi ? '•••••••• (biarkan kosong bila tidak diubah)' : 'Tempel token dari WORKA'"
-                  class="block w-full rounded-md border border-garis px-3 py-2 font-mono text-sm bayang focus:border-aksen focus:outline-none focus:ring-1 focus:ring-aksen"
+                  class="kolom-isian font-mono"
                 />
                 <button
                   type="button"
@@ -155,7 +155,7 @@ const waktuWorka = (iso) =>
       </div>
 
       <aside class="space-y-4">
-        <div class="rounded-lg border border-garis bg-permukaan p-5 bayang">
+        <div class="panel p-5">
           <h2 class="font-display text-sm font-semibold text-utama">Status Saat Ini</h2>
           <dl class="mt-3 space-y-2 text-sm">
             <div>
@@ -180,7 +180,7 @@ const waktuWorka = (iso) =>
           </dl>
         </div>
 
-        <div class="rounded-lg border border-garis bg-permukaan p-5 text-sm bayang">
+        <div class="panel p-5 text-sm">
           <h2 class="font-display text-sm font-semibold text-utama">Sinkronisasi Terjadwal</h2>
           <p class="mt-2 text-sekunder">
             Sinkronisasi otomatis berjalan setiap hari pukul 02.00. Sinkronisasi manual

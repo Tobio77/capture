@@ -47,7 +47,7 @@ watch(
 </script>
 
 <template>
-  <section class="flex flex-col overflow-hidden rounded-xl border border-garis bg-permukaan bayang">
+  <section class="flex flex-col overflow-hidden panel">
     <div class="flex items-center justify-between border-b border-garis px-5 py-4">
       <h2 class="font-display text-sm font-semibold uppercase tracking-wider text-redup">
         Daftar e-Presensi

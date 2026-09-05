@@ -39,14 +39,17 @@ const kirim = () => form.post('/kiosk/aktivasi')
 <template>
   <Head title="Aktivasi Perangkat" />
 
-  <div class="flex min-h-screen items-center justify-center bg-navy-700 px-4 py-12">
+  <div class="latar-pastel flex min-h-screen items-center justify-center bg-kertas px-4 py-12 text-utama">
     <div class="w-full max-w-lg">
-      <div class="text-center">
-        <h1 class="font-display text-3xl font-semibold text-white">Capture</h1>
-        <p class="mt-1 text-sm text-navy-200">Perangkat Titik Absen</p>
+      <div class="flex flex-col items-center text-center">
+        <span class="ubin-merek h-12 w-12">
+          <Ikon nama="perangkat" ukuran="h-6 w-6" />
+        </span>
+        <h1 class="mt-4 font-display text-2xl font-semibold">Capture</h1>
+        <p class="mt-1.5 text-sm text-sekunder">Perangkat Titik Absen</p>
       </div>
 
-      <div class="mt-8 rounded-lg bg-permukaan p-8 shadow-lg">
+      <div class="panel mt-8 p-7">
         <h2 class="font-display text-lg font-semibold text-utama">Aktivasi Perangkat</h2>
         <p class="mt-1 text-sm text-redup">
           Masukkan kode aktivasi yang diberikan admin untuk titik absen ini.
@@ -55,13 +58,13 @@ const kirim = () => form.post('/kiosk/aktivasi')
 
         <div
           v-if="flash.gagal"
-          class="mt-5 rounded-md border border-peringatan bg-peringatan-lembut px-4 py-3 text-sm text-peringatan-teks"
+          class="mt-5 rounded-lg bg-peringatan-lembut px-4 py-3 text-sm text-peringatan-teks"
         >
           {{ flash.gagal }}
         </div>
         <div
           v-if="flash.sukses"
-          class="mt-5 rounded-md border border-berhasil bg-berhasil-lembut px-4 py-3 text-sm text-berhasil-teks"
+          class="mt-5 rounded-lg bg-berhasil-lembut px-4 py-3 text-sm text-berhasil-teks"
         >
           {{ flash.sukses }}
         </div>
@@ -78,7 +81,7 @@ const kirim = () => form.post('/kiosk/aktivasi')
               autofocus
               required
               placeholder="XXXX-XXXX"
-              class="mt-1 block w-full rounded-md border border-garis px-4 py-3 text-center font-display text-2xl tracking-[0.3em] uppercase bayang focus:border-aksen focus:outline-none focus:ring-1 focus:ring-aksen"
+              class="kolom-isian mt-1 px-4 py-3.5 text-center font-display text-2xl uppercase tracking-[0.3em]"
               @input="rapikan"
             />
             <p v-if="form.errors.kode_aktivasi" class="mt-1.5 text-sm text-peringatan-teks">
@@ -89,7 +92,7 @@ const kirim = () => form.post('/kiosk/aktivasi')
           <button
             type="submit"
             :disabled="form.processing"
-            class="w-full rounded-md bg-aksen px-4 py-3 text-sm font-semibold text-white bayang transition hover:bg-aksen-kuat focus:outline-none focus:ring-2 focus:ring-aksen focus:ring-offset-2 disabled:opacity-60"
+            class="tombol tombol-utama w-full py-3"
           >
             {{ form.processing ? 'Memproses…' : 'Aktifkan Perangkat' }}
           </button>

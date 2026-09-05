@@ -67,7 +67,7 @@ const kartu = computed(() => [
     keterangan: 'pegawai aktif dalam cakupan Anda',
     ikon: 'pegawai',
     warna: 'text-utama',
-    latar: 'bg-info-lembut text-info-teks',
+    nada: 'info',
   },
   {
     label: 'Perangkat Aktif',
@@ -75,7 +75,7 @@ const kartu = computed(() => [
     keterangan: `dari ${props.kesiapan.perangkat} perangkat terdaftar`,
     ikon: 'perangkat',
     warna: 'text-aksen-teks',
-    latar: 'bg-aksen-lembut text-aksen',
+    nada: '',
   },
   {
     label: 'Event Berlangsung',
@@ -83,7 +83,7 @@ const kartu = computed(() => [
     keterangan: 'entry masih dibuka',
     ikon: 'absen',
     warna: 'text-aksen-teks',
-    latar: 'bg-aksen-lembut text-aksen',
+    nada: '',
   },
   {
     label: 'Kehadiran Hari Ini',
@@ -91,10 +91,10 @@ const kartu = computed(() => [
     keterangan: `${props.statistik.hadir_hari_ini} dari ${props.statistik.total_pegawai} pegawai`,
     ikon: props.statistik.persentase_kehadiran >= 75 ? 'naik' : 'turun',
     warna: props.statistik.persentase_kehadiran >= 75 ? 'text-berhasil-teks' : 'text-peringatan-teks',
-    latar:
+    nada:
       props.statistik.persentase_kehadiran >= 75
-        ? 'bg-berhasil-lembut text-berhasil'
-        : 'bg-peringatan-lembut text-peringatan',
+        ? 'berhasil'
+        : 'peringatan',
   },
 ])
 
@@ -151,23 +151,21 @@ function waktuRelatif(iso) {
   <AdminLayout judul="Dashboard" :deskripsi="`Ringkasan kehadiran untuk ${cakupan}.`">
     <!-- FR-DASH-01 -->
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <div
-        v-for="item in kartu"
-        :key="item.label"
-        class="rounded-lg border border-garis bg-permukaan p-5 bayang transition hover:shadow-md"
-      >
+      <div v-for="item in kartu" :key="item.label" class="panel p-5">
         <div class="flex items-start justify-between gap-3">
-          <div>
-            <p class="text-xs font-medium uppercase tracking-wider text-redup">{{ item.label }}</p>
-            <p class="mt-2 font-display text-3xl font-semibold tabular-nums" :class="item.warna">
-              {{ item.nilai }}
-            </p>
-          </div>
-          <span class="rounded-lg p-2" :class="item.latar">
-            <Ikon :nama="item.ikon" ukuran="h-5 w-5" />
+          <p class="text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-redup">
+            {{ item.label }}
+          </p>
+          <span class="ubin-ikon h-9 w-9 shrink-0" :class="item.nada">
+            <Ikon :nama="item.ikon" ukuran="h-[1.125rem] w-[1.125rem]" />
           </span>
         </div>
-        <p class="mt-1 text-xs text-redup">{{ item.keterangan }}</p>
+
+        <p class="mt-3 font-display text-[2rem] font-semibold leading-none tabular-nums" :class="item.warna">
+          {{ item.nilai }}
+        </p>
+
+        <p class="mt-2 text-xs text-redup">{{ item.keterangan }}</p>
       </div>
     </div>
 
@@ -203,7 +201,7 @@ function waktuRelatif(iso) {
     <div class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
       <div class="space-y-6">
         <!-- FR-DASH-02 -->
-        <div class="rounded-lg border border-garis bg-permukaan p-6 bayang">
+        <div class="panel p-6">
           <div class="flex items-baseline justify-between">
             <h2 class="font-display text-base font-semibold text-utama">Tren Kehadiran</h2>
             <p class="text-xs text-redup">7 hari terakhir</p>
@@ -270,7 +268,7 @@ function waktuRelatif(iso) {
 
         <!-- Ketepatan & kesiapan -->
         <div class="grid gap-6 md:grid-cols-2">
-          <div class="rounded-lg border border-garis bg-permukaan p-6 bayang">
+          <div class="panel p-6">
             <h2 class="font-display text-base font-semibold text-utama">Ketepatan Hari Ini</h2>
 
             <p v-if="totalKetepatan === 0" class="mt-4 text-sm text-redup">
@@ -303,7 +301,7 @@ function waktuRelatif(iso) {
             </template>
           </div>
 
-          <div class="rounded-lg border border-garis bg-permukaan p-6 bayang">
+          <div class="panel p-6">
             <h2 class="font-display text-base font-semibold text-utama">Kesiapan Sistem</h2>
             <p class="mt-1 text-xs text-redup">
               Yang biasanya menjelaskan kegagalan absen di lapangan.
@@ -340,7 +338,7 @@ function waktuRelatif(iso) {
         </div>
 
         <!-- Peringkat unit -->
-        <div v-if="peringkat_unit.length > 0" class="rounded-lg border border-garis bg-permukaan p-6 bayang">
+        <div v-if="peringkat_unit.length > 0" class="panel p-6">
           <h2 class="font-display text-base font-semibold text-utama">Kehadiran per Unit Kerja</h2>
           <p class="mt-1 text-xs text-redup">Hari ini, diurutkan menurut persentase kehadiran.</p>
 
@@ -365,7 +363,7 @@ function waktuRelatif(iso) {
       </div>
 
       <!-- FR-DASH-03 -->
-      <div class="rounded-lg border border-garis bg-permukaan p-6 bayang">
+      <div class="panel p-6">
         <div class="flex items-baseline justify-between">
           <h2 class="font-display text-base font-semibold text-utama">Aktivitas Terbaru</h2>
           <Lencana warna="emerald" denyut>live</Lencana>

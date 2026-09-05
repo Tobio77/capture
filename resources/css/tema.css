@@ -182,6 +182,9 @@
      * tepi. Bayangan pekat membuat kartu tampak "ditempel" di atas halaman;
      * yang dicari di sini adalah kartu yang seolah mengapung sedikit saja.
      */
+    /* Sorotan setipis piksel di tepi atas kartu; lihat .panel. */
+    --tema-sorot: rgb(255 255 255 / 0.6);
+
     --tema-bayang: 0 1px 2px rgb(16 44 70 / 0.04), 0 2px 8px rgb(16 44 70 / 0.05);
     --tema-bayang-naik: 0 8px 24px rgb(16 44 70 / 0.08), 0 2px 6px rgb(16 44 70 / 0.04);
 }
@@ -240,6 +243,8 @@
         --tema-sidebar-redup: #8dabc4;
         --tema-sidebar-garis: rgb(255 255 255 / 0.08);
 
+        --tema-sorot: rgb(255 255 255 / 0.05);
+
         /* Selaras dengan mode terang: lebih lebar, lebih tipis. */
         --tema-bayang: 0 1px 2px rgb(0 0 0 / 0.35), 0 2px 10px rgb(0 0 0 / 0.3);
         --tema-bayang-naik: 0 10px 28px rgb(0 0 0 / 0.42), 0 2px 8px rgb(0 0 0 / 0.3);
@@ -283,6 +288,8 @@
     --tema-sidebar-teks: #e6eff6;
     --tema-sidebar-redup: #8dabc4;
     --tema-sidebar-garis: rgb(255 255 255 / 0.08);
+
+    --tema-sorot: rgb(255 255 255 / 0.05);
 
     /* Selaras dengan mode terang: lebih lebar, lebih tipis. */
     --tema-bayang: 0 1px 2px rgb(0 0 0 / 0.35), 0 2px 10px rgb(0 0 0 / 0.3);
@@ -358,6 +365,213 @@ h3,
 h4,
 .font-display {
     font-family: var(--font-display);
+}
+
+/*
+ * Judul dirapatkan sedikit. Lexend pada ukuran besar terasa longgar dengan
+ * jarak huruf bawaannya; -0.02em membuat judul membaca sebagai satu blok
+ * alih-alih deretan huruf, dan itulah selisih antara halaman yang tampak
+ * "diketik" dan yang tampak "ditata".
+ *
+ * Ditulis di `@layer base` supaya utility `tracking-*` tetap dapat
+ * membatalkannya per elemen — lihat catatan lapisan di bawah.
+ */
+@layer base {
+    h1,
+    h2 {
+        letter-spacing: -0.02em;
+        text-wrap: balance;
+    }
+
+    h3,
+    h4 {
+        letter-spacing: -0.01em;
+    }
+}
+
+/* ==========================================================================
+ * Kosakata visual bersama.
+ *
+ * Sebelumnya setiap halaman merangkai sendiri kartu, kolom isian, dan
+ * tombolnya dari kelas Tailwind — dan perbedaan kecil yang menumpuk (radius
+ * tidak sama, bayangan tidak sama, tinggi tidak sama) itulah yang membuat
+ * antarmuka terasa datar. Kelas di bawah ini menjadi satu sumber bentuknya.
+ *
+ * SEMUANYA DITULIS DI `@layer components`, dan itu bukan hiasan. CSS di luar
+ * lapisan mana pun mengalahkan SELURUH utility Tailwind, berapa pun
+ * spesifisitasnya — sehingga `class="panel rounded-full"` akan tetap bersudut
+ * kartu, dan `class="kolom-isian py-3"` akan mengabaikan tingginya. Di dalam
+ * `components`, utility yang menyusul tetap menang, sehingga kelas ini menjadi
+ * titik awal yang dapat disesuaikan per tempat alih-alih aturan yang memaksa.
+ * ======================================================================== */
+
+@layer components {
+
+/*
+ * Kartu. Tiga lapis: garis rambut, bayangan lembut, dan satu sorotan putih
+ * setipis piksel di tepi atas. Sorotan itu yang membuat kartu terbaca sebagai
+ * bidang yang terangkat, bukan kotak yang digambar di atas latar.
+ */
+.panel {
+    background-color: var(--tema-permukaan);
+    border: 1px solid var(--tema-garis);
+    border-radius: var(--radius-xl);
+    box-shadow:
+        inset 0 1px 0 var(--tema-sorot),
+        var(--tema-bayang);
+}
+
+/*
+ * Ubin ikon berwarna. Motif yang berulang di seluruh aplikasi — kartu
+ * pilihan, kartu statistik, keadaan kosong — dan pengulangan itulah yang
+ * membuat halaman terasa satu keluarga.
+ */
+.ubin-ikon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-xl);
+    background-image: linear-gradient(140deg, var(--tema-aksen-lembut), transparent 140%);
+    color: var(--tema-aksen-teks);
+    box-shadow: inset 0 0 0 1px rgb(13 148 136 / 0.12);
+}
+
+.ubin-ikon.info {
+    background-image: linear-gradient(140deg, var(--tema-info-lembut), transparent 140%);
+    color: var(--tema-info-teks);
+    box-shadow: inset 0 0 0 1px rgb(36 80 123 / 0.12);
+}
+
+.ubin-ikon.berhasil {
+    background-image: linear-gradient(140deg, var(--tema-berhasil-lembut), transparent 140%);
+    color: var(--tema-berhasil-teks);
+    box-shadow: inset 0 0 0 1px rgb(5 150 105 / 0.12);
+}
+
+.ubin-ikon.peringatan {
+    background-image: linear-gradient(140deg, var(--tema-peringatan-lembut), transparent 140%);
+    color: var(--tema-peringatan-teks);
+    box-shadow: inset 0 0 0 1px rgb(180 83 9 / 0.12);
+}
+
+/* Lencana merek: navy pekat dengan sorotan, dipakai di sidebar dan layar masuk. */
+.ubin-merek {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-lg);
+    background-image: linear-gradient(145deg, var(--color-teal-500), var(--color-teal-700));
+    color: #fff;
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.25),
+        0 2px 8px rgb(13 148 136 / 0.28);
+}
+
+/*
+ * Kolom isian. Tingginya, radiusnya, dan cincin fokusnya sama di mana pun —
+ * termasuk pada Headless UI, yang tidak membawa gaya bawaan apa pun.
+ */
+.kolom-isian {
+    width: 100%;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--tema-garis);
+    background-color: var(--tema-permukaan);
+    padding: 0.625rem 0.875rem;
+    font-size: 0.875rem;
+    color: var(--tema-utama);
+    box-shadow: inset 0 1px 2px rgb(16 44 70 / 0.04);
+    transition:
+        border-color 150ms ease,
+        box-shadow 150ms ease;
+}
+
+.kolom-isian::placeholder {
+    color: var(--tema-redup);
+}
+
+.kolom-isian:focus {
+    outline: none;
+    border-color: var(--tema-aksen);
+    box-shadow:
+        inset 0 1px 2px rgb(16 44 70 / 0.02),
+        0 0 0 3px var(--tema-aksen-lembut);
+}
+
+/*
+ * Tombol. Yang membedakan tombol utama bukan warnanya saja, melainkan
+ * bayangan berwarna tipis di bawahnya — tanda bahwa ia satu tingkat lebih
+ * tinggi daripada permukaan di sekitarnya.
+ */
+.tombol {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4375rem;
+    border-radius: var(--radius-lg);
+    padding: 0.625rem 1.125rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition:
+        background-color 150ms ease,
+        border-color 150ms ease,
+        box-shadow 150ms ease,
+        transform 120ms ease;
+}
+
+.tombol:active:not(:disabled) {
+    transform: scale(0.985);
+}
+
+.tombol:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.tombol-utama {
+    background-color: var(--tema-aksen);
+    color: #fff;
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.18),
+        0 2px 8px rgb(13 148 136 / 0.24);
+}
+
+.tombol-utama:hover:not(:disabled) {
+    background-color: var(--tema-aksen-kuat);
+}
+
+.tombol-garis {
+    background-color: var(--tema-permukaan);
+    border: 1px solid var(--tema-garis);
+    color: var(--tema-sekunder);
+    box-shadow: var(--tema-bayang);
+}
+
+.tombol-garis:hover:not(:disabled) {
+    background-color: var(--tema-permukaan-hover);
+    color: var(--tema-utama);
+}
+
+}
+
+/*
+ * Cincin fokus papan ketik. Sengaja hanya pada tautan dan tombol: kolom
+ * isian sudah membawa cincinnya sendiri lewat `.kolom-isian` maupun
+ * `focus:ring` Tailwind, dan menumpuk keduanya membuat tepinya tebal.
+ *
+ * Ini justru DI LUAR lapisan: aksesibilitas papan ketik tidak boleh dapat
+ * dimatikan tanpa sengaja oleh utility yang kebetulan menyusul.
+ */
+a:focus-visible,
+button:focus-visible {
+    outline: 2px solid var(--tema-aksen);
+    outline-offset: 2px;
+    border-radius: var(--radius-md);
+}
+
+::selection {
+    background-color: var(--tema-aksen-lembut);
+    color: var(--tema-aksen-teks);
 }
 
 /* ==========================================================================

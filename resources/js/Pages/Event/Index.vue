@@ -238,14 +238,14 @@ function waktuSingkat(iso) {
       <div class="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 rounded-md border border-garis bg-permukaan px-3 py-2 text-sm font-medium text-utama transition hover:bg-permukaan-hover active:scale-95"
+          class="tombol tombol-garis"
           @click="unduh('csv')"
         >
           <Ikon nama="unduh" ukuran="h-4 w-4" /> CSV
         </button>
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 rounded-md border border-garis bg-permukaan px-3 py-2 text-sm font-medium text-utama transition hover:bg-permukaan-hover active:scale-95"
+          class="tombol tombol-garis"
           @click="unduh('pdf')"
         >
           <Ikon nama="cetak" ukuran="h-4 w-4" /> PDF
@@ -260,7 +260,7 @@ function waktuSingkat(iso) {
       </div>
     </template>
 
-    <div class="mb-5 rounded-lg border border-garis bg-permukaan p-4 bayang">
+    <div class="mb-5 panel p-4">
       <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <div class="lg:col-span-2">
           <KolomCari v-model="filter.cari" placeholder="Cari nama event atau catatan…" @cari="terapkan" />
@@ -286,7 +286,7 @@ function waktuSingkat(iso) {
       </button>
     </div>
 
-    <div class="overflow-hidden rounded-lg border border-garis bg-permukaan bayang">
+    <div class="overflow-hidden panel">
       <div class="tabel-gulir tabel-aksi gulir-halus">
         <table class="min-w-full divide-y divide-garis text-sm">
           <thead class="border-b border-garis bg-permukaan-2 text-xs uppercase tracking-wider text-redup">

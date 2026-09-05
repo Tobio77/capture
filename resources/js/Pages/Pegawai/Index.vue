@@ -118,7 +118,7 @@ const tanggalSingkat = (iso) =>
     deskripsi="Data pegawai hasil sinkronisasi dari WORKA. Perubahan data induk dilakukan di WORKA, bukan di sini."
   >
     <!-- Kartu status sinkronisasi -->
-    <div class="rounded-lg border border-garis bg-permukaan p-6 bayang">
+    <div class="panel p-6">
       <div class="flex flex-wrap items-start justify-between gap-6">
         <div>
           <h2 class="flex items-center gap-2 font-display text-base font-semibold text-utama">
@@ -187,7 +187,7 @@ const tanggalSingkat = (iso) =>
     </div>
 
     <!-- Filter -->
-    <div class="mt-6 rounded-lg border border-garis bg-permukaan p-4 bayang">
+    <div class="mt-6 panel p-4">
       <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <div class="lg:col-span-2">
           <span class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup">
@@ -259,7 +259,7 @@ const tanggalSingkat = (iso) =>
     </div>
 
     <!-- Tabel pegawai -->
-    <div class="mt-4 overflow-hidden rounded-lg border border-garis bg-permukaan bayang">
+    <div class="mt-4 overflow-hidden panel">
       <div class="tabel-gulir tabel-aksi gulir-halus">
         <table class="w-full text-left text-sm">
           <thead

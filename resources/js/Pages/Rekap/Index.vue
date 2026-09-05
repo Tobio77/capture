@@ -143,14 +143,14 @@ const kartu = computed(() => [
       <div class="flex flex-wrap items-center gap-2 print:hidden">
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 rounded-md border border-garis bg-permukaan px-3 py-2 text-sm font-medium text-utama transition hover:bg-permukaan-hover active:scale-95"
+          class="tombol tombol-garis"
           @click="cetak"
         >
           <Ikon nama="cetak" ukuran="h-4 w-4" /> Cetak
         </button>
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 rounded-md border border-garis bg-permukaan px-3 py-2 text-sm font-medium text-utama transition hover:bg-permukaan-hover active:scale-95"
+          class="tombol tombol-garis"
           @click="unduh('csv')"
         >
           <Ikon nama="unduh" ukuran="h-4 w-4" /> CSV
@@ -196,7 +196,7 @@ const kartu = computed(() => [
     />
 
     <template v-else>
-      <div class="rounded-lg border border-garis bg-permukaan p-6 bayang print:border-0 print:p-0 print:shadow-none">
+      <div class="panel p-6 print:border-0 print:p-0 print:shadow-none">
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 class="font-display text-lg font-semibold text-utama">{{ event.nama }}</h2>
@@ -233,7 +233,7 @@ const kartu = computed(() => [
       </div>
 
       <!-- FR-REK-01 -->
-      <div class="mt-6 overflow-hidden rounded-lg border border-garis bg-permukaan bayang print:border-0 print:shadow-none">
+      <div class="mt-6 overflow-hidden panel print:border-0 print:shadow-none">
         <div class="tabel-gulir gulir-halus">
           <table class="min-w-full divide-y divide-garis text-sm">
             <thead class="border-b border-garis bg-permukaan-2 text-xs uppercase tracking-wider text-redup">

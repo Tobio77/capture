@@ -183,7 +183,7 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
 </script>
 
 <template>
-  <section class="rounded-xl border border-garis bg-permukaan p-5 bayang">
+  <section class="panel p-5">
     <h2 class="font-display text-sm font-semibold uppercase tracking-wider text-redup">
       Capture Foto &amp; Entry Absen
     </h2>
@@ -311,7 +311,7 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
         autocomplete="off"
         :disabled="!aktif"
         :placeholder="aktif ? 'Tap kartu atau ketik NIP lalu tekan Enter' : 'Menunggu event dibuka'"
-        class="mt-2 block w-full rounded-lg border border-garis bg-permukaan-2 px-4 py-3.5 font-display text-xl tabular-nums text-utama transition-colors duration-150 placeholder:text-sm placeholder:font-sans placeholder:text-redup focus:border-aksen focus:bg-permukaan focus:outline-none focus:ring-1 focus:ring-aksen disabled:opacity-50"
+        class="mt-2 block w-full panel-2 px-4 py-3.5 font-display text-xl tabular-nums text-utama transition-colors duration-150 placeholder:text-sm placeholder:font-sans placeholder:text-redup focus:border-aksen focus:bg-permukaan focus:outline-none focus:ring-1 focus:ring-aksen disabled:opacity-50"
         @keydown="tandaiKetukan"
         @keyup.enter="kirim"
         @blur="rebutFokus"

@@ -112,7 +112,7 @@ const ubahStatus = (unit) => {
       </button>
     </template>
 
-    <div class="mb-5 rounded-lg border border-garis bg-permukaan p-4 bayang">
+    <div class="mb-5 panel p-4">
       <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div class="lg:col-span-2">
           <span class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup">
@@ -151,7 +151,7 @@ const ubahStatus = (unit) => {
       </div>
     </div>
 
-    <div class="overflow-hidden rounded-lg border border-garis bg-permukaan bayang">
+    <div class="overflow-hidden panel">
       <div class="tabel-gulir tabel-aksi gulir-halus">
         <table class="w-full text-left text-sm">
           <thead
@@ -255,7 +255,7 @@ const ubahStatus = (unit) => {
             required
             maxlength="20"
             placeholder="BLK-SBY"
-            class="mt-1 block w-full rounded-md border border-garis px-3 py-2 text-sm uppercase bayang transition focus:border-aksen focus:outline-none focus:ring-1 focus:ring-aksen"
+            class="kolom-isian mt-1 uppercase"
           />
           <p v-if="form.errors.kode" class="mt-1.5 text-sm text-peringatan-teks">{{ form.errors.kode }}</p>
           <p v-else class="mt-1.5 text-xs text-redup">
@@ -272,7 +272,7 @@ const ubahStatus = (unit) => {
             required
             maxlength="150"
             placeholder="UPT Balai Latihan Kerja Surabaya"
-            class="mt-1 block w-full rounded-md border border-garis px-3 py-2 text-sm bayang transition focus:border-aksen focus:outline-none focus:ring-1 focus:ring-aksen"
+            class="kolom-isian mt-1"
           />
           <p v-if="form.errors.nama" class="mt-1.5 text-sm text-peringatan-teks">{{ form.errors.nama }}</p>
         </div>

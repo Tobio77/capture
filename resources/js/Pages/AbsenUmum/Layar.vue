@@ -60,7 +60,7 @@ function gantiUnit() {
   <Head title="Layar Absen Umum" />
 
   <div v-if="!absen_umum_aktif" class="flex min-h-screen items-center justify-center bg-kertas px-6">
-    <div class="max-w-md rounded-xl border border-garis bg-permukaan p-8 text-center bayang-naik">
+    <div class="max-w-md panel p-8 text-center bayang-naik">
       <span class="inline-flex rounded-full bg-peringatan-lembut p-3 text-peringatan-teks">
         <Ikon nama="peringatan" ukuran="h-6 w-6" />
       </span>

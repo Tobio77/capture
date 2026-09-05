@@ -225,13 +225,23 @@ Setelah aktivasi, layar utama menampilkan header status event (nama event aktif,
 
 # 6. Prinsip Desain
 
-- Palet warna: navy (elemen struktural/sidebar), teal (aksi utama), emerald (status berhasil/tepat waktu), amber (status terlambat/peringatan) — tanpa penggunaan ungu/indigo. Nuansanya dilunakkan menjadi pastel: latar halaman dan kartu memakai tint pucat dari warna-warna itu, sementara kejenuhan penuh disimpan untuk elemen interaktif (tombol, lencana status, tautan) supaya mata langsung menemukannya.
+- Palet warna: navy (elemen struktural/sidebar), teal (aksi utama), emerald (status berhasil/tepat waktu), amber (status terlambat/peringatan) — tanpa penggunaan ungu/indigo. Nuansanya dilunakkan menjadi pastel: latar halaman memakai tint pucat dari warna-warna itu dengan kartu putih bersih di atasnya, sementara kejenuhan penuh disimpan untuk elemen interaktif (tombol, lencana status, tautan) supaya mata langsung menemukannya.
+
+- **Yang membuat kesan pastel bukan warnanya sendirian**, melainkan tiga hal bersamaan: tint "lembut" yang dinaikkan terangnya dan diturunkan kejenuhannya, bayangan yang lebih lebar dan lebih tipis, serta sudut membulat yang dinaikkan satu tingkat lewat `--radius-*` pada `@theme`. Menaikkan radius di satu tempat itu membuat seluruh `rounded-md/lg/xl` yang sudah tersebar di kiosk maupun Panel Admin ikut melunak sekaligus — sudut kecil terbaca sebagai "formulir kantor", sudut besar sebagai "kartu".
+
+- **Layar masuk dan aktivasi mengikuti tema pastel**, bukan lagi bidang navy rata dengan satu kotak putih di tengahnya. Keduanya kesan pertama atas aplikasi — bagi pengelola dan bagi petugas titik absen — dan bidang navy polos tidak menjanjikan apa pun tentang halaman di baliknya. Navy tetap ada sebagai aksen pada lencana merek dan sidebar, bukan sebagai seluruh layar.
 
 - **Token warna, bukan warna hardcode.** Seluruh warna aplikasi berasal dari token peran pada `resources/css/tema.css` — `kertas`, `permukaan`, `garis`, `utama`, `sekunder`, `redup`, `aksen`, `berhasil`, `peringatan`, `sidebar`. Komponen tidak pernah menyebut `bg-white` atau `text-slate-600` langsung. Itulah yang membuat mode gelap cukup mendefinisikan ulang tokennya, bukan menambah varian `dark:` pada setiap elemen di setiap halaman.
 
 - **Tiga mode tampilan.** Terang, Gelap, dan Sistem (mengikuti `prefers-color-scheme`). Pilihan disimpan di `localStorage` perangkat — bukan di akun, karena satu admin dapat memakai laptop terang di kantor dan tablet gelap di lapangan. Mode "Sistem" tidak dibekukan saat dipilih: ia tetap mendengarkan perubahan tema OS selagi aplikasi terbuka. Temanya dipasang oleh skrip kecil di `app.blade.php` sebelum CSS dimuat, supaya tidak ada kilatan putih pada setiap perpindahan halaman.
 
 - **Bawaannya Terang, bukan Sistem** (ditegakkan S30). Sampai S29 aplikasi mengikuti OS, sehingga perangkat yang OS-nya gelap membuka layar titik absen dalam mode gelap — persis keadaan yang paling tidak dikehendaki (lihat butir "Layar absen bertema terang"). Bawaan ini harus sama di dua tempat: `TEMA_BAWAAN` pada `useTema.js` dan skrip anti-kedip pada `app.blade.php`. Bila keduanya berbeda, halaman sempat tergambar dengan tema yang salah sebelum Vue hidup.
+
+- **Kosakata visual bersama** (S30). Kartu, kolom isian, tombol, dan ubin ikon tidak lagi dirangkai ulang dari kelas Tailwind di setiap halaman, melainkan berasal dari kelas bersama pada `tema.css`: `.panel`, `.kolom-isian`, `.tombol` + `.tombol-utama`/`.tombol-garis`, `.ubin-ikon` (varian `info`, `berhasil`, `peringatan`), dan `.ubin-merek`. Perbedaan kecil yang menumpuk — radius tidak sama, bayangan tidak sama, tinggi kolom tidak sama — itulah yang sebelumnya membuat antarmuka terasa datar meski setiap halamannya rapi sendiri-sendiri.
+
+  `.panel` bukan sekadar kotak: ia membawa garis rambut, bayangan lembut, dan satu sorotan setipis piksel di tepi atas (token `--tema-sorot`). Sorotan itu yang membuat kartu terbaca sebagai bidang yang terangkat alih-alih kotak yang digambar di atas latar.
+
+- **Kelas bersama ditulis di `@layer components`.** CSS di luar lapisan mana pun mengalahkan seluruh utility Tailwind, berapa pun spesifisitasnya — sehingga `class="panel rounded-full"` akan tetap bersudut kartu dan `class="kolom-isian py-3"` akan mengabaikan tingginya. Di dalam `components`, utility yang menyusul tetap menang, sehingga kelas ini menjadi titik awal yang dapat disesuaikan per tempat, bukan aturan yang memaksa. Pengecualiannya cincin fokus papan ketik, yang sengaja tetap di luar lapisan supaya tidak dapat dimatikan tanpa sengaja.
 
 - **Gerak menghormati `prefers-reduced-motion`.** Aturannya ditulis sekali secara global di `tema.css` — animasi dan transisi dipangkas menjadi 0,01 ms bagi pengguna yang memintanya di OS — sehingga tidak bergantung pada setiap komponen mengingatnya sendiri.
 

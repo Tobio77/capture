@@ -129,7 +129,7 @@ const tanggalPanjang = (nilai) =>
           <Link
             v-if="pengguna"
             href="/admin/dashboard"
-            class="tautan-aksi inline-flex items-center gap-1.5 rounded-xl border border-garis bg-permukaan px-3 py-2 text-sm font-medium text-sekunder transition-colors duration-150 hover:bg-permukaan-hover hover:text-utama"
+            class="tautan-aksi inline-flex items-center gap-1.5 panel px-3 py-2 text-sm font-medium text-sekunder transition-colors duration-150 hover:bg-permukaan-hover hover:text-utama"
           >
             <Ikon nama="dashboard" ukuran="h-4 w-4" /> Panel Admin
           </Link>
@@ -137,7 +137,7 @@ const tanggalPanjang = (nilai) =>
           <Link
             v-else
             href="/masuk"
-            class="tautan-aksi inline-flex items-center gap-1.5 rounded-xl border border-garis bg-permukaan px-3 py-2 text-sm font-medium text-sekunder transition-colors duration-150 hover:bg-permukaan-hover hover:text-utama"
+            class="tautan-aksi inline-flex items-center gap-1.5 panel px-3 py-2 text-sm font-medium text-sekunder transition-colors duration-150 hover:bg-permukaan-hover hover:text-utama"
           >
             <Ikon nama="kunci" ukuran="h-4 w-4" /> Masuk Admin
           </Link>
@@ -161,86 +161,109 @@ const tanggalPanjang = (nilai) =>
       </p>
 
       <!-- Sambutan -->
-      <section class="text-center">
-        <h1 class="font-display text-3xl font-semibold sm:text-4xl">Selamat datang</h1>
-        <p class="mx-auto mt-3 max-w-xl text-sm text-sekunder sm:text-base">
+      <section class="flex flex-col items-center text-center">
+        <p class="font-display text-xs font-semibold uppercase tracking-[0.14em] text-aksen-teks">
+          Titik Absen
+        </p>
+
+        <h1 class="mt-3 font-display text-[2rem] font-semibold sm:text-[2.75rem]">
+          Selamat datang
+        </h1>
+
+        <p class="mt-3 max-w-lg text-sekunder sm:text-lg">
           Silakan pilih jenis absensi. Kehadiran Anda tercatat beserta foto sebagai bukti.
         </p>
 
+        <!--
+          Keterangan perangkat dibuat sebagai keping berdenyut, bukan baris teks
+          biasa: petugas perlu memastikan sekilas bahwa mesin di depannya memang
+          titik absen yang benar sebelum mengizinkan orang menempel kartu.
+        -->
         <p
           v-if="perangkatAktif"
-          class="mt-4 inline-flex items-center gap-2 rounded-full bg-permukaan px-3.5 py-1.5 text-xs text-sekunder bayang"
+          class="panel mt-6 inline-flex max-w-full items-center gap-2.5 rounded-full px-4 py-2 text-xs text-sekunder"
         >
-          <span class="h-1.5 w-1.5 rounded-full bg-berhasil"></span>
-          {{ perangkat.nama_titik }}
-          <span v-if="perangkat.unit_kerja" class="text-redup">
-            · {{ perangkat.unit_kerja.nama }}
+          <span class="relative flex h-2 w-2 shrink-0">
+            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-berhasil opacity-60"></span>
+            <span class="relative inline-flex h-2 w-2 rounded-full bg-berhasil"></span>
+          </span>
+          <span class="truncate font-medium text-utama">{{ perangkat.nama_titik }}</span>
+          <span v-if="perangkat.unit_kerja" class="truncate text-redup">
+            {{ perangkat.unit_kerja.nama }}
           </span>
         </p>
       </section>
 
-      <!-- Dua pilihan besar -->
-      <div class="mt-9 grid gap-5 sm:grid-cols-2">
+      <!--
+        Dua pilihan besar. Keduanya kartu penuh yang dapat ditekan, bukan
+        tombol di dalam kartu: pada layar sentuh, sasaran seluas kartu jauh
+        lebih mudah dikenai daripada tautan setinggi satu baris.
+      -->
+      <div class="mt-10 grid gap-5 sm:grid-cols-2">
         <button
           type="button"
-          class="kartu-naik group flex flex-col items-start rounded-2xl border border-garis bg-permukaan p-6 text-left bayang hover:border-aksen/40"
+          class="panel kartu-naik group flex flex-col items-start p-7 text-left hover:border-aksen/40"
           @click="pilihAbsenUmum"
         >
-          <span class="inline-flex rounded-2xl bg-aksen-lembut p-3.5 text-aksen-teks transition-transform duration-200 group-hover:scale-105">
+          <span class="ubin-ikon h-14 w-14 transition-transform duration-200 group-hover:scale-105">
             <Ikon nama="jam" ukuran="h-7 w-7" />
           </span>
 
           <h2 class="mt-5 font-display text-xl font-semibold">Absen Umum</h2>
-          <p class="mt-1.5 flex-1 text-sm text-sekunder">
+          <p class="mt-2 flex-1 text-sm leading-relaxed text-sekunder">
             Absensi harian datang dan pulang. Selalu tersedia, tanpa kode dan tanpa kegiatan.
           </p>
 
           <span
             v-if="!absen_umum_aktif"
-            class="mt-3 rounded-lg bg-peringatan-lembut px-2.5 py-1 text-xs text-peringatan-teks"
+            class="mt-3 rounded-lg bg-peringatan-lembut px-2.5 py-1 text-xs font-medium text-peringatan-teks"
           >
             Sedang dimatikan admin
           </span>
 
-          <span class="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-aksen-teks">
-            Mulai absen
-            <Ikon
-              nama="kanan"
-              ukuran="h-4 w-4"
-              class="transition-transform duration-200 group-hover:translate-x-0.5"
-            />
+          <span class="mt-6 w-full border-t border-garis pt-4">
+            <span class="inline-flex items-center gap-1.5 text-sm font-semibold text-aksen-teks">
+              Mulai absen
+              <Ikon
+                nama="kanan"
+                ukuran="h-4 w-4"
+                class="transition-transform duration-200 group-hover:translate-x-1"
+              />
+            </span>
           </span>
         </button>
 
         <button
           type="button"
-          class="kartu-naik group flex flex-col items-start rounded-2xl border border-garis bg-permukaan p-6 text-left bayang hover:border-aksen/40"
+          class="panel kartu-naik group flex flex-col items-start p-7 text-left hover:border-aksen/40"
           :class="langkah === 'event' && 'border-aksen/40'"
           @click="pilihAbsenEvent"
         >
-          <span class="inline-flex rounded-2xl bg-info-lembut p-3.5 text-info-teks transition-transform duration-200 group-hover:scale-105">
+          <span class="ubin-ikon info h-14 w-14 transition-transform duration-200 group-hover:scale-105">
             <Ikon nama="kalender" ukuran="h-7 w-7" />
           </span>
 
           <h2 class="mt-5 font-display text-xl font-semibold">Absen Event</h2>
 
-          <p v-if="sudahIkutEvent" class="mt-1.5 flex-1 text-sm text-sekunder">
+          <p v-if="sudahIkutEvent" class="mt-2 flex-1 text-sm leading-relaxed text-sekunder">
             Perangkat ini melayani
             <span class="font-medium text-utama">{{ event_diikuti.nama }}</span>
             — mulai {{ event_diikuti.jam_mulai }}.
           </p>
-          <p v-else class="mt-1.5 flex-1 text-sm text-sekunder">
+          <p v-else class="mt-2 flex-1 text-sm leading-relaxed text-sekunder">
             Absensi kegiatan: apel, rapat, atau pelatihan. Perlu kode unit kerja dari admin
             penyelenggara.
           </p>
 
-          <span class="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-aksen-teks">
-            {{ sudahIkutEvent ? 'Mulai absen' : 'Pilih event' }}
-            <Ikon
-              nama="kanan"
-              ukuran="h-4 w-4"
-              class="transition-transform duration-200 group-hover:translate-x-0.5"
-            />
+          <span class="mt-6 w-full border-t border-garis pt-4">
+            <span class="inline-flex items-center gap-1.5 text-sm font-semibold text-aksen-teks">
+              {{ sudahIkutEvent ? 'Mulai absen' : 'Pilih event' }}
+              <Ikon
+                nama="kanan"
+                ukuran="h-4 w-4"
+                class="transition-transform duration-200 group-hover:translate-x-1"
+              />
+            </span>
           </span>
         </button>
       </div>
@@ -255,7 +278,7 @@ const tanggalPanjang = (nilai) =>
       >
         <section
           v-if="langkah === 'event'"
-          class="mt-5 rounded-2xl border border-garis bg-permukaan p-6 bayang"
+          class="panel mt-5 p-6"
         >
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -316,14 +339,14 @@ const tanggalPanjang = (nilai) =>
                 spellcheck="false"
                 :maxlength="panjang_kode + 2"
                 placeholder="7K4M-92XQ"
-                class="w-full rounded-xl border border-garis bg-permukaan-2 px-4 py-3 text-center font-display text-lg font-semibold uppercase tracking-[0.2em] text-utama transition-colors duration-150 placeholder:tracking-normal placeholder:text-redup focus:border-aksen focus:bg-permukaan focus:outline-none focus:ring-1 focus:ring-aksen"
+                class="kolom-isian py-3 text-center font-display text-lg font-semibold uppercase tracking-[0.2em] placeholder:tracking-normal"
               />
             </div>
 
             <button
               type="submit"
               :disabled="formKode.processing || formKode.kode.length === 0"
-              class="rounded-xl bg-aksen px-5 py-3 text-sm font-semibold text-white transition-colors duration-150 hover:bg-aksen-kuat disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98]"
+              class="tombol tombol-utama py-3"
             >
               {{ formKode.processing ? 'Menggabungkan…' : 'Gabung ke Event' }}
             </button>

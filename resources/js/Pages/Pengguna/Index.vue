@@ -202,7 +202,7 @@ const warnaPeran = (role) => (role === 'superadmin' ? 'navy' : role === 'admin_d
       </div>
     </Transition>
 
-    <div class="mb-5 rounded-lg border border-garis bg-permukaan p-4 bayang">
+    <div class="mb-5 panel p-4">
       <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <span class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup">
@@ -255,7 +255,7 @@ const warnaPeran = (role) => (role === 'superadmin' ? 'navy' : role === 'admin_d
       </div>
     </div>
 
-    <div class="overflow-hidden rounded-lg border border-garis bg-permukaan bayang">
+    <div class="overflow-hidden panel">
       <div class="tabel-gulir tabel-aksi gulir-halus">
         <table class="min-w-full divide-y divide-garis text-sm">
           <thead

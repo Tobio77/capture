@@ -53,7 +53,7 @@ const simpan = () => {
     <form class="grid gap-6 lg:grid-cols-3" @submit.prevent="simpan">
       <div class="space-y-6 lg:col-span-2">
         <!-- FR-SET-01 -->
-        <section class="rounded-lg border border-garis bg-permukaan p-6 bayang">
+        <section class="panel p-6">
           <h2 class="font-display text-sm font-semibold text-utama">Metode Absensi Aktif</h2>
           <p class="mt-1 text-xs text-redup">Metode yang dimatikan tidak akan muncul pada layar kiosk.</p>
 
@@ -80,7 +80,7 @@ const simpan = () => {
         </section>
 
         <!-- FR-SET-02 & FR-SET-03 -->
-        <section class="rounded-lg border border-garis bg-permukaan p-6 bayang">
+        <section class="panel p-6">
           <div class="space-y-6">
             <div>
               <label for="toleransi" class="block text-sm font-medium text-utama">
@@ -135,7 +135,7 @@ const simpan = () => {
         </section>
 
         <!-- Absen umum: absensi harian tanpa event kegiatan -->
-        <section class="rounded-lg border border-garis bg-permukaan p-6 bayang">
+        <section class="panel p-6">
           <h2 class="font-display text-sm font-semibold text-utama">Absen Umum Harian</h2>
           <p class="mt-1 text-xs text-redup">
             Sesi absen harian yang dibuka sistem sendiri ketika tidak ada event kegiatan yang
@@ -180,7 +180,7 @@ const simpan = () => {
         </section>
 
         <!-- FR-SET-06 -->
-        <section class="rounded-lg border border-garis bg-permukaan p-6 bayang">
+        <section class="panel p-6">
           <h2 class="font-display text-sm font-semibold text-utama">Registrasi Perangkat Absen</h2>
           <p class="mt-1 text-xs text-redup">
             Secara bawaan, perangkat harus didaftarkan admin lebih dahulu dan menukarkan kode
@@ -221,7 +221,7 @@ const simpan = () => {
         </section>
 
         <!-- FR-SET-04 -->
-        <section class="rounded-lg border border-garis bg-permukaan p-6 bayang">
+        <section class="panel p-6">
           <h2 class="font-display text-sm font-semibold text-utama">Kompresi Foto Absen</h2>
           <p class="mt-1 text-xs text-redup">
             Foto absen disusutkan di kiosk sebelum dikirim, agar ruang penyimpanan server terkendali.
@@ -251,7 +251,7 @@ const simpan = () => {
       </div>
 
       <aside class="space-y-4">
-        <div class="rounded-lg border border-garis bg-permukaan p-5 bayang">
+        <div class="panel p-5">
           <h2 class="font-display text-sm font-semibold text-utama">Simpan Perubahan</h2>
           <p class="mt-1 text-xs text-redup">
             Pengaturan ini berlaku global dan langsung dipakai kiosk pada sesi berikutnya.
@@ -270,7 +270,7 @@ const simpan = () => {
           </p>
         </div>
 
-        <div class="rounded-lg border border-garis bg-permukaan p-5 text-sm bayang">
+        <div class="panel p-5 text-sm">
           <h2 class="font-display text-sm font-semibold text-utama">Catatan</h2>
           <ul class="mt-2 space-y-2 text-xs text-sekunder">
             <li>

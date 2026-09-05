@@ -94,16 +94,16 @@ const keluar = () => router.post('/keluar')
       class="fixed inset-y-0 left-0 z-40 flex w-72 flex-col bg-sidebar lapis-sidebar text-sidebar-teks transition-transform duration-200 ease-out md:sticky md:top-0 md:z-auto md:h-screen md:shrink-0 md:translate-x-0 md:shadow-none print:hidden"
       :class="laciTerbuka ? 'translate-x-0 shadow-2xl' : '-translate-x-full'"
     >
-        <div class="flex items-center justify-between border-b border-sidebar-garis px-6 py-5">
-          <div>
-            <p class="flex items-center gap-2 font-display text-lg font-semibold">
-              <span class="rounded-lg bg-aksen p-1.5 text-white">
-                <Ikon nama="absen" ukuran="h-4 w-4" />
-              </span>
-              Capture
-            </p>
-            <p class="mt-1.5 text-xs text-sidebar-redup">Absensi Kegiatan Berbasis Event</p>
-          </div>
+        <div class="flex items-start justify-between border-b border-sidebar-garis px-5 py-5">
+          <Link href="/" class="flex items-center gap-3 rounded-xl">
+            <span class="ubin-merek h-10 w-10 shrink-0">
+              <Ikon nama="absen" ukuran="h-5 w-5" />
+            </span>
+            <span class="min-w-0 leading-tight">
+              <span class="block font-display text-base font-semibold">Capture</span>
+              <span class="mt-0.5 block text-xs text-sidebar-redup">Absensi Kegiatan</span>
+            </span>
+          </Link>
 
           <button
             type="button"
@@ -115,30 +115,38 @@ const keluar = () => router.post('/keluar')
           </button>
         </div>
 
-        <nav class="gulir-halus flex-1 space-y-1 overflow-y-auto px-3 py-4">
+        <!--
+          Keadaan aktif dibuat sebagai bidang teal yang benar-benar terangkat —
+          sorotan tipis di tepi atas ditambah pendar berwarna di bawahnya —
+          bukan sekadar isian rata. Pada latar navy, isian rata terbaca sebagai
+          "baris yang kebetulan diberi warna"; yang dicari di sini adalah
+          "tombol yang sedang ditekan".
+        -->
+        <nav class="gulir-halus flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
           <template v-for="item in menu" :key="item.label">
             <!-- Menu induk dengan submenu -->
-            <div v-if="item.anak" class="pt-2">
+            <div v-if="item.anak" class="mt-4 border-t border-sidebar-garis pt-4 first:mt-0 first:border-t-0 first:pt-0">
               <p
-                class="flex items-center gap-2 px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-sidebar-redup"
+                class="flex items-center gap-2 px-3 pb-1.5 text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-sidebar-redup"
               >
-                <Ikon :nama="item.ikon" ukuran="h-4 w-4" />
+                <Ikon :nama="item.ikon" ukuran="h-3.5 w-3.5" />
                 {{ item.label }}
               </p>
+
               <Link
                 v-for="anak in item.anak"
                 :key="anak.rute"
                 :href="anak.url"
-                class="tautan-aksi relative flex items-center rounded-lg py-2 pl-10 pr-3 text-sm transition-all duration-150"
+                class="tautan-aksi relative flex items-center rounded-xl py-2 pl-9 pr-3 text-sm transition-all duration-150"
                 :class="
                   aktif(anak.rute)
-                    ? 'bg-aksen font-medium text-white shadow-sm'
-                    : 'text-sidebar-teks/85 hover:translate-x-0.5 hover:bg-white/10 hover:text-sidebar-teks'
+                    ? 'bg-aksen font-medium text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.2),0_2px_10px_rgb(13_148_136/0.35)]'
+                    : 'text-sidebar-teks/80 hover:bg-white/[0.07] hover:text-sidebar-teks'
                 "
               >
                 <span
-                  v-if="aktif(anak.rute)"
-                  class="absolute left-3.5 h-1.5 w-1.5 rounded-full bg-white"
+                  class="absolute left-3.5 h-1.5 w-1.5 rounded-full transition-colors duration-150"
+                  :class="aktif(anak.rute) ? 'bg-white' : 'bg-sidebar-redup/40'"
                 ></span>
                 {{ anak.label }}
               </Link>
@@ -148,11 +156,11 @@ const keluar = () => router.post('/keluar')
             <Link
               v-else
               :href="item.url"
-              class="tautan-aksi flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-150"
+              class="tautan-aksi flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-150"
               :class="
                 aktif(item.rute)
-                  ? 'bg-aksen font-medium text-white shadow-sm'
-                  : 'text-sidebar-teks/85 hover:translate-x-0.5 hover:bg-white/10 hover:text-sidebar-teks'
+                  ? 'bg-aksen font-medium text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.2),0_2px_10px_rgb(13_148_136/0.35)]'
+                  : 'text-sidebar-teks/80 hover:bg-white/[0.07] hover:text-sidebar-teks'
               "
             >
               <Ikon :nama="item.ikon" ukuran="h-5 w-5 shrink-0" />
@@ -162,24 +170,27 @@ const keluar = () => router.post('/keluar')
         </nav>
 
         <!-- Indikator peran & cakupan unit kerja -->
-        <div class="border-t border-sidebar-garis px-6 py-4">
-          <div class="flex items-center gap-3">
-            <span
-              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-aksen font-display text-sm font-semibold text-white"
-            >
-              {{ pengguna.nama.charAt(0).toUpperCase() }}
-            </span>
-            <div class="min-w-0">
-              <p class="truncate text-sm font-medium">{{ pengguna.nama }}</p>
-              <p class="truncate text-xs text-aksen-kuat">{{ pengguna.role_label }}</p>
+        <div class="border-t border-sidebar-garis p-3">
+          <div class="rounded-xl bg-white/[0.06] p-3">
+            <div class="flex items-center gap-3">
+              <span
+                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-aksen font-display text-sm font-semibold text-white ring-2 ring-white/15"
+              >
+                {{ pengguna.nama.charAt(0).toUpperCase() }}
+              </span>
+              <div class="min-w-0">
+                <p class="truncate text-sm font-medium">{{ pengguna.nama }}</p>
+                <p class="truncate text-xs text-aksen-kuat">{{ pengguna.role_label }}</p>
+              </div>
             </div>
+
+            <p class="mt-2.5 truncate text-xs text-sidebar-redup" :title="cakupan">{{ cakupan }}</p>
           </div>
-          <p class="mt-2 truncate text-xs text-sidebar-redup" :title="cakupan">{{ cakupan }}</p>
 
           <!-- Saklar tema tinggal di bilah atas; di sini cukup tombol keluar. -->
           <button
             type="button"
-            class="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-sidebar-garis px-3 py-2 text-xs font-medium text-sidebar-redup transition-colors duration-150 hover:bg-white/10 hover:text-sidebar-teks"
+            class="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-medium text-sidebar-redup transition-colors duration-150 hover:bg-white/10 hover:text-sidebar-teks"
             @click="keluar"
           >
             <Ikon nama="keluar" ukuran="h-4 w-4" /> Keluar
@@ -194,8 +205,21 @@ const keluar = () => router.post('/keluar')
         dalam menu samping.
       -->
       <div
-        class="hidden items-center justify-end gap-3 border-b border-garis bg-permukaan px-6 py-2.5 md:flex print:hidden"
+        class="sticky top-0 z-20 hidden items-center justify-between gap-3 border-b border-garis bg-permukaan/80 px-6 py-2.5 backdrop-blur-sm md:flex print:hidden"
       >
+        <!--
+          Jejak lokasi. Sidebar sudah menandai halaman yang aktif, tetapi pada
+          layar lebar bilah ini kosong sama sekali sebelumnya — dan bilah kosong
+          selebar halaman adalah ruang yang terbuang, bukan ruang yang lapang.
+        -->
+        <p class="truncate text-sm text-redup">
+          <Link href="/admin/dashboard" class="rounded transition-colors duration-150 hover:text-sekunder">
+            Panel Admin
+          </Link>
+          <span class="px-1.5 text-garis-kuat">/</span>
+          <span class="font-medium text-sekunder">{{ judul }}</span>
+        </p>
+
         <SaklarTema />
       </div>
 
@@ -221,10 +245,10 @@ const keluar = () => router.post('/keluar')
           </Link>
         </div>
 
-        <div class="flex flex-wrap items-start justify-between gap-4">
+        <div class="flex flex-wrap items-start justify-between gap-4 border-b border-garis pb-5">
           <div class="min-w-0">
-            <h1 class="font-display text-xl font-semibold text-utama sm:text-2xl">{{ judul }}</h1>
-            <p v-if="deskripsi" class="mt-1 text-sm text-sekunder">{{ deskripsi }}</p>
+            <h1 class="font-display text-2xl font-semibold text-utama sm:text-[1.75rem]">{{ judul }}</h1>
+            <p v-if="deskripsi" class="mt-1.5 max-w-2xl text-sm text-sekunder">{{ deskripsi }}</p>
           </div>
           <slot name="aksi" />
         </div>
