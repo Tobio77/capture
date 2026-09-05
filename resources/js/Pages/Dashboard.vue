@@ -5,6 +5,8 @@ import AdminLayout from '@/Layouts/AdminLayout.vue'
 import Ikon from '@/Components/Ikon.vue'
 import Lencana from '@/Components/UI/Lencana.vue'
 import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
+import KartuStatistik from '@/Components/UI/KartuStatistik.vue'
+import { useAngkaBerjalan } from '@/Composables/useAngkaBerjalan'
 
 /**
  * Dashboard ringkasan kehadiran (FR-DASH-01 s.d. FR-DASH-03).
@@ -60,41 +62,45 @@ async function segarkanAktivitas() {
   }
 }
 
+/*
+ * Empat kartu, empat nada berbeda. Sebelumnya dua di antaranya memakai teal
+ * yang sama, sehingga deretannya terbaca sebagai satu blok — padahal keempat
+ * angka itu menjawab pertanyaan yang berlainan.
+ */
 const kartu = computed(() => [
   {
     label: 'Total Pegawai',
     nilai: props.statistik.total_pegawai,
     keterangan: 'pegawai aktif dalam cakupan Anda',
     ikon: 'pegawai',
-    warna: 'text-utama',
-    nada: 'info',
+    nada: 'biru',
   },
   {
     label: 'Perangkat Aktif',
     nilai: props.statistik.kiosk_aktif,
     keterangan: `dari ${props.kesiapan.perangkat} perangkat terdaftar`,
     ikon: 'perangkat',
-    warna: 'text-aksen-teks',
-    nada: '',
+    nada: 'langit',
+    persen: props.kesiapan.perangkat === 0
+      ? 0
+      : (props.statistik.kiosk_aktif / props.kesiapan.perangkat) * 100,
   },
   {
     label: 'Event Berlangsung',
     nilai: props.statistik.event_berlangsung,
     keterangan: 'entry masih dibuka',
     ikon: 'absen',
-    warna: 'text-aksen-teks',
-    nada: '',
+    nada: 'teal',
   },
   {
     label: 'Kehadiran Hari Ini',
-    nilai: `${props.statistik.persentase_kehadiran}%`,
+    nilai: props.statistik.persentase_kehadiran,
+    satuan: '%',
+    desimal: 1,
     keterangan: `${props.statistik.hadir_hari_ini} dari ${props.statistik.total_pegawai} pegawai`,
     ikon: props.statistik.persentase_kehadiran >= 75 ? 'naik' : 'turun',
-    warna: props.statistik.persentase_kehadiran >= 75 ? 'text-berhasil-teks' : 'text-peringatan-teks',
-    nada:
-      props.statistik.persentase_kehadiran >= 75
-        ? 'berhasil'
-        : 'peringatan',
+    nada: props.statistik.persentase_kehadiran >= 75 ? 'emerald' : 'amber',
+    persen: props.statistik.persentase_kehadiran,
   },
 ])
 
@@ -103,6 +109,23 @@ const totalKetepatan = computed(() => props.ketepatan.tepat + props.ketepatan.te
 const bagianTepat = computed(() =>
   totalKetepatan.value === 0 ? 0 : Math.round((props.ketepatan.tepat / totalKetepatan.value) * 100),
 )
+
+/* Keliling cincin ketepatan: 2πr dengan r = 46 pada viewBox 120×120. */
+const KELILING = 2 * Math.PI * 46
+
+const panjangTepat = computed(() => (bagianTepat.value / 100) * KELILING)
+
+const tepatBerjalan = useAngkaBerjalan(
+  computed(() => props.ketepatan.tepat),
+  { tunda: 260 },
+)
+
+const terlambatBerjalan = useAngkaBerjalan(
+  computed(() => props.ketepatan.terlambat),
+  { tunda: 340 },
+)
+
+const persenTepatBerjalan = useAngkaBerjalan(bagianTepat, { tunda: 260 })
 
 /* Geometri grafik area. */
 const LEBAR = 720
@@ -124,6 +147,25 @@ const titik = computed(() =>
 )
 
 const garis = computed(() => titik.value.map((t) => `${t.x},${t.y}`).join(' '))
+
+/*
+ * Panjang garis, dihitung sebagai jumlah panjang tiap ruasnya.
+ *
+ * Dipakai animasi "garis tergambar": `stroke-dasharray` disetel sepanjang
+ * garisnya lalu `stroke-dashoffset` dijalankan dari panjang itu ke nol,
+ * sehingga grafiknya seolah digambar dari kiri ke kanan. Menghitungnya di
+ * sini jauh lebih murah daripada memanggil `getTotalLength()` pada elemen,
+ * yang menuntut simpulnya sudah terpasang lebih dahulu.
+ */
+const panjangGaris = computed(() =>
+  titik.value.reduce((jumlah, t, urutan) => {
+    if (urutan === 0) return 0
+
+    const lalu = titik.value[urutan - 1]
+
+    return jumlah + Math.hypot(t.x - lalu.x, t.y - lalu.y)
+  }, 0),
+)
 
 const area = computed(() => {
   if (titik.value.length === 0) return ''
@@ -151,22 +193,12 @@ function waktuRelatif(iso) {
   <AdminLayout judul="Dashboard" :deskripsi="`Ringkasan kehadiran untuk ${cakupan}.`">
     <!-- FR-DASH-01 -->
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <div v-for="item in kartu" :key="item.label" class="panel p-5">
-        <div class="flex items-start justify-between gap-3">
-          <p class="text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-redup">
-            {{ item.label }}
-          </p>
-          <span class="ubin-ikon h-9 w-9 shrink-0" :class="item.nada">
-            <Ikon :nama="item.ikon" ukuran="h-[1.125rem] w-[1.125rem]" />
-          </span>
-        </div>
-
-        <p class="mt-3 font-display text-[2rem] font-semibold leading-none tabular-nums" :class="item.warna">
-          {{ item.nilai }}
-        </p>
-
-        <p class="mt-2 text-xs text-redup">{{ item.keterangan }}</p>
-      </div>
+      <KartuStatistik
+        v-for="(item, urutan) in kartu"
+        :key="item.label"
+        v-bind="item"
+        :tunda="urutan * 70"
+      />
     </div>
 
     <!-- Event berjalan -->
@@ -222,9 +254,15 @@ function waktuRelatif(iso) {
             aria-label="Grafik tren kehadiran tujuh hari terakhir"
           >
             <defs>
+              <!--
+                Warna gradien dan garis diambil dari token tema, bukan dari
+                heksadesimal tetap: grafiknya harus ikut berpindah saat mode
+                gelap dinyalakan, sama seperti sisa halaman.
+              -->
               <linearGradient id="gradienTren" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#0D9488" stop-opacity="0.28" />
-                <stop offset="100%" stop-color="#0D9488" stop-opacity="0" />
+                <stop offset="0%" stop-color="var(--tema-aksen)" stop-opacity="0.3" />
+                <stop offset="55%" stop-color="var(--tema-aksen)" stop-opacity="0.08" />
+                <stop offset="100%" stop-color="var(--tema-aksen)" stop-opacity="0" />
               </linearGradient>
             </defs>
 
@@ -235,31 +273,47 @@ function waktuRelatif(iso) {
               :x2="LEBAR - PADDING"
               :y1="TINGGI - PADDING - bagian * (TINGGI - PADDING * 2)"
               :y2="TINGGI - PADDING - bagian * (TINGGI - PADDING * 2)"
-              stroke="#e2e8f0"
+              stroke="var(--tema-garis)"
               stroke-width="1"
             />
 
-            <polygon :points="area" fill="url(#gradienTren)" />
+            <polygon :points="area" fill="url(#gradienTren)" class="masuk" />
+
             <polyline
               :points="garis"
               fill="none"
-              stroke="#0D9488"
+              stroke="var(--tema-aksen)"
               stroke-width="2.5"
               stroke-linejoin="round"
               stroke-linecap="round"
+              class="garis-tergambar"
+              :style="{ '--panjang-garis': panjangGaris }"
             />
 
-            <g v-for="t in titik" :key="t.tanggal">
-              <circle :cx="t.x" :cy="t.y" r="4.5" fill="#fff" stroke="#0D9488" stroke-width="2.5" />
+            <g
+              v-for="(t, urutan) in titik"
+              :key="t.tanggal"
+              class="masuk"
+              :style="{ '--tunda': `${380 + urutan * 60}ms` }"
+            >
+              <circle
+                :cx="t.x"
+                :cy="t.y"
+                r="4.5"
+                fill="var(--tema-permukaan)"
+                stroke="var(--tema-aksen)"
+                stroke-width="2.5"
+              />
               <text
                 :x="t.x"
                 :y="t.y - 13"
                 text-anchor="middle"
-                class="fill-navy-700 font-display text-[13px] tabular-nums"
+                fill="var(--tema-utama)"
+                class="font-display text-[13px] tabular-nums"
               >
                 {{ t.jumlah }}
               </text>
-              <text :x="t.x" :y="TINGGI - 8" text-anchor="middle" class="fill-[var(--tema-redup)] text-[12px]">
+              <text :x="t.x" :y="TINGGI - 8" text-anchor="middle" fill="var(--tema-redup)" class="text-[12px]">
                 {{ t.label }}
               </text>
             </g>
@@ -275,28 +329,67 @@ function waktuRelatif(iso) {
               Belum ada absen masuk hari ini.
             </p>
 
+            <!--
+              Cincin, bukan bar. Perbandingan tepat/terlambat adalah satu bagian
+              dari satu keseluruhan, dan bentuk lingkaran menyatakan "bagian
+              dari" jauh lebih langsung daripada batang mendatar — yang lebih
+              cocok membandingkan beberapa hal sejajar.
+            -->
             <template v-else>
-              <div class="mt-4 flex h-3 overflow-hidden rounded-full bg-permukaan-2">
-                <div
-                  class="bg-berhasil transition-all duration-500"
-                  :style="{ width: `${bagianTepat}%` }"
-                ></div>
-                <div class="flex-1 bg-peringatan transition-all duration-500"></div>
-              </div>
+              <div class="mt-5 flex items-center gap-6">
+                <div class="relative h-[7.5rem] w-[7.5rem] shrink-0">
+                  <svg viewBox="0 0 120 120" class="h-full w-full -rotate-90">
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r="46"
+                      fill="none"
+                      stroke="var(--tema-peringatan-lembut)"
+                      stroke-width="14"
+                    />
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r="46"
+                      fill="none"
+                      stroke="var(--tema-berhasil)"
+                      stroke-width="14"
+                      stroke-linecap="round"
+                      class="cincin-terisi"
+                      :stroke-dasharray="`${panjangTepat} ${KELILING}`"
+                      :style="{ '--panjang-garis': panjangTepat }"
+                    />
+                  </svg>
 
-              <div class="mt-4 grid grid-cols-2 gap-4">
-                <div>
-                  <p class="font-display text-2xl font-semibold tabular-nums text-berhasil-teks">
-                    {{ ketepatan.tepat }}
-                  </p>
-                  <p class="text-xs text-redup">tepat waktu ({{ bagianTepat }}%)</p>
+                  <div class="absolute inset-0 flex flex-col items-center justify-center">
+                    <span class="font-display text-2xl font-semibold tabular-nums text-berhasil-teks">
+                      {{ persenTepatBerjalan }}%
+                    </span>
+                    <span class="text-[0.625rem] uppercase tracking-wider text-redup">tepat</span>
+                  </div>
                 </div>
-                <div>
-                  <p class="font-display text-2xl font-semibold tabular-nums text-peringatan-teks">
-                    {{ ketepatan.terlambat }}
-                  </p>
-                  <p class="text-xs text-redup">terlambat</p>
-                </div>
+
+                <dl class="min-w-0 flex-1 space-y-3">
+                  <div class="nada-emerald flex items-center gap-3">
+                    <span class="h-8 w-1.5 shrink-0 rounded-full" :style="{ background: 'var(--nada-kuat)' }"></span>
+                    <div class="min-w-0">
+                      <dd class="font-display text-xl font-semibold tabular-nums text-berhasil-teks">
+                        {{ tepatBerjalan }}
+                      </dd>
+                      <dt class="text-xs text-redup">tepat waktu</dt>
+                    </div>
+                  </div>
+
+                  <div class="nada-amber flex items-center gap-3">
+                    <span class="h-8 w-1.5 shrink-0 rounded-full" :style="{ background: 'var(--nada-kuat)' }"></span>
+                    <div class="min-w-0">
+                      <dd class="font-display text-xl font-semibold tabular-nums text-peringatan-teks">
+                        {{ terlambatBerjalan }}
+                      </dd>
+                      <dt class="text-xs text-redup">terlambat</dt>
+                    </div>
+                  </div>
+                </dl>
               </div>
             </template>
           </div>
@@ -308,7 +401,7 @@ function waktuRelatif(iso) {
             </p>
 
             <div class="mt-4 space-y-3">
-              <div v-for="baris in [
+              <div v-for="(baris, urutan) in [
                 { label: 'Wajah terdaftar', nilai: kesiapan.wajah_terdaftar, total: kesiapan.pegawai, persen: kesiapan.wajah_persen },
                 { label: 'Kartu RFID terdaftar', nilai: kesiapan.kartu_terdaftar, total: kesiapan.pegawai, persen: kesiapan.kartu_persen },
               ]" :key="baris.label">
@@ -318,12 +411,19 @@ function waktuRelatif(iso) {
                     {{ baris.nilai }}/{{ baris.total }} · {{ baris.persen }}%
                   </span>
                 </div>
-                <div class="mt-1 h-2 overflow-hidden rounded-full bg-permukaan-2">
-                  <div
-                    class="h-full rounded-full transition-all duration-500"
-                    :class="baris.persen >= 80 ? 'bg-berhasil' : baris.persen >= 40 ? 'bg-aksen-lembut0' : 'bg-peringatan'"
-                    :style="{ width: `${Math.max(baris.persen, 2)}%` }"
-                  ></div>
+                <!--
+                  Warnanya mengikuti seberapa siap, bukan sekadar mengisi:
+                  hijau bila hampir lengkap, teal bila sedang berjalan, amber
+                  bila masih tertinggal jauh.
+                -->
+                <div
+                  class="bar-jalur mt-1.5 h-2"
+                  :class="baris.persen >= 80 ? 'nada-emerald' : baris.persen >= 40 ? 'nada-teal' : 'nada-amber'"
+                >
+                  <span
+                    class="bar-isi"
+                    :style="{ width: `${Math.max(baris.persen, 2)}%`, '--tunda': `${240 + urutan * 120}ms` }"
+                  ></span>
                 </div>
               </div>
 
@@ -342,23 +442,47 @@ function waktuRelatif(iso) {
           <h2 class="font-display text-base font-semibold text-utama">Kehadiran per Unit Kerja</h2>
           <p class="mt-1 text-xs text-redup">Hari ini, diurutkan menurut persentase kehadiran.</p>
 
-          <div class="mt-4 space-y-3">
-            <div v-for="unit in peringkat_unit" :key="unit.kode">
+          <!--
+            Tiga teratas diberi nomor peringkat; sisanya tidak. Menomori seluruh
+            daftar membuat nomornya kehilangan arti — yang ingin diketahui
+            pimpinan adalah siapa yang memimpin, bukan urutan lengkap sampai
+            unit terakhir.
+          -->
+          <ol class="mt-4 space-y-3.5">
+            <li
+              v-for="(unit, urutan) in peringkat_unit"
+              :key="unit.kode"
+              class="masuk"
+              :style="{ '--tunda': `${urutan * 55}ms` }"
+              :class="unit.persen >= 75 ? 'nada-emerald' : unit.persen >= 40 ? 'nada-teal' : 'nada-amber'"
+            >
               <div class="flex items-baseline justify-between gap-3 text-sm">
-                <span class="truncate text-utama">{{ unit.nama }}</span>
-                <span class="shrink-0 font-display text-xs tabular-nums text-redup">
-                  {{ unit.hadir }}/{{ unit.pegawai }} · {{ unit.persen }}%
+                <span class="flex min-w-0 items-baseline gap-2">
+                  <span
+                    v-if="urutan < 3"
+                    class="keping shrink-0 px-1.5 font-display text-[0.625rem] tabular-nums"
+                  >
+                    {{ urutan + 1 }}
+                  </span>
+                  <span class="truncate text-utama">{{ unit.nama }}</span>
+                </span>
+
+                <span class="shrink-0 font-display text-xs tabular-nums">
+                  <span class="font-semibold" :style="{ color: 'var(--nada-teks)' }">
+                    {{ unit.persen }}%
+                  </span>
+                  <span class="text-redup"> · {{ unit.hadir }}/{{ unit.pegawai }}</span>
                 </span>
               </div>
-              <div class="mt-1 h-2 overflow-hidden rounded-full bg-permukaan-2">
-                <div
-                  class="h-full rounded-full transition-all duration-700"
-                  :class="unit.persen >= 75 ? 'bg-berhasil' : unit.persen >= 40 ? 'bg-aksen-lembut0' : 'bg-peringatan'"
-                  :style="{ width: `${Math.max(unit.persen, 2)}%` }"
-                ></div>
+
+              <div class="bar-jalur mt-1.5 h-2">
+                <span
+                  class="bar-isi"
+                  :style="{ width: `${Math.max(unit.persen, 2)}%`, '--tunda': `${180 + urutan * 55}ms` }"
+                ></span>
               </div>
-            </div>
-          </div>
+            </li>
+          </ol>
         </div>
       </div>
 

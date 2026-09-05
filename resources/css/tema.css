@@ -126,6 +126,9 @@
     --color-peringatan-teks: var(--tema-peringatan-teks);
     --color-info-lembut: var(--tema-info-lembut);
     --color-info-teks: var(--tema-info-teks);
+    --color-langit: var(--tema-langit);
+    --color-langit-lembut: var(--tema-langit-lembut);
+    --color-langit-teks: var(--tema-langit-teks);
     --color-sidebar: var(--tema-sidebar);
     --color-sidebar-2: var(--tema-sidebar-2);
     --color-sidebar-teks: var(--tema-sidebar-teks);
@@ -170,6 +173,12 @@
 
     --tema-info-lembut: #e5eff8;
     --tema-info-teks: #24507b;
+
+    /* Langit: biru-kehijauan di antara teal dan navy, keluarga kelima
+       supaya deretan lima kartu tidak mengulang warna. Bukan ungu. */
+    --tema-langit: #0891b2;
+    --tema-langit-lembut: #ddf2f9;
+    --tema-langit-teks: #0e7490;
 
     --tema-sidebar: #0f2a43;
     --tema-sidebar-2: #0b2035;
@@ -237,6 +246,10 @@
         --tema-info-lembut: rgb(109 153 189 / 0.18);
         --tema-info-teks: #a3c1d8;
 
+        --tema-langit: #22d3ee;
+        --tema-langit-lembut: rgb(34 211 238 / 0.16);
+        --tema-langit-teks: #67e8f9;
+
         --tema-sidebar: #0c2236;
         --tema-sidebar-2: #08192a;
         --tema-sidebar-teks: #e6eff6;
@@ -282,6 +295,10 @@
 
     --tema-info-lembut: rgb(109 153 189 / 0.18);
     --tema-info-teks: #a3c1d8;
+
+    --tema-langit: #22d3ee;
+    --tema-langit-lembut: rgb(34 211 238 / 0.16);
+    --tema-langit-teks: #67e8f9;
 
     --tema-sidebar: #0c2236;
     --tema-sidebar-2: #08192a;
@@ -421,38 +438,6 @@ h4,
         var(--tema-bayang);
 }
 
-/*
- * Ubin ikon berwarna. Motif yang berulang di seluruh aplikasi — kartu
- * pilihan, kartu statistik, keadaan kosong — dan pengulangan itulah yang
- * membuat halaman terasa satu keluarga.
- */
-.ubin-ikon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-xl);
-    background-image: linear-gradient(140deg, var(--tema-aksen-lembut), transparent 140%);
-    color: var(--tema-aksen-teks);
-    box-shadow: inset 0 0 0 1px rgb(13 148 136 / 0.12);
-}
-
-.ubin-ikon.info {
-    background-image: linear-gradient(140deg, var(--tema-info-lembut), transparent 140%);
-    color: var(--tema-info-teks);
-    box-shadow: inset 0 0 0 1px rgb(36 80 123 / 0.12);
-}
-
-.ubin-ikon.berhasil {
-    background-image: linear-gradient(140deg, var(--tema-berhasil-lembut), transparent 140%);
-    color: var(--tema-berhasil-teks);
-    box-shadow: inset 0 0 0 1px rgb(5 150 105 / 0.12);
-}
-
-.ubin-ikon.peringatan {
-    background-image: linear-gradient(140deg, var(--tema-peringatan-lembut), transparent 140%);
-    color: var(--tema-peringatan-teks);
-    box-shadow: inset 0 0 0 1px rgb(180 83 9 / 0.12);
-}
 
 /* Lencana merek: navy pekat dengan sorotan, dipakai di sidebar dan layar masuk. */
 .ubin-merek {
@@ -719,4 +704,248 @@ button:focus-visible {
 .gulir-halus {
     scrollbar-color: var(--tema-garis-kuat) var(--tema-permukaan-2);
     scrollbar-width: thin;
+}
+/* ==========================================================================
+ * Nada warna kategori.
+ *
+ * Palet proyek tetap navy/teal/emerald/amber tanpa ungu (CLAUDE.md), tetapi
+ * empat keluarga itu sebelumnya hanya dipakai sebagai STATUS — teal untuk
+ * aksi, emerald untuk berhasil, amber untuk terlambat. Akibatnya halaman yang
+ * tidak memuat status apa pun tampil nyaris tanpa warna sama sekali.
+ *
+ * Nada di bawah ini memakai keluarga yang sama sebagai PEMBEDA KATEGORI:
+ * kartu statistik, ubin ikon, dan lencana memilih nadanya, lalu seluruh isinya
+ * ikut. Satu keluarga baru ditambahkan — `langit`, biru-kehijauan yang berada
+ * di antara teal dan navy — supaya deretan lima kartu tidak mengulang warna.
+ *
+ * Setiap nada menetapkan tiga peubah lokal, dan komponen di bawahnya membaca
+ * peubah itu alih-alih menyebut warnanya sendiri. Itulah yang membuat
+ * `<div class="nada-emerald">` mewarnai ubin, angka, dan barnya sekaligus.
+ * ======================================================================== */
+@layer components {
+    .nada-teal {
+        --nada-lembut: var(--tema-aksen-lembut);
+        --nada-teks: var(--tema-aksen-teks);
+        --nada-kuat: var(--tema-aksen);
+        --nada-cincin: 13 148 136;
+    }
+
+    .nada-emerald {
+        --nada-lembut: var(--tema-berhasil-lembut);
+        --nada-teks: var(--tema-berhasil-teks);
+        --nada-kuat: var(--tema-berhasil);
+        --nada-cincin: 5 150 105;
+    }
+
+    .nada-amber {
+        --nada-lembut: var(--tema-peringatan-lembut);
+        --nada-teks: var(--tema-peringatan-teks);
+        --nada-kuat: var(--tema-peringatan);
+        --nada-cincin: 180 83 9;
+    }
+
+    .nada-biru {
+        --nada-lembut: var(--tema-info-lembut);
+        --nada-teks: var(--tema-info-teks);
+        --nada-kuat: var(--color-navy-500);
+        --nada-cincin: 36 80 123;
+    }
+
+    .nada-langit {
+        --nada-lembut: var(--tema-langit-lembut);
+        --nada-teks: var(--tema-langit-teks);
+        --nada-kuat: var(--tema-langit);
+        --nada-cincin: 14 116 144;
+    }
+
+    /* Bawaan bila tidak ada nada yang dipasang induknya. */
+    .ubin-ikon,
+    .keping {
+        --nada-lembut: var(--tema-aksen-lembut);
+        --nada-teks: var(--tema-aksen-teks);
+        --nada-kuat: var(--tema-aksen);
+        --nada-cincin: 13 148 136;
+    }
+
+    /*
+     * Ubin ikon mengambil warnanya dari nada terdekat. Gradien tipis di
+     * dalamnya membuat ubin terbaca sebagai bidang, bukan kotak berwarna rata
+     * — selisih kecil yang justru paling terasa ketika lima ubin berjajar.
+     */
+    .ubin-ikon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius-xl);
+        background-image: linear-gradient(140deg, var(--nada-lembut), transparent 150%);
+        color: var(--nada-teks);
+        box-shadow: inset 0 0 0 1px rgb(var(--nada-cincin) / 0.14);
+    }
+
+    /* Keping kecil: label berwarna untuk kategori, peringkat, atau satuan. */
+    .keping {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        border-radius: 999px;
+        padding: 0.1875rem 0.625rem;
+        background-color: var(--nada-lembut);
+        color: var(--nada-teks);
+        font-size: 0.75rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    /*
+     * Bar kemajuan. Lebarnya dianimasikan dari nol saat kartunya muncul,
+     * sehingga angka persen terbaca sebagai sesuatu yang TERISI — bukan
+     * sekadar batang yang kebetulan sepanjang itu.
+     */
+    .bar-jalur {
+        overflow: hidden;
+        border-radius: 999px;
+        background-color: var(--tema-permukaan-2);
+    }
+
+    .bar-isi {
+        display: block;
+        height: 100%;
+        border-radius: 999px;
+        background-image: linear-gradient(90deg, var(--nada-kuat), color-mix(in srgb, var(--nada-kuat) 62%, white));
+        transform-origin: left center;
+        animation: tumbuh-bar 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        animation-delay: var(--tunda, 120ms);
+    }
+}
+
+/* ==========================================================================
+ * Gerak.
+ *
+ * Empat gerakan saja, dan masing-masing punya tugas: memunculkan isi saat
+ * halaman terbuka, menarik perhatian pada satu keadaan yang hidup, mengisi
+ * bar, dan menggambar garis grafik. Selebihnya cukup transisi hover.
+ *
+ * Seluruhnya memakai `both` sebagai fill-mode sehingga BERAKHIR pada keadaan
+ * terlihat — bukan elemen yang menunggu pemicu. Halaman yang dimuat lalu
+ * tidak digulir tetap tergambar utuh.
+ *
+ * `prefers-reduced-motion` menetralkan semuanya lewat aturan global di bawah.
+ * ======================================================================== */
+@keyframes muncul-naik {
+    from {
+        opacity: 0;
+        transform: translateY(0.75rem);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes tumbuh-bar {
+    from {
+        transform: scaleX(0);
+    }
+    to {
+        transform: scaleX(1);
+    }
+}
+
+@keyframes gambar-garis {
+    from {
+        stroke-dashoffset: var(--panjang-garis, 1200);
+    }
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+@keyframes napas {
+    0%,
+    100% {
+        opacity: 0.55;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.9;
+        transform: scale(1.06);
+    }
+}
+
+/*
+ * Kemunculan bertahap. `--tunda` diisi di tempat pemakaian, sehingga deretan
+ * kartu masuk satu per satu alih-alih serentak — mata mengikuti urutannya dan
+ * halaman terasa disusun, bukan dijatuhkan.
+ */
+.masuk {
+    animation: muncul-naik 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: var(--tunda, 0ms);
+}
+
+.garis-tergambar {
+    stroke-dasharray: var(--panjang-garis, 1200);
+    animation: gambar-garis 1100ms cubic-bezier(0.4, 0, 0.2, 1) both;
+    animation-delay: 160ms;
+}
+
+.napas {
+    animation: napas 3.2s ease-in-out infinite;
+}
+
+/*
+ * Busur cincin yang terisi. Berbeda dari `.garis-tergambar`, kelas ini TIDAK
+ * menetapkan `stroke-dasharray` sendiri — pemakainya yang menyebutkan
+ * "sepanjang busur, lalu jeda sepanjang keliling", sehingga yang tergambar
+ * hanya sebagian lingkaran.
+ */
+.cincin-terisi {
+    animation: gambar-garis 1000ms cubic-bezier(0.4, 0, 0.2, 1) both;
+    animation-delay: 220ms;
+}
+
+/*
+ * Latar pastel yang bernapas.
+ *
+ * Dua bulatan tint bergeser sangat pelan — 18 detik satu putaran — sehingga
+ * halaman depan tidak pernah benar-benar diam tanpa satu pun elemen yang
+ * berkedip menarik perhatian. Geraknya di bawah ambang sadar; yang terasa
+ * hanyalah layar yang "hidup" alih-alih gambar tercetak.
+ */
+@keyframes hanyut-latar {
+    0%,
+    100% {
+        background-position:
+            0% 0%,
+            100% 0%;
+    }
+    50% {
+        background-position:
+            12% 8%,
+            88% 6%;
+    }
+}
+
+.latar-pastel-hidup {
+    animation: hanyut-latar 18s ease-in-out infinite;
+}
+
+/* ==========================================================================
+ * Baris tabel yang menanggapi.
+ *
+ * Tabel di aplikasi ini panjang dan padat — rekap satu event bisa ratusan
+ * baris. Tepi berwarna yang muncul saat kursor lewat menandai baris yang
+ * sedang dibaca tanpa menambah kolom apa pun.
+ *
+ * Bayangannya dipasang pada SEL PERTAMA, bukan pada barisnya: sel pertama
+ * lengket di layar sempit dan membawa latarnya sendiri, sehingga bayangan yang
+ * dipasang pada `tr` justru tertutup olehnya.
+ * ======================================================================== */
+@layer components {
+    .tabel-gulir tbody tr > :first-child {
+        transition: box-shadow 140ms ease;
+    }
+
+    .tabel-gulir tbody tr:hover > :first-child {
+        box-shadow: inset 3px 0 0 var(--tema-aksen);
+    }
 }

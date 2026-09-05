@@ -470,7 +470,7 @@ const pemasangan = (item) =>
       <ol v-else-if="riwayat.length > 0" class="relative space-y-4 border-l border-garis pl-5">
         <li v-for="baris in riwayat" :key="baris.id" class="relative text-sm">
           <span
-            class="absolute -left-[1.55rem] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-aksen-lembut0"
+            class="absolute -left-[1.55rem] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-permukaan bg-aksen"
           ></span>
           <p class="font-medium text-utama">{{ baris.aksi }}</p>
           <p class="mt-0.5 text-xs text-sekunder">{{ baris.deskripsi }}</p>

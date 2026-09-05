@@ -243,6 +243,16 @@ Setelah aktivasi, layar utama menampilkan header status event (nama event aktif,
 
 - **Kelas bersama ditulis di `@layer components`.** CSS di luar lapisan mana pun mengalahkan seluruh utility Tailwind, berapa pun spesifisitasnya — sehingga `class="panel rounded-full"` akan tetap bersudut kartu dan `class="kolom-isian py-3"` akan mengabaikan tingginya. Di dalam `components`, utility yang menyusul tetap menang, sehingga kelas ini menjadi titik awal yang dapat disesuaikan per tempat, bukan aturan yang memaksa. Pengecualiannya cincin fokus papan ketik, yang sengaja tetap di luar lapisan supaya tidak dapat dimatikan tanpa sengaja.
 
+- **Nada warna kategori** (S30c). Empat keluarga palet sebelumnya hanya dipakai sebagai STATUS — teal untuk aksi, emerald untuk berhasil, amber untuk terlambat — sehingga halaman yang tidak memuat status apa pun tampil nyaris tanpa warna. Kini keluarga yang sama juga menjadi pembeda KATEGORI lewat kelas `.nada-teal`, `.nada-emerald`, `.nada-amber`, `.nada-biru`, dan `.nada-langit`. Satu keluarga baru ditambahkan — **langit**, biru-kehijauan di antara teal dan navy — supaya deretan lima kartu tidak mengulang warna. Tetap tanpa ungu/indigo.
+
+  Cara kerjanya: kelas nada menetapkan tiga peubah lokal (`--nada-lembut`, `--nada-teks`, `--nada-kuat`), dan komponen di bawahnya — `.ubin-ikon`, `.keping`, `.bar-isi` — membaca peubah itu alih-alih menyebut warnanya sendiri. Satu `<div class="nada-emerald">` karena itu mewarnai ubin, angka, dan barnya sekaligus.
+
+- **Empat gerakan, masing-masing bertugas.** `muncul-naik` memunculkan isi saat halaman terbuka (dengan `--tunda` untuk kemunculan bertahap), `tumbuh-bar` mengisi bar kemajuan, `gambar-garis` menggambar grafik tren dan cincin ketepatan, `napas` menandai satu keadaan yang hidup. Selebihnya cukup transisi hover. Semuanya memakai `animation-fill-mode: both` sehingga BERAKHIR pada keadaan terlihat — halaman yang dimuat lalu tidak disentuh tetap tergambar utuh, bukan elemen yang menunggu pemicu.
+
+- **Angka besar berjalan naik dari nol** (`useAngkaBerjalan`). Bukan sekadar gerak: angka yang berjalan memaksa mata berhenti padanya, dan pada dashboard yang memuat empat kartu sekaligus itulah yang membedakan ringkasan yang terbaca dari deretan angka yang terlewat. Pelambatannya `easeOutExpo` — nyaris berhenti di akhir — sehingga angka akhirnya terbaca jauh sebelum animasinya selesai; pengguna tidak pernah menunggu untuk tahu angkanya.
+
+  Animasi berbasis JavaScript **harus memeriksa `prefers-reduced-motion` sendiri**; aturan global di `tema.css` hanya memangkas animasi CSS.
+
 - **Gerak menghormati `prefers-reduced-motion`.** Aturannya ditulis sekali secara global di `tema.css` — animasi dan transisi dipangkas menjadi 0,01 ms bagi pengguna yang memintanya di OS — sehingga tidak bergantung pada setiap komponen mengingatnya sendiri.
 
 - Tipografi: Lexend untuk judul dan angka (keterbacaan tinggi, sesuai konteks lembaga pelatihan kerja), Inter untuk teks isi/antarmuka.

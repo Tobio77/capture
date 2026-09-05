@@ -58,6 +58,26 @@ const status = computed(() => {
   return daftar[props.tahap] ?? daftar.menunggu_tap
 })
 
+/*
+ * Nada warna keadaan. Satu nilai yang mewarnai bingkai pratinjau, blok hasil,
+ * dan baris status sekaligus — sehingga seluruh panel berubah warna serempak
+ * alih-alih satu elemen berkedip sendirian.
+ *
+ * "Sudah absen" sengaja tidak memakai amber seperti kegagalan: bagi orang yang
+ * berdiri di depan layar, ia bukan masalah yang harus diperbaiki melainkan
+ * kepastian bahwa dirinya sudah aman.
+ */
+const nadaTahap = computed(() => {
+  const daftar = {
+    memindai: 'nada-teal',
+    berhasil: 'nada-emerald',
+    gagal: 'nada-amber',
+    sudah: 'nada-langit',
+  }
+
+  return daftar[props.tahap] ?? 'nada-biru'
+})
+
 /** Bingkai pratinjau berubah warna mengikuti hasil verifikasi. */
 const warnaBingkai = computed(() => {
   if (berhasil.value) return 'border-berhasil'
@@ -331,8 +351,16 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
       </button>
     </div>
 
-    <!-- Hasil -->
-    <dl class="mt-5 grid grid-cols-2 gap-x-4 gap-y-3">
+    <!--
+      Hasil. Seluruh bloknya berlatar nada keadaan, bukan hanya baris statusnya
+      — pada layar yang dibaca dari jarak berdiri, bidang berwarna terbaca jauh
+      lebih cepat daripada satu kata berwarna.
+    -->
+    <dl
+      class="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl p-4 transition-colors duration-300"
+      :class="nadaTahap"
+      :style="{ backgroundColor: 'var(--nada-lembut)' }"
+    >
       <div
         v-for="medan in [
           { kunci: 'nip', label: 'NIP' },
@@ -342,8 +370,10 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
         ]"
         :key="medan.kunci"
       >
-        <dt class="text-xs uppercase tracking-wider text-redup">{{ medan.label }}</dt>
-        <dd class="mt-0.5 truncate font-display text-sm font-medium text-utama">
+        <dt class="text-[0.6875rem] font-medium uppercase tracking-wider opacity-70" :style="{ color: 'var(--nada-teks)' }">
+          {{ medan.label }}
+        </dt>
+        <dd class="mt-0.5 truncate font-display text-sm font-semibold text-utama">
           {{ hasil?.[medan.kunci] ?? '—' }}
         </dd>
       </div>
@@ -363,20 +393,20 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
 
     <!-- Status -->
     <p
-      class="mt-5 flex items-center gap-2 border-t border-garis pt-4 text-sm font-medium"
+      class="mt-4 flex items-center gap-2.5 border-t border-garis pt-4 text-sm font-medium"
       :class="status.warna"
     >
-      <span
-        class="h-2.5 w-2.5 rounded-full"
-        :class="{
-          'bg-redup/50': tahap === 'menunggu_event',
-          'bg-redup': tahap === 'menunggu_tap',
-          'animate-pulse bg-aksen': memindai,
-          'bg-berhasil': berhasil,
-          'bg-peringatan': gagal,
-          'bg-aksen-kuat': sudah,
-        }"
-      ></span>
+      <span class="relative flex h-2.5 w-2.5 shrink-0" :class="nadaTahap">
+        <span
+          v-if="memindai || berhasil"
+          class="absolute inline-flex h-full w-full animate-ping rounded-full opacity-70"
+          :style="{ backgroundColor: 'var(--nada-kuat)' }"
+        ></span>
+        <span
+          class="relative inline-flex h-2.5 w-2.5 rounded-full transition-colors duration-300"
+          :style="{ backgroundColor: tahap.startsWith('menunggu') ? 'var(--tema-redup)' : 'var(--nada-kuat)' }"
+        ></span>
+      </span>
       {{ status.teks }}
     </p>
   </section>

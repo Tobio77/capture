@@ -106,7 +106,7 @@ const tanggalPanjang = (nilai) =>
 <template>
   <Head title="Beranda" />
 
-  <div class="latar-pastel flex min-h-screen flex-col bg-kertas text-utama">
+  <div class="latar-pastel latar-pastel-hidup flex min-h-screen flex-col bg-kertas text-utama">
     <!--
       Bilah atas sengaja ringan: bukan sidebar navy seperti Panel Admin, karena
       halaman ini dilihat pegawai, bukan pengelola.
@@ -161,7 +161,7 @@ const tanggalPanjang = (nilai) =>
       </p>
 
       <!-- Sambutan -->
-      <section class="flex flex-col items-center text-center">
+      <section class="masuk flex flex-col items-center text-center">
         <p class="font-display text-xs font-semibold uppercase tracking-[0.14em] text-aksen-teks">
           Titik Absen
         </p>
@@ -202,10 +202,11 @@ const tanggalPanjang = (nilai) =>
       <div class="mt-10 grid gap-5 sm:grid-cols-2">
         <button
           type="button"
-          class="panel kartu-naik group flex flex-col items-start p-7 text-left hover:border-aksen/40"
+          class="panel kartu-naik masuk group flex flex-col items-start p-7 text-left hover:border-aksen/40"
+          style="--tunda: 90ms"
           @click="pilihAbsenUmum"
         >
-          <span class="ubin-ikon h-14 w-14 transition-transform duration-200 group-hover:scale-105">
+          <span class="ubin-ikon nada-teal h-14 w-14 transition-transform duration-200 group-hover:scale-105">
             <Ikon nama="jam" ukuran="h-7 w-7" />
           </span>
 
@@ -235,11 +236,12 @@ const tanggalPanjang = (nilai) =>
 
         <button
           type="button"
-          class="panel kartu-naik group flex flex-col items-start p-7 text-left hover:border-aksen/40"
+          class="panel kartu-naik masuk group flex flex-col items-start p-7 text-left hover:border-aksen/40"
           :class="langkah === 'event' && 'border-aksen/40'"
+          style="--tunda: 170ms"
           @click="pilihAbsenEvent"
         >
-          <span class="ubin-ikon info h-14 w-14 transition-transform duration-200 group-hover:scale-105">
+          <span class="ubin-ikon nada-langit h-14 w-14 transition-transform duration-200 group-hover:scale-105">
             <Ikon nama="kalender" ukuran="h-7 w-7" />
           </span>
 

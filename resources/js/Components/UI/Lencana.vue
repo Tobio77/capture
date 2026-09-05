@@ -25,6 +25,7 @@ const palet = {
   amber: { kotak: 'bg-peringatan-lembut text-peringatan-teks', titik: 'bg-peringatan' },
   teal: { kotak: 'bg-aksen-lembut text-aksen-teks', titik: 'bg-aksen' },
   navy: { kotak: 'bg-info-lembut text-info-teks', titik: 'bg-info-teks' },
+  langit: { kotak: 'bg-langit-lembut text-langit-teks', titik: 'bg-langit' },
   slate: { kotak: 'bg-permukaan-2 text-sekunder', titik: 'bg-redup' },
 }
 
