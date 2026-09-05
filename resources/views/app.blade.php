@@ -16,14 +16,27 @@
     --}}
     <script>
         (function () {
-            try {
-                var mode = localStorage.getItem('capture.tema');
+            var mode = 'terang';
 
-                if (mode === 'terang' || mode === 'gelap') {
-                    document.documentElement.setAttribute('data-tema', mode);
+            try {
+                var tersimpan = localStorage.getItem('capture.tema');
+
+                if (tersimpan === 'terang' || tersimpan === 'gelap' || tersimpan === 'sistem') {
+                    mode = tersimpan;
                 }
             } catch (e) {
-                // Penyimpanan lokal diblokir; tema mengikuti sistem.
+                // Penyimpanan lokal diblokir; bawaan Terang tetap dipakai.
+            }
+
+            /*
+                "Sistem" berarti TANPA atribut, sehingga prefers-color-scheme
+                di tema.css yang mengambil alih. Selain itu atributnya dipasang
+                — termasuk untuk bawaan Terang, supaya perangkat yang OS-nya
+                gelap tidak sempat menggambar halaman dalam mode gelap.
+                Bawaannya harus sama dengan TEMA_BAWAAN di useTema.js.
+            */
+            if (mode !== 'sistem') {
+                document.documentElement.setAttribute('data-tema', mode);
             }
         })();
     </script>

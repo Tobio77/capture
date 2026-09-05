@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\SimpanAbsenRequest;
 use App\Services\AbsensiService;
 use App\Services\EventAbsenService;
+use App\Services\FotoReferensiWajahService;
 use App\Services\KartuRfidService;
 use App\Services\SettingAbsenService;
 use App\Services\TitikAbsenService;
@@ -29,6 +30,7 @@ class SimpanAbsenController extends Controller
         protected KartuRfidService $kartu,
         protected SettingAbsenService $setting,
         protected TitikAbsenService $titik,
+        protected FotoReferensiWajahService $wajah,
     ) {}
 
     public function __invoke(SimpanAbsenRequest $request): JsonResponse
@@ -110,12 +112,34 @@ class SimpanAbsenController extends Controller
             ], 409);
         }
 
+        /*
+         * FR-PEG-05 (revisi S29). Pendaftaran wajah massal tidak pernah selesai
+         * serentak; selama verifikasi wajah dimatikan, pegawai yang belum
+         * pernah difoto admin tetap mengabsen dengan kamera menyala. Foto itu
+         * dipromosikan menjadi foto referensinya — tetapi hanya bila lolos
+         * pemeriksaan kualitas yang sama dengan pendaftaran manual.
+         *
+         * Hanya berlaku saat verifikasi wajah MATI. Ketika ia menyala, absen
+         * pegawai tanpa foto referensi sudah ditolak jauh sebelum baris ini,
+         * dan tidak ada foto yang boleh dipromosikan tanpa pembanding.
+         */
+        $dipromosikan = ! $setting['metode_wajah_aktif']
+            && $this->wajah->promosikanDariAbsen(
+                $pegawai,
+                $absensi->foto_path,
+                $request->input('embedding'),
+            );
+
         return response()->json([
             'success' => true,
             'data' => [
                 'jenis' => $absensi->jenis->value,
                 'waktu' => $absensi->waktu->format('H:i'),
                 'status_ketepatan' => $absensi->status_ketepatan?->value,
+
+                // Layar memberitahukannya kepada pegawai: fotonya kini menjadi
+                // foto referensi, dan ia tidak perlu mendatangi admin lagi.
+                'wajah_didaftarkan' => $dipromosikan,
                 'daftar_presensi' => $this->absensi->daftarPresensi(
                     $event,
                     fn (int $id) => $this->titik->urlFotoAbsen($request, $id),

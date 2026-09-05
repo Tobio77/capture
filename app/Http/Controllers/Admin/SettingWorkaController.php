@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Enums\AksiLog;
+use App\Exceptions\WorkaApiException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SimpanSettingWorkaRequest;
 use App\Services\LogAktivitasService;
@@ -101,7 +102,7 @@ class SettingWorkaController extends Controller
                 'total_pegawai_aktif' => $status['total_pegawai_aktif'] ?? 0,
                 'server_time' => $status['server_time'] ?? null,
             ]);
-        } catch (\App\Exceptions\WorkaApiException $e) {
+        } catch (WorkaApiException $e) {
             return response()->json([
                 'sukses' => false,
                 'pesan' => $e->pesanUntukAdmin(),

@@ -498,6 +498,10 @@ class EventTest extends TestCase
             'unit_kerja_id' => $upt->id,
         ]);
 
+        // Perangkat bergabung lewat kode, lalu jejaknya diperbarui saat ia
+        // benar-benar melayani (FR-EVT-03).
+        $this->gabungkanKeEvent($event, $kiosk);
+
         app(EventAbsenService::class)->catatKioskAktif($event, $kiosk, '10.10.4.21');
 
         $this->actingAs(User::factory()->superadmin()->create())
@@ -525,6 +529,8 @@ class EventTest extends TestCase
         $event->unitKerja()->attach($upt);
         $kiosk = Kiosk::factory()->create(['unit_kerja_id' => $upt->id]);
         $layanan = app(EventAbsenService::class);
+
+        $this->gabungkanKeEvent($event, $kiosk);
 
         $layanan->catatKioskAktif($event, $kiosk, '10.10.4.21');
         $pertama = DB::table('event_kiosk')->sole();
@@ -566,6 +572,7 @@ class EventTest extends TestCase
         $layanan = app(EventAbsenService::class);
 
         foreach (Kiosk::factory()->count(2)->create(['unit_kerja_id' => $upt->id]) as $kiosk) {
+            $this->gabungkanKeEvent($event, $kiosk);
             $layanan->catatKioskAktif($event, $kiosk, '10.10.4.21');
         }
 

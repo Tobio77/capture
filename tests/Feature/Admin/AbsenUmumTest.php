@@ -140,26 +140,53 @@ class AbsenUmumTest extends TestCase
      * ------------------------------------------------------------------- */
 
     #[Test]
-    public function perangkat_mendahulukan_kegiatan_lalu_jatuh_ke_absen_umum(): void
+    public function kegiatan_dan_absen_umum_berdiri_sendiri_pada_perangkat_yang_sama(): void
     {
+        /*
+         * Revisi S29. Sebelumnya kegiatan MENDAHULUI absen umum pada satu layar
+         * yang sama: selama ada kegiatan berjalan di unit perangkat, layar
+         * absen rutin tidak dapat dijangkau sama sekali — walau kegiatannya
+         * berlangsung di gedung lain.
+         *
+         * Kini keduanya dua layar terpisah yang dipilih petugas, dan tidak ada
+         * yang mendahului. Satu perangkat yang sedang melayani apel tetap
+         * memiliki sesi harian yang siap dilayani pada alamat sebelahnya.
+         */
+        ['upt' => $upt] = $this->hirarki();
+        $perangkat = Kiosk::factory()->create(['unit_kerja_id' => $upt->id]);
+
+        $kegiatan = EventAbsen::factory()->create(['nama' => 'Apel Pagi']);
+        $kegiatan->unitKerja()->attach($upt);
+        $this->gabungkanKeEvent($kegiatan, $perangkat);
+
+        $event = app(EventAbsenService::class);
+        $umum = app(AbsenUmumService::class);
+
+        $this->assertSame($kegiatan->id, $event->eventAktifUntukKiosk($perangkat)->id);
+
+        $sesi = $umum->sesiUntukKiosk($perangkat, buat: true);
+
+        $this->assertNotNull($sesi);
+        $this->assertTrue($sesi->absenUmum());
+        $this->assertNotSame($kegiatan->id, $sesi->id);
+    }
+
+    #[Test]
+    public function perangkat_yang_belum_bergabung_tidak_melayani_kegiatan_apa_pun(): void
+    {
+        /*
+         * FR-EVT-03 (revisi S29): tercakup bukan berarti melayani. Perangkat
+         * kedua di unit yang sama tetap dapat mengabsen harian — yang tertutup
+         * baginya hanyalah kegiatan yang tidak dilayaninya.
+         */
         ['upt' => $upt] = $this->hirarki();
         $perangkat = Kiosk::factory()->create(['unit_kerja_id' => $upt->id]);
 
         $kegiatan = EventAbsen::factory()->create(['nama' => 'Apel Pagi']);
         $kegiatan->unitKerja()->attach($upt);
 
-        $event = app(EventAbsenService::class);
-
-        $this->assertSame($kegiatan->id, $event->eventAktifUntukKiosk($perangkat)->id);
-
-        // Entry ditutup: perangkat di pintu masuk beralih melayani absen rutin
-        // alih-alih berhenti melayani sama sekali.
-        $kegiatan->update(['status' => StatusEvent::Ditutup, 'ditutup_pada' => now()]);
-
-        $sesi = $event->eventAktifUntukKiosk($perangkat, bukaAbsenUmum: true);
-
-        $this->assertNotNull($sesi);
-        $this->assertTrue($sesi->absenUmum());
+        $this->assertNull(app(EventAbsenService::class)->eventAktifUntukKiosk($perangkat));
+        $this->assertNotNull(app(AbsenUmumService::class)->sesiUntukKiosk($perangkat, buat: true));
     }
 
     #[Test]

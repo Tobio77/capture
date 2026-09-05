@@ -17,6 +17,9 @@ enum AksiLog: string
     case AktivasiKiosk = 'aktivasi_kiosk';
     case AktivasiKioskGagal = 'aktivasi_kiosk_gagal';
     case LepasKiosk = 'lepas_kiosk';
+    case GabungEvent = 'gabung_event';
+    case GabungEventGagal = 'gabung_event_gagal';
+    case KeluarEvent = 'keluar_event';
 
     public function label(): string
     {
@@ -30,6 +33,9 @@ enum AksiLog: string
             self::AktivasiKiosk => 'Aktivasi Perangkat Absen',
             self::AktivasiKioskGagal => 'Aktivasi Perangkat Absen Gagal',
             self::LepasKiosk => 'Pelepasan Perangkat Absen',
+            self::GabungEvent => 'Perangkat Bergabung ke Event',
+            self::GabungEventGagal => 'Percobaan Bergabung ke Event Gagal',
+            self::KeluarEvent => 'Perangkat Keluar dari Event',
         };
     }
 

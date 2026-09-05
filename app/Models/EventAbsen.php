@@ -61,14 +61,38 @@ class EventAbsen extends Model
     }
 
     /**
-     * Kiosk yang pernah aktif melayani event ini (FR-EVT-03).
+     * Perangkat absen yang BERGABUNG ke event ini lewat kode unit kerja
+     * (FR-EVT-03, revisi S29).
+     *
+     * Relasi ini bukan sekadar riwayat: sejak kode unit kerja diperkenalkan,
+     * keanggotaan di sinilah yang menentukan boleh-tidaknya sebuah perangkat
+     * membuka layar Absen Event. Perangkat yang unitnya tercakup namun belum
+     * mengetikkan kode tidak muncul di sini, dan karenanya tidak melayani
+     * event ini.
      *
      * @return BelongsToMany<Kiosk, $this>
      */
     public function kiosk(): BelongsToMany
     {
         return $this->belongsToMany(Kiosk::class, 'event_kiosk')
-            ->withPivot(['ip_address', 'aktif_pada', 'terakhir_aktif_pada']);
+            ->withPivot([
+                'unit_kerja_id',
+                'ip_address',
+                'aktif_pada',
+                'bergabung_pada',
+                'terakhir_aktif_pada',
+            ]);
+    }
+
+    /**
+     * Kode yang dipakai perangkat untuk bergabung — satu per unit kerja dalam
+     * cakupan event (FR-EVT-03).
+     *
+     * @return HasMany<KodeUnitEvent, $this>
+     */
+    public function kodeUnit(): HasMany
+    {
+        return $this->hasMany(KodeUnitEvent::class, 'event_absen_id');
     }
 
     /** @return HasMany<Absensi, $this> */

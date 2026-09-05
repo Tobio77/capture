@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\StatusEvent;
 use App\Models\EventAbsen;
 use App\Models\Kiosk;
 use App\Models\Pegawai;
@@ -49,10 +50,14 @@ class HardeningKeamananTest extends TestCase
         $this->upt = UnitKerja::factory()->create(['kode' => 'BLK-SGS', 'induk_id' => $opd->id]);
         $this->unitLain = UnitKerja::factory()->create(['kode' => 'BLK-SBY', 'induk_id' => $opd->id]);
 
-        Kiosk::factory()->diaktifkan(self::TOKEN)->create(['unit_kerja_id' => $this->upt->id]);
+        $perangkat = Kiosk::factory()->diaktifkan(self::TOKEN)->create(['unit_kerja_id' => $this->upt->id]);
 
         $this->event = EventAbsen::factory()->create();
         $this->event->unitKerja()->attach($this->upt);
+
+        // Sejak revisi S29, perangkat melayani event hanya setelah bergabung
+        // lewat kode unit kerja (FR-EVT-03).
+        $this->gabungkanKeEvent($this->event, $perangkat);
     }
 
     protected function denganPerangkat(): static
@@ -91,7 +96,7 @@ class HardeningKeamananTest extends TestCase
         ]);
 
         $this->denganPerangkat()
-            ->get('/kiosk/pegawai/199001012020011009/foto')
+            ->get('/kiosk/event/pegawai/199001012020011009/foto')
             ->assertNotFound();
 
         // WORKA tidak pernah dihubungi untuk pegawai di luar cakupan.
@@ -109,7 +114,7 @@ class HardeningKeamananTest extends TestCase
         ]);
 
         $this->denganPerangkat()
-            ->get('/kiosk/pegawai/199001012020011001/foto')
+            ->get('/kiosk/event/pegawai/199001012020011001/foto')
             ->assertOk();
     }
 
@@ -124,10 +129,16 @@ class HardeningKeamananTest extends TestCase
             'unit_kerja_id' => $this->upt->id,
         ]);
 
-        $this->event->unitKerja()->sync([$this->unitLain->id]);
+        /*
+         * Entry ditutup, sehingga perangkat tidak lagi melayani event mana pun
+         * — keanggotaannya pada `event_kiosk` tidak menolong, karena yang
+         * dicari hanya event yang masih AKTIF (FR-EVT-04).
+         */
+        $this->event->update(['status' => StatusEvent::Ditutup, 'ditutup_pada' => now()]);
+        $this->matikanAbsenUmum();
 
         $this->denganPerangkat()
-            ->get('/kiosk/pegawai/199001012020011001/foto')
+            ->get('/kiosk/event/pegawai/199001012020011001/foto')
             ->assertNotFound();
 
         Http::assertNothingSent();
@@ -150,7 +161,7 @@ class HardeningKeamananTest extends TestCase
         ]);
 
         $this->denganPerangkat()
-            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->post('/kiosk/event/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
             ->assertOk()
             ->assertJson(['data' => ['embedding_wajah' => null]]);
     }
@@ -166,7 +177,7 @@ class HardeningKeamananTest extends TestCase
         ]);
 
         $data = $this->denganPerangkat()
-            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->post('/kiosk/event/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
             ->assertOk()
             ->json('data');
 
@@ -185,7 +196,7 @@ class HardeningKeamananTest extends TestCase
         ]);
 
         $isi = $this->denganPerangkat()
-            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->post('/kiosk/event/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
             ->assertOk()
             ->getContent();
 

@@ -10,18 +10,35 @@ use Illuminate\Http\Request;
  * Menentukan event yang sedang dilayani oleh sebuah titik absen.
  *
  * Ada dua macam titik absen, dan keduanya memakai layar serta endpoint yang
- * sama: perangkat absen yang membawa device token, dan layar absen umum yang
- * dibuka admin di peramban sendiri. Yang membedakannya hanya cara event
- * ditentukan — perangkat mengikuti unit tempat ia dipasang, sedangkan layar
- * admin mengikuti unit yang dipilih (atau, bagi Admin UPT, unitnya sendiri).
+ * sama bentuknya: perangkat absen yang membawa device token, dan layar absen
+ * umum yang dibuka admin di peramban sendiri.
+ *
+ * Sejak S29 ada dimensi kedua: MODE. Absen Event dan Absen Umum bukan lagi
+ * satu layar yang diam-diam berpindah isi mengikuti ada-tidaknya kegiatan,
+ * melainkan dua halaman dengan syarat akses yang berbeda:
+ *
+ *   - Mode `event` hanya melayani perangkat yang sudah BERGABUNG ke sebuah
+ *     event lewat kode unit kerja (FR-EVT-03). Tidak ada penggabungan, tidak
+ *     ada layar — betapapun unitnya tercakup event yang sedang berjalan.
+ *   - Mode `umum` selalu tersedia dan tidak terikat status event apa pun.
+ *     Sesi hariannya dibuka sistem saat pertama kali dibutuhkan.
+ *
+ * Modenya dibaca dari DEFAULT RUTE, bukan dari masukan peramban: yang
+ * menentukan adalah alamat yang dibuka, dan perangkat tidak boleh dapat
+ * mengaku sedang melayani event hanya dengan menambahkan satu medan pada
+ * kiriman tapnya.
  *
  * Memusatkan penentuan ini di satu tempat menjaga agar pemeriksaan yang
- * melekat padanya — event masih dibuka, pegawai berada dalam cakupannya,
- * foto hanya boleh dibaca titik yang melayani event yang sama — tidak
- * bercabang menjadi dua versi yang bisa berbeda perilaku.
+ * melekat padanya — event masih dibuka, pegawai berada dalam cakupannya, foto
+ * hanya boleh dibaca titik yang melayani event yang sama — tidak bercabang
+ * menjadi beberapa versi yang bisa berbeda perilaku.
  */
 class TitikAbsenService
 {
+    public const string MODE_EVENT = 'event';
+
+    public const string MODE_UMUM = 'umum';
+
     public function __construct(
         protected EventAbsenService $event,
         protected AbsenUmumService $absenUmum,
@@ -42,7 +59,9 @@ class TitikAbsenService
 
         if ($kiosk !== null) {
             return [
-                'event' => $this->event->eventAktifUntukKiosk($kiosk, bukaAbsenUmum: $buka),
+                'event' => $this->mode($request) === self::MODE_EVENT
+                    ? $this->event->eventAktifUntukKiosk($kiosk)
+                    : $this->absenUmum->sesiUntukKiosk($kiosk, buat: $buka),
                 'kiosk' => $kiosk,
             ];
         }
@@ -68,12 +87,28 @@ class TitikAbsenService
     }
 
     /**
+     * Mode titik absen yang sedang melayani permintaan.
+     *
+     * Diambil dari default rute — nilai yang dipasang server saat mendaftarkan
+     * rutenya — sehingga tidak dapat digeser oleh kiriman peramban. Apa pun
+     * selain `event` diperlakukan sebagai absen umum, yang merupakan jalur
+     * paling sedikit haknya.
+     */
+    public function mode(Request $request): string
+    {
+        return $request->route('mode') === self::MODE_EVENT
+            ? self::MODE_EVENT
+            : self::MODE_UMUM;
+    }
+
+    /**
      * URL foto pegawai yang sesuai dengan titik absen pemanggil.
      *
-     * Layar yang sama dipakai dua konteks dengan pagar autentikasi berbeda,
-     * sehingga URL foto tidak boleh dipatok ke salah satunya: perangkat absen
-     * memakai rute /kiosk yang dipagari device token, sedangkan layar absen
-     * umum di peramban admin memakai rute /admin yang dipagari sesi.
+     * Layar yang sama dipakai beberapa konteks dengan pagar autentikasi
+     * berbeda, sehingga URL foto tidak boleh dipatok ke salah satunya:
+     * perangkat absen memakai rute /kiosk yang dipagari device token,
+     * sedangkan layar absen umum di peramban admin memakai rute /admin yang
+     * dipagari sesi.
      *
      * Pada jalur admin, `unit_kerja_id` ikut dibawa. Endpoint fotonya
      * menentukan sah-tidaknya akses dari event yang sedang dilayani titik
@@ -82,12 +117,14 @@ class TitikAbsenService
      */
     public function urlFotoPegawai(Request $request, string $nip): string
     {
-        return $request->kiosk() !== null
-            ? route('kiosk.pegawai.foto', ['nip' => $nip])
-            : route('absen-umum.pegawai.foto', [
+        if ($request->kiosk() === null) {
+            return route('absen-umum.pegawai.foto', [
                 'nip' => $nip,
                 'unit_kerja_id' => $this->unitTerpilih($request),
             ]);
+        }
+
+        return route("kiosk.{$this->mode($request)}.pegawai.foto", ['nip' => $nip]);
     }
 
     /**
@@ -95,12 +132,14 @@ class TitikAbsenService
      */
     public function urlFotoAbsen(Request $request, int $absensiId): string
     {
-        return $request->kiosk() !== null
-            ? route('kiosk.absen.foto', ['absensi' => $absensiId])
-            : route('absen-umum.absen.foto', [
+        if ($request->kiosk() === null) {
+            return route('absen-umum.absen.foto', [
                 'absensi' => $absensiId,
                 'unit_kerja_id' => $this->unitTerpilih($request),
             ]);
+        }
+
+        return route("kiosk.{$this->mode($request)}.absen.foto", ['absensi' => $absensiId]);
     }
 
     /**

@@ -19,11 +19,19 @@ use App\Http\Controllers\Admin\SettingAbsenController;
 use App\Http\Controllers\Admin\SettingWorkaController;
 use App\Http\Controllers\Admin\UnitKerjaController;
 use App\Http\Controllers\Auth\SesiController;
+use App\Http\Controllers\BerandaController;
 use App\Http\Controllers\Kiosk\AktivasiController;
+use App\Http\Controllers\Kiosk\GabungEventController;
 use App\Http\Controllers\Kiosk\LayarKioskController;
+use App\Services\TitikAbsenService;
 use Illuminate\Support\Facades\Route;
 
-Route::redirect('/', '/admin/dashboard')->name('beranda');
+/*
+ * Halaman depan (S30). Terbuka tanpa autentikasi apa pun: ia harus dapat
+ * dibuka mesin yang belum pernah diaktifkan, dan menawarkan tiga jalan —
+ * Absen Umum, Absen Event, dan masuk sebagai admin.
+ */
+Route::get('/', BerandaController::class)->name('beranda');
 
 /*
  * Autentikasi admin (FR-AUTH-01).
@@ -52,44 +60,90 @@ Route::prefix('kiosk')->name('kiosk.')->group(function () {
         ->middleware('throttle:10,1')
         ->name('aktivasi.terbuka');
 
+    /*
+     * Alamat lama beranda perangkat. Sejak S30 pemilihan Absen Umum/Absen
+     * Event pindah ke halaman depan aplikasi, yang terbuka tanpa device token
+     * sehingga sekaligus melayani mesin yang belum diaktifkan. Pengalihan ini
+     * dipertahankan untuk perangkat yang telanjur menyimpan alamatnya.
+     */
+    Route::redirect('/', '/');
+
     Route::middleware('kiosk')->group(function () {
-        Route::get('/', LayarKioskController::class)->name('utama');
         Route::post('lepas', [AktivasiController::class, 'destroy'])->name('lepas');
 
-        // Identifikasi tap (UID kartu maupun NIP) dijawab dari basis data
-        // lokal — satu tap tidak boleh bergantung pada tersedianya jaringan
-        // ke WORKA (FR-TAP-03).
-        Route::post('tap/identifikasi', IdentifikasiTapController::class)
+        /*
+         * Penggabungan ke sebuah event lewat kode unit kerja (FR-EVT-03).
+         * Dibatasi laju karena kolomnya menerima kode yang dapat ditebak —
+         * batasnya per perangkat, bukan per alamat IP, mengikuti keputusan S27.
+         */
+        Route::post('event/gabung', [GabungEventController::class, 'store'])
             ->middleware('throttle:absen-tap')
-            ->name('tap.identifikasi');
+            ->name('event.gabung');
+
+        Route::post('event/keluar', [GabungEventController::class, 'destroy'])
+            ->name('event.keluar');
 
         /*
-         * Penyimpanan hasil absen (FR-TAP-05 s.d. FR-TAP-07). Seluruh syarat
-         * diperiksa ulang di server; keputusan kiosk tidak dipercaya sendirian.
+         * Titik absen, dua mode.
+         *
+         * Bentuk endpointnya sama persis; yang membedakan hanya event mana yang
+         * dilayani, dan itu ditentukan default `mode` pada rutenya — nilai yang
+         * dipasang server, bukan medan yang dikirim peramban. Perangkat karena
+         * itu tidak dapat mengaku sedang melayani sebuah kegiatan hanya dengan
+         * menambahkan satu medan pada kiriman tapnya
+         * (lihat App\Services\TitikAbsenService).
+         *
+         *   event → hanya untuk perangkat yang sudah bergabung lewat kode
+         *   umum  → selalu tersedia, tidak terikat status event apa pun
          */
-        Route::post('absen', SimpanAbsenController::class)
-            ->middleware('throttle:absen-tap')
-            ->name('absen.simpan');
+        foreach ([TitikAbsenService::MODE_EVENT, TitikAbsenService::MODE_UMUM] as $mode) {
+            Route::prefix($mode)->name("{$mode}.")->group(function () use ($mode) {
+                Route::get('/', LayarKioskController::class)
+                    ->defaults('mode', $mode)
+                    ->name('layar');
 
-        /*
-         * Daftar e-Presensi terkini (FR-TAP-08). Ditarik berkala oleh layar
-         * kiosk agar tabel ikut bertambah ketika pegawai lain men-tap di
-         * kiosk lain pada event yang sama.
-         */
-        Route::get('presensi', DaftarPresensiController::class)
-            ->middleware('throttle:absen-presensi')
-            ->name('presensi');
+                // Identifikasi tap (UID kartu maupun NIP) dijawab dari basis
+                // data lokal — satu tap tidak boleh bergantung pada tersedianya
+                // jaringan ke WORKA (FR-TAP-03).
+                Route::post('tap/identifikasi', IdentifikasiTapController::class)
+                    ->defaults('mode', $mode)
+                    ->middleware('throttle:absen-tap')
+                    ->name('tap.identifikasi');
 
-        // Foto absen disajikan lewat route terautentikasi, tidak pernah dari
-        // disk publik (NFR-04).
-        Route::get('absen/{absensi}/foto', FotoAbsenController::class)
-            ->middleware('throttle:absen-foto')
-            ->name('absen.foto');
+                /*
+                 * Penyimpanan hasil absen (FR-TAP-05 s.d. FR-TAP-07). Seluruh
+                 * syarat diperiksa ulang di server; keputusan perangkat tidak
+                 * dipercaya sendirian.
+                 */
+                Route::post('absen', SimpanAbsenController::class)
+                    ->defaults('mode', $mode)
+                    ->middleware('throttle:absen-tap')
+                    ->name('absen.simpan');
 
-        Route::get('pegawai/{nip}/foto', FotoPegawaiController::class)
-            ->where('nip', '[0-9]{8,20}')
-            ->middleware('throttle:absen-foto')
-            ->name('pegawai.foto');
+                /*
+                 * Daftar e-Presensi terkini (FR-TAP-08). Ditarik berkala oleh
+                 * layar perangkat agar tabel ikut bertambah ketika pegawai lain
+                 * men-tap di titik absen lain pada event yang sama.
+                 */
+                Route::get('presensi', DaftarPresensiController::class)
+                    ->defaults('mode', $mode)
+                    ->middleware('throttle:absen-presensi')
+                    ->name('presensi');
+
+                // Foto absen disajikan lewat route terautentikasi, tidak pernah
+                // dari disk publik (NFR-04).
+                Route::get('absen/{absensi}/foto', FotoAbsenController::class)
+                    ->defaults('mode', $mode)
+                    ->middleware('throttle:absen-foto')
+                    ->name('absen.foto');
+
+                Route::get('pegawai/{nip}/foto', FotoPegawaiController::class)
+                    ->defaults('mode', $mode)
+                    ->where('nip', '[0-9]{8,20}')
+                    ->middleware('throttle:absen-foto')
+                    ->name('pegawai.foto');
+            });
+        }
     });
 });
 
@@ -118,6 +172,16 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
         Route::get('event/ekspor', [EventController::class, 'ekspor'])->name('event.ekspor');
         Route::get('event/{event}/detail', [EventController::class, 'detail'])->name('event.detail');
         Route::post('event/{event}/tutup', [EventController::class, 'tutup'])->name('event.tutup');
+
+        /*
+         * Terbitkan ulang kode unit kerja sebuah event (FR-EVT-03). Pagarnya
+         * sama dengan mengubah dan menutup event — Admin UPT hanya untuk event
+         * yang menyentuh unitnya sendiri — dan ditegakkan di controller, bukan
+         * lewat middleware peran, karena yang menentukan adalah eventnya.
+         */
+        Route::post('event/{event}/kode/{kode}/reset', [EventController::class, 'resetKode'])
+            ->middleware('throttle:20,1')
+            ->name('event.kode.reset');
         Route::delete('event/{event}', [EventController::class, 'destroy'])->name('event.destroy');
 
         /*

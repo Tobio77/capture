@@ -147,6 +147,8 @@ class DashboardTest extends TestCase
         $melayani = Kiosk::factory()->create(['unit_kerja_id' => $upt->id]);
         Kiosk::factory()->create(['unit_kerja_id' => $upt->id]);
 
+        $this->gabungkanKeEvent($event, $melayani);
+
         app(EventAbsenService::class)->catatKioskAktif($event, $melayani, '10.10.4.21');
 
         $statistik = app(DashboardService::class)->statistik(User::factory()->superadmin()->create());

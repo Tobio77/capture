@@ -7,12 +7,22 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
  * memakai laptop terang di kantor dan tablet gelap di lapangan tanpa keduanya
  * saling menimpa.
  *
- * Mode "sistem" sengaja tidak dibekukan menjadi terang/gelap saat dipilih —
- * ia tetap mendengarkan `prefers-color-scheme`, sehingga layar ikut berubah
- * ketika OS berpindah tema pada senja hari selagi aplikasi terbuka.
+ * **Bawaannya Terang, bukan Sistem** (S30). Sebelumnya aplikasi mengikuti OS,
+ * dan akibatnya perangkat yang OS-nya gelap membuka layar titik absen dalam
+ * mode gelap — padahal titik absen berdiri di aula dan lorong yang terang
+ * benderang, tempat layar gelap memantul dan sulit dibaca dari jarak berdiri.
+ * Pengguna yang memang menghendaki gelap tetap dapat memilihnya, termasuk
+ * memilih "Sistem" secara sadar.
+ *
+ * Bawaan ini harus sama di DUA tempat: di sini, dan pada skrip anti-kedip di
+ * `resources/views/app.blade.php` yang berjalan sebelum CSS dimuat. Bila
+ * keduanya berbeda, halaman sempat tergambar dengan tema yang salah.
  */
 
 export const KUNCI_TEMA = 'capture.tema'
+
+/** Mode yang berlaku sebelum pengguna memilih apa pun. */
+export const TEMA_BAWAAN = 'terang'
 
 export const MODE = [
   { nilai: 'terang', label: 'Terang', ikon: 'matahari' },
@@ -20,16 +30,16 @@ export const MODE = [
   { nilai: 'sistem', label: 'Sistem', ikon: 'perangkat' },
 ]
 
-/** Mode tersimpan, atau "sistem" bila belum pernah dipilih. */
+/** Mode tersimpan, atau bawaan bila belum pernah dipilih. */
 export function temaTersimpan() {
   try {
     const nilai = window.localStorage.getItem(KUNCI_TEMA)
 
-    return ['terang', 'gelap', 'sistem'].includes(nilai) ? nilai : 'sistem'
+    return ['terang', 'gelap', 'sistem'].includes(nilai) ? nilai : TEMA_BAWAAN
   } catch {
     // Peramban yang memblokir penyimpanan lokal tetap harus menampilkan
     // aplikasi; ia sekadar kehilangan ingatan pilihannya.
-    return 'sistem'
+    return TEMA_BAWAAN
   }
 }
 

@@ -189,40 +189,43 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
     </h2>
 
     <!--
-      Pratinjau kamera mengisi lebar kolom kiri pada rasio 16:9 — cukup besar
-      untuk memposisikan wajah, tanpa mendominasi layar sampai Daftar
-      e-Presensi di sebelahnya kehilangan tempat.
+      Pratinjau kamera sengaja KECIL (revisi S30): ~17rem pada rasio 4:3,
+      dipusatkan, bukan lagi 16:9 selebar kolom.
+
+      Perannya hanya konfirmasi "wajah saya sudah di dalam bingkai" — bukan
+      cermin rias. Pratinjau selebar kolom mendorong kolom tap dan tombol jenis
+      absen jauh ke bawah lipatan pada layar titik absen yang umumnya kecil,
+      sementara rasio 4:3 memuat kepala dan bahu lebih rapat daripada 16:9 yang
+      separuhnya terisi dinding.
+
+      Pratinjaunya TIDAK dicerminkan. Foto absen adalah dokumen: nama pada
+      tanda pengenal, arah rambut, dan sisi tubuh harus sama dengan kenyataan,
+      bukan terbalik seperti cermin — dan foto yang kelak dipromosikan menjadi
+      foto referensi (FR-PEG-05) harus menghadap arah yang sama dengan foto
+      pembandingnya.
 
       Kamera tetap menyala walau verifikasi wajah dimatikan: fotonya tetap
       diambil dan disimpan sebagai bukti kehadiran (revisi FR-SET-01, S28a).
     -->
     <div
-      class="relative mt-4 aspect-video overflow-hidden rounded-xl border-2 bg-navy-900 transition-colors duration-300"
+      class="relative mx-auto mt-4 aspect-[4/3] w-full max-w-[17rem] overflow-hidden rounded-2xl border-2 bg-navy-900 transition-colors duration-300"
       :class="warnaBingkai"
     >
       <video ref="video" class="h-full w-full object-cover" autoplay muted playsinline></video>
 
       <div
         v-if="kameraGagal"
-        class="absolute inset-0 flex items-center justify-center bg-navy-900/90 px-8 text-center text-sm text-amber-200"
+        class="absolute inset-0 flex items-center justify-center bg-navy-900/90 px-5 text-center text-xs text-amber-200"
       >
         {{ kameraGagal }}
       </div>
 
       <span
         v-else
-        class="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-navy-900/70 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm"
+        class="absolute left-2.5 top-2.5 inline-flex items-center gap-1.5 rounded-full bg-navy-900/70 px-2 py-0.5 text-[0.6875rem] font-medium text-white backdrop-blur-sm"
       >
         <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500"></span>
         LIVE
-      </span>
-
-      <!-- Verifikasi wajah dimatikan: kamera tetap merekam bukti kehadiran. -->
-      <span
-        v-if="!kameraGagal && !metode.wajah"
-        class="absolute right-3 top-3 rounded-full bg-navy-900/70 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm"
-      >
-        Foto bukti · tanpa pencocokan wajah
       </span>
 
       <!--
@@ -233,13 +236,13 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
       <template v-if="!kameraGagal">
         <span
           v-for="sudut in [
-            'left-4 top-4 border-l-2 border-t-2 rounded-tl-md',
-            'right-4 top-4 border-r-2 border-t-2 rounded-tr-md',
-            'bottom-4 left-4 border-b-2 border-l-2 rounded-bl-md',
-            'bottom-4 right-4 border-b-2 border-r-2 rounded-br-md',
+            'left-3 top-3 border-l-2 border-t-2 rounded-tl-md',
+            'right-3 top-3 border-r-2 border-t-2 rounded-tr-md',
+            'bottom-3 left-3 border-b-2 border-l-2 rounded-bl-md',
+            'bottom-3 right-3 border-b-2 border-r-2 rounded-br-md',
           ]"
           :key="sudut"
-          class="pointer-events-none absolute h-8 w-8 transition-colors duration-300"
+          class="pointer-events-none absolute h-6 w-6 transition-colors duration-300"
           :class="[sudut, memindai ? 'border-teal-300' : 'border-white/60']"
         ></span>
       </template>
@@ -253,12 +256,23 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
       <!-- Skor kecocokan, tergambar di atas pratinjau saat hasil siap -->
       <span
         v-if="hasil?.skor != null && (berhasil || gagal)"
-        class="absolute bottom-4 right-4 rounded-lg px-3 py-1.5 font-display text-sm font-semibold text-white backdrop-blur-sm"
+        class="absolute bottom-3 right-3 rounded-lg px-2.5 py-1 font-display text-xs font-semibold text-white backdrop-blur-sm"
         :class="berhasil ? 'bg-emerald-600/90' : 'bg-amber-600/90'"
       >
         {{ hasil.skor }}% cocok
       </span>
     </div>
+
+    <!--
+      Keterangan ini turun ke bawah pratinjau sejak pratinjaunya dikecilkan:
+      sebagai lencana mengambang ia menutupi hampir separuh bingkai.
+    -->
+    <p
+      v-if="!kameraGagal && !metode.wajah"
+      class="mt-2 text-center text-xs text-redup"
+    >
+      Foto bukti kehadiran · tanpa pencocokan wajah
+    </p>
 
     <!-- Jenis absen -->
     <div class="mt-5">
@@ -334,6 +348,18 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
         </dd>
       </div>
     </dl>
+
+    <!--
+      FR-PEG-05 (revisi S29): foto tap barusan menjadi foto referensi wajah
+      pegawai ini. Diberitahukan supaya ia tidak lagi merasa perlu mendatangi
+      admin untuk sesi pendaftaran.
+    -->
+    <p
+      v-if="hasil?.wajah_didaftarkan"
+      class="mt-4 rounded-lg bg-berhasil-lembut px-3 py-2 text-xs text-berhasil-teks"
+    >
+      Foto ini sekaligus terdaftar sebagai foto referensi wajah Anda.
+    </p>
 
     <!-- Status -->
     <p

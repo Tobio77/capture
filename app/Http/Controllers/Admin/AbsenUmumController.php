@@ -113,6 +113,13 @@ class AbsenUmumController extends Controller
             ],
             'ambang_kecocokan_wajah' => $setting['ambang_kecocokan_wajah'],
             'kompresi' => $this->setting->kompresi()->rincian(),
+
+            // FR-PEG-05 (revisi S29); lihat catatan pada LayarKioskController.
+            'daftar_wajah_otomatis' => ! $setting['metode_wajah_aktif'],
+
+            // Jam server, dipakai layar untuk menyetel jam berjalannya sendiri.
+            'waktu_server' => Carbon::now()->toIso8601String(),
+
             // Layar ini dipagari sesi admin, bukan device token.
             'daftar_presensi' => $sesi === null ? [] : $this->absensi->daftarPresensi(
                 $sesi,

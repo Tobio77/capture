@@ -54,7 +54,7 @@ const keluar = () => router.post('/keluar')
   <div class="min-h-screen bg-kertas md:flex">
     <!-- Bilah atas; hanya di layar sempit. -->
     <header
-      class="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-sidebar-garis bg-sidebar px-4 py-3 text-sidebar-teks md:hidden print:hidden"
+      class="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-sidebar-garis bg-sidebar lapis-sidebar px-4 py-3 text-sidebar-teks md:hidden print:hidden"
     >
       <button
         type="button"
@@ -91,7 +91,7 @@ const keluar = () => router.post('/keluar')
       lembar cetak hanya memuat isinya (FR-REK-03).
     -->
     <aside
-      class="fixed inset-y-0 left-0 z-40 flex w-72 flex-col bg-sidebar text-sidebar-teks transition-transform duration-200 ease-out md:sticky md:top-0 md:z-auto md:h-screen md:shrink-0 md:translate-x-0 md:shadow-none print:hidden"
+      class="fixed inset-y-0 left-0 z-40 flex w-72 flex-col bg-sidebar lapis-sidebar text-sidebar-teks transition-transform duration-200 ease-out md:sticky md:top-0 md:z-auto md:h-screen md:shrink-0 md:translate-x-0 md:shadow-none print:hidden"
       :class="laciTerbuka ? 'translate-x-0 shadow-2xl' : '-translate-x-full'"
     >
         <div class="flex items-center justify-between border-b border-sidebar-garis px-6 py-5">

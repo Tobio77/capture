@@ -36,7 +36,7 @@ class EventAbsenService
     public function __construct(
         protected SettingAbsenService $setting,
         protected LogAktivitasService $log,
-        protected AbsenUmumService $absenUmum,
+        protected KodeUnitEventService $kode,
     ) {}
 
     /**
@@ -176,6 +176,11 @@ class EventAbsenService
 
             $this->pasangCakupan($event, $data);
 
+            // Kode unit kerja terbit bersamaan dengan eventnya: panitia
+            // membutuhkannya sejak event dibuat, jauh sebelum hari-H, untuk
+            // dibagikan kepada petugas tiap unit (FR-EVT-03).
+            $this->kode->selaraskan($event);
+
             return $event;
         });
 
@@ -205,6 +210,11 @@ class EventAbsenService
             ]);
 
             $this->pasangCakupan($event, $data);
+
+            // Unit yang baru masuk cakupan memperoleh kode, unit yang keluar
+            // kehilangannya; unit yang tetap mempertahankan kode lamanya
+            // supaya perangkat yang sudah dibekali kode tidak ikut terputus.
+            $this->kode->selaraskan($event);
         });
 
         $this->log->catat(
@@ -242,39 +252,34 @@ class EventAbsenService
     }
 
     /**
-     * Event yang sedang melayani sebuah kiosk, atau null bila tidak ada.
+     * Event kegiatan yang sedang dilayani sebuah perangkat, atau null bila
+     * perangkat itu belum bergabung ke event mana pun.
      *
-     * FR-EVT-06 menjamin paling banyak satu event aktif per unit kerja,
-     * sehingga penentuannya tidak pernah ambigu dan kiosk tidak perlu
-     * menyebutkan event mana yang dimaksud saat men-tap.
+     * Sampai S28b, jawabannya dirakit dari cakupan unit: perangkat otomatis
+     * melayani event apa pun yang menyentuh unitnya. Sejak S29 keanggotaan
+     * dinyatakan eksplisit lewat kode unit kerja (FR-EVT-03) — perangkat yang
+     * unitnya tercakup namun belum mengetikkan kode TIDAK melayani event ini.
+     *
+     * Ini yang memisahkan Absen Event dari Absen Umum. Keduanya kini dua layar
+     * berbeda, bukan satu layar yang diam-diam berpindah isi: perangkat yang
+     * belum bergabung tetap dapat mengabsen harian, dan kegiatan tidak pernah
+     * menyerobot layar absen rutin.
      */
-    public function eventAktifUntukKiosk(Kiosk $kiosk, bool $bukaAbsenUmum = false): ?EventAbsen
+    public function eventAktifUntukKiosk(Kiosk $kiosk): ?EventAbsen
     {
-        $kegiatan = EventAbsen::query()
-            ->aktif()
-            ->kegiatan()
-            ->with('unitKerja:id,kode,nama')
-            ->menyentuhUnit($this->cakupanKiosk($kiosk))
-            ->orderByDesc('tanggal')
-            ->orderByDesc('jam_mulai')
-            ->first();
-
-        /*
-         * Kegiatan selalu didahulukan. Sesi absen umum harian baru melayani
-         * perangkat ketika tidak ada kegiatan yang sedang berjalan, sehingga
-         * apel atau rapat tidak pernah tertukar dengan absen rutin.
-         */
-        return $kegiatan ?? $this->absenUmum->sesiUntukKiosk($kiosk, buat: $bukaAbsenUmum);
+        return $this->kode->eventYangDiikuti($kiosk);
     }
 
     /**
-     * Catat bahwa sebuah kiosk sedang aktif melayani event (FR-EVT-03).
+     * Perbarui jejak perangkat yang sedang melayani sebuah event (FR-EVT-03).
      *
-     * Satu baris per pasangan event × kiosk: `aktif_pada` menahan waktu
-     * pertama kali, `terakhir_aktif_pada` dan `ip_address` mengikuti aktivitas
-     * terbaru — kiosk dapat berpindah alamat IP dalam satu event.
+     * Hanya MEMPERBARUI, tidak pernah membuat baris baru: keanggotaan lahir
+     * satu-satunya dari penukaran kode unit kerja
+     * ({@see KodeUnitEventService::gabungkan()}). Bila fungsi ini boleh
+     * menyisipkan baris, membuka layar saja sudah cukup untuk menjadi anggota
+     * dan kodenya kehilangan seluruh gunanya.
      *
-     * Event yang sudah ditutup tidak lagi dicatat; tidak ada kiosk yang sah
+     * Event yang sudah ditutup tidak lagi dicatat; tidak ada perangkat yang sah
      * "terhubung" ke entry yang sudah selesai.
      */
     public function catatKioskAktif(EventAbsen $event, Kiosk $kiosk, ?string $ip): void
@@ -283,32 +288,13 @@ class EventAbsenService
             return;
         }
 
-        $sekarang = Carbon::now();
-
-        $tersimpan = DB::table('event_kiosk')
+        DB::table('event_kiosk')
             ->where('event_absen_id', $event->id)
             ->where('kiosk_id', $kiosk->id)
-            ->exists();
-
-        if ($tersimpan) {
-            DB::table('event_kiosk')
-                ->where('event_absen_id', $event->id)
-                ->where('kiosk_id', $kiosk->id)
-                ->update([
-                    'ip_address' => $ip,
-                    'terakhir_aktif_pada' => $sekarang,
-                ]);
-
-            return;
-        }
-
-        DB::table('event_kiosk')->insert([
-            'event_absen_id' => $event->id,
-            'kiosk_id' => $kiosk->id,
-            'ip_address' => $ip,
-            'aktif_pada' => $sekarang,
-            'terakhir_aktif_pada' => $sekarang,
-        ]);
+            ->update([
+                'ip_address' => $ip,
+                'terakhir_aktif_pada' => Carbon::now(),
+            ]);
     }
 
     /**
@@ -317,11 +303,34 @@ class EventAbsenService
      *
      * @return array<string, mixed>
      */
-    public function detail(EventAbsen $event): array
+    public function detail(EventAbsen $event, bool $bolehKelola = false): array
     {
         $event->load(['kiosk:id,nama_titik,unit_kerja_id', 'kiosk.unitKerja:id,kode', 'unitKerja:id,kode,nama']);
 
         return [
+            /*
+             * Kode unit kerja (FR-EVT-03). Ditampilkan apa adanya, bukan
+             * disembunyikan seperti device_token: kode ini justru harus dapat
+             * dibacakan panitia kepada petugas di ruangan lain.
+             *
+             * `boleh_reset` menyertai payload alih-alih dihitung ulang di
+             * peramban — tombol yang tampil tanpa hak akan tetap ditolak
+             * server, dan menampilkannya hanya menyesatkan admin unit.
+             */
+            'boleh_reset' => $bolehKelola,
+            'kode_unit' => $this->kode->kodeEvent($event)->map(fn ($baris) => [
+                'id' => $baris->id,
+                'kode' => KodeUnitEventService::format($baris->kode),
+                'unit_kerja_kode' => $baris->unitKerja?->kode,
+                'unit_kerja_nama' => $baris->unitKerja?->nama,
+                'direset_pada' => $baris->direset_pada?->toIso8601String(),
+
+                // Berapa perangkat yang sudah bergabung memakai kode unit ini.
+                'jumlah_perangkat' => $event->kiosk
+                    ->where('pivot.unit_kerja_id', $baris->unit_kerja_id)
+                    ->count(),
+            ])->values(),
+
             'id' => $event->id,
             'nama' => $event->nama,
             'tanggal' => $event->tanggal->toDateString(),
@@ -341,6 +350,7 @@ class EventAbsenService
                     'unit_kerja_kode' => $kiosk->unitKerja?->kode,
                     'ip_address' => $kiosk->pivot->ip_address,
                     'aktif_pada' => $kiosk->pivot->aktif_pada,
+                    'bergabung_pada' => $kiosk->pivot->bergabung_pada,
                     'terakhir_aktif_pada' => $kiosk->pivot->terakhir_aktif_pada,
                 ])
                 ->values(),
@@ -363,28 +373,6 @@ class EventAbsenService
         }
 
         return UnitKerja::idsDenganTurunan($event->unitKerja->pluck('id')->all());
-    }
-
-    /**
-     * Unit kerja kiosk beserta seluruh turunannya, ditambah rantai induknya
-     * sampai simpul OPD.
-     *
-     * Rantai induk diikutkan karena cakupan event dinyatakan pada unit level
-     * teratas, sedangkan kiosk bisa saja terdaftar pada seksi di bawahnya.
-     *
-     * @return array<int, int>
-     */
-    protected function cakupanKiosk(Kiosk $kiosk): array
-    {
-        $ids = UnitKerja::idsDenganTurunan($kiosk->unit_kerja_id);
-        $unit = UnitKerja::query()->find($kiosk->unit_kerja_id);
-
-        while ($unit?->induk_id !== null) {
-            $ids[] = $unit->induk_id;
-            $unit = $unit->induk;
-        }
-
-        return array_values(array_unique($ids));
     }
 
     /**

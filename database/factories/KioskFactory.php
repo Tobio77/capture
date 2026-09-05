@@ -7,7 +7,6 @@ use App\Models\Kiosk;
 use App\Models\UnitKerja;
 use App\Services\KioskService;
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Support\Str;
 
 /**
  * @extends Factory<Kiosk>

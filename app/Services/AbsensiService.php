@@ -131,6 +131,29 @@ class AbsensiService
      * Jam kiosk tidak dipercaya begitu saja, hanya diberi batas: waktu tap
      * ditolak bila berada di masa depan atau di luar hari penyelenggaraan
      * event, dan pada kedua keadaan itu server memakai jamnya sendiri.
+     *
+     * Peramban mengirimkan waktunya sebagai ISO-8601 berakhiran `Z` — yaitu
+     * UTC. Carbon mempertahankan zona itu, dan Eloquent menyimpan jam dinding
+     * instance apa adanya, sehingga tap pukul 09.00 WIB tersimpan 02:00 bila
+     * zonanya tidak digeser lebih dahulu. Selisihnya persis sebesar offset WIB
+     * dan tetap sepanjang hari, sehingga tampak "salah tetapi konsisten".
+     *
+     * Yang rusak adalah JAM YANG TERSIMPAN, dan ia terbawa ke mana-mana:
+     * Daftar e-Presensi, Rekap Absen, laporan, dan seluruh ekspor. Penilaian
+     * tepat/terlambat sendiri kebetulan selamat — Carbon membandingkan
+     * instan, bukan jam dinding — sehingga barisnya tampil ganjil: "01:00,
+     * Terlambat" terhadap batas 07.45. Justru itu yang membuatnya sukar
+     * dilaporkan sebagai bug; yang terlihat pengguna hanya angka yang aneh.
+     *
+     * Ada satu efek kedua yang lebih licik. Pemeriksaan `isSameDay()` di bawah
+     * membandingkan TANGGAL pada zona masing-masing, sehingga tap sebelum
+     * pukul 07.00 WIB — yang di UTC masih tanggal kemarin — dianggap di luar
+     * hari penyelenggaraan dan diam-diam diganti jam server. Sebagian absen
+     * karena itu benar dan sebagian salah, pada satu hari yang sama.
+     *
+     * Gejalanya dikenali dengan membandingkan `absensi.waktu` terhadap
+     * `created_at` pada baris yang sama: `created_at` memakai Carbon::now()
+     * sehingga selalu benar, dan hanya `waktu` yang meleset.
      */
     protected function waktuTap(EventAbsen $event, ?string $waktuTap): Carbon
     {
@@ -141,7 +164,7 @@ class AbsensiService
         }
 
         try {
-            $waktu = Carbon::parse($waktuTap);
+            $waktu = Carbon::parse($waktuTap)->setTimezone(config('app.timezone'));
         } catch (\Throwable) {
             return $sekarang;
         }
@@ -182,14 +205,19 @@ class AbsensiService
      * Daftar e-Presensi sebuah event: satu baris per pegawai, kolom Jam Masuk
      * dan Jam Pulang terisi dari dua jenis absen yang berbeda (UIUX §4.2.2).
      *
-     * @param  (callable(int): string)|null  $urlFoto  perakit URL foto absen,
-     *                                                 mengikuti pagar autentikasi pemanggil; bawaannya rute perangkat
+     * URL fotonya WAJIB dirakit pemanggil. Satu layar melayani beberapa titik
+     * absen dengan pagar autentikasi berbeda — perangkat mode event, perangkat
+     * mode umum, dan layar admin — sehingga bawaan yang mematok salah satu
+     * grup rute akan menjawab 302 atau 403 pada dua grup lainnya, dan di layar
+     * itu tampak sebagai ikon gambar rusak, bukan sebagai kegagalan yang
+     * terbaca (pelajaran S28b). {@see TitikAbsenService::urlFotoAbsen()} yang
+     * mengetahui pilihannya.
+     *
+     * @param  callable(int): string  $urlFoto  perakit URL foto absen
      * @return Collection<int, array<string, mixed>>
      */
-    public function daftarPresensi(EventAbsen $event, ?callable $urlFoto = null): Collection
+    public function daftarPresensi(EventAbsen $event, callable $urlFoto): Collection
     {
-        $urlFoto ??= fn (int $id) => route('kiosk.absen.foto', ['absensi' => $id]);
-
         return Absensi::query()
             ->with('pegawai:id,nip,nama')
             ->where('event_absen_id', $event->id)

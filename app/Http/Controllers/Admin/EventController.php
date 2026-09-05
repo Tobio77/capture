@@ -7,9 +7,11 @@ use App\Enums\StatusEvent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SimpanEventRequest;
 use App\Models\EventAbsen;
+use App\Models\KodeUnitEvent;
 use App\Models\UnitKerja;
 use App\Services\EksporService;
 use App\Services\EventAbsenService;
+use App\Services\KodeUnitEventService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,6 +30,7 @@ class EventController extends Controller
     public function __construct(
         protected EventAbsenService $event,
         protected EksporService $ekspor,
+        protected KodeUnitEventService $kodeUnit,
     ) {}
 
     public function index(Request $request): Response
@@ -49,9 +52,33 @@ class EventController extends Controller
             'unit_kerja' => $this->event->unitKerjaTersedia($pengguna),
             'nilai_awal' => $this->event->nilaiAwal(),
 
-            // Cakupan "semua unit" hanya untuk peran lintas unit (FR-EVT-01).
+            /*
+             * Cakupan yang melampaui satu unit — "Semua Unit" dan "Wilayah
+             * Kerja Surabaya" — hanya untuk peran lintas unit (FR-EVT-01,
+             * FR-EVT-02).
+             */
             'boleh_semua_unit' => $pengguna->lintasUnit(),
             'cakupan_semua_unit' => CakupanEvent::SemuaUnit->value,
+            'cakupan_unit' => CakupanEvent::Unit->value,
+
+            /*
+             * Cakupan bawaan sistem: daftar unitnya tertanam pada enum, bukan
+             * dicentang admin. Dikirim beserta unit penyusunnya supaya
+             * formulir dapat memperlihatkan apa saja yang tercakup sebelum
+             * admin menyimpan — dan supaya kekeliruan pemetaan kode unit
+             * ketahuan di layar, bukan setelah event berjalan.
+             */
+            'cakupan_tertanam' => collect(CakupanEvent::cases())
+                ->filter(fn (CakupanEvent $cakupan) => $cakupan->unitTertanam())
+                ->map(fn (CakupanEvent $cakupan) => [
+                    'nilai' => $cakupan->value,
+                    'label' => $cakupan->label(),
+                    'unit_kerja' => UnitKerja::query()
+                        ->whereIn('kode', $cakupan->kodeUnitTertanam())
+                        ->orderBy('nama')
+                        ->get(['id', 'kode', 'nama']),
+                ])
+                ->values(),
         ]);
     }
 
@@ -129,7 +156,35 @@ class EventController extends Controller
     {
         abort_unless($this->dapatMelihat($request, $event), 403);
 
-        return response()->json($this->event->detail($event));
+        return response()->json(
+            $this->event->detail($event, $this->boleh($request, $event)),
+        );
+    }
+
+    /**
+     * Terbitkan ulang kode unit kerja sebuah event (FR-EVT-03).
+     *
+     * Berwenang atas kode = berwenang atas eventnya, yaitu pagar yang sama
+     * dengan mengubah dan menutup event: Superadmin serta Admin Dinas untuk
+     * event mana pun, Admin UPT hanya untuk event yang menyentuh unitnya
+     * sendiri (matriks peran SRS §6).
+     */
+    public function resetKode(Request $request, EventAbsen $event, KodeUnitEvent $kode): RedirectResponse
+    {
+        abort_unless($this->boleh($request, $event), 403);
+        abort_unless($kode->event_absen_id === $event->id, 404);
+
+        // Kode hanya berguna selama entry masih menerima tap; menerbitkan
+        // ulang pada event yang sudah ditutup hanya membingungkan petugas.
+        abort_unless($event->aktif(), 403, 'Event ini sudah ditutup.');
+
+        $baru = $this->kodeUnit->reset($kode, $request->user());
+
+        return back()->with('sukses', sprintf(
+            'Kode unit %s diganti menjadi %s. Perangkat yang sudah bergabung tidak terputus.',
+            $baru->unitKerja?->kode ?? 'terpilih',
+            KodeUnitEventService::format($baru->kode),
+        ));
     }
 
     /**

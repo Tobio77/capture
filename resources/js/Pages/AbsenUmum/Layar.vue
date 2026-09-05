@@ -23,6 +23,8 @@ const props = defineProps({
   ambang_kecocokan_wajah: { type: Number, required: true },
   kompresi: { type: Object, required: true },
   daftar_presensi: { type: Array, required: true },
+  waktu_server: { type: String, default: null },
+  daftar_wajah_otomatis: { type: Boolean, default: false },
 })
 
 const unitDipilih = ref(props.unit_kerja_id)
@@ -82,6 +84,8 @@ function gantiUnit() {
     :ambang_kecocokan_wajah="ambang_kecocokan_wajah"
     :kompresi="kompresi"
     :daftar_presensi="daftar_presensi"
+    :waktu_server="waktu_server"
+    :daftar_wajah_otomatis="daftar_wajah_otomatis"
     :endpoint="endpoint"
     :titik="namaUnit ? `Layar absen admin · ${namaUnit}` : 'Layar absen admin'"
     judul_kosong="Pilih unit kerja untuk membuka sesi absen umum"

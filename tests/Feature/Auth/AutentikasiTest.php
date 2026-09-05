@@ -132,7 +132,13 @@ class AutentikasiTest extends TestCase
     public function tamu_diarahkan_ke_halaman_masuk(): void
     {
         $this->get('/admin/dashboard')->assertRedirect('/masuk');
-        $this->get('/')->assertRedirect('/admin/dashboard');
+
+        /*
+         * Halaman depan justru TIDAK boleh ikut dipagari (S30): ia melayani
+         * pegawai dan petugas titik absen, bukan hanya admin. Yang dipagari
+         * adalah panelnya.
+         */
+        $this->get('/')->assertOk();
     }
 
     #[Test]

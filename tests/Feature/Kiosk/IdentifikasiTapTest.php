@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\KioskService;
 use App\Services\SettingAbsenService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
@@ -44,7 +45,7 @@ class IdentifikasiTapTest extends TestCase
 
         $this->unitKerja = UnitKerja::factory()->create(['kode' => 'BLK-SBY']);
 
-        Kiosk::factory()->diaktifkan(self::TOKEN)->create([
+        $perangkat = Kiosk::factory()->diaktifkan(self::TOKEN)->create([
             'nama_titik' => 'Aula Senam BLK Surabaya',
             'unit_kerja_id' => $this->unitKerja->id,
         ]);
@@ -53,6 +54,10 @@ class IdentifikasiTapTest extends TestCase
         // (FR-EVT-04); tanpa ini seluruh tap dijawab EVENT_TIDAK_AKTIF.
         $this->event = EventAbsen::factory()->create(['nama' => 'Apel Pagi']);
         $this->event->unitKerja()->attach($this->unitKerja);
+
+        // Sejak revisi S29, tercakup saja tidak cukup: perangkat harus sudah
+        // BERGABUNG ke event lewat kode unit kerja (FR-EVT-03).
+        $this->gabungkanKeEvent($this->event, $perangkat);
     }
 
     protected function denganToken(): static
@@ -74,7 +79,7 @@ class IdentifikasiTapTest extends TestCase
         ]);
 
         $this->denganToken()
-            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->post('/kiosk/event/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
             ->assertOk()
             ->assertJson([
                 'success' => true,
@@ -104,7 +109,7 @@ class IdentifikasiTapTest extends TestCase
         ], User::factory()->superadmin()->create());
 
         $this->denganToken()
-            ->get('/kiosk')
+            ->get('/kiosk/event')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Kiosk/Utama')
@@ -117,18 +122,38 @@ class IdentifikasiTapTest extends TestCase
     }
 
     #[Test]
-    public function layar_kiosk_tanpa_event_aktif_menyatakan_entry_tertutup(): void
+    public function layar_absen_event_menutup_diri_setelah_entry_ditutup(): void
     {
+        /*
+         * FR-EVT-04. Sejak layar Absen Event berdiri sendiri (revisi S29),
+         * entry yang ditutup tidak lagi menyisakan layar tap kosong yang
+         * tampak rusak di mata petugas: perangkat dipulangkan ke beranda,
+         * tempat ia dapat memilih Absen Umum atau bergabung ke event lain.
+         */
         $this->event->update(['status' => StatusEvent::Ditutup, 'ditutup_pada' => now()]);
 
         $this->denganToken()
-            ->get('/kiosk')
+            ->get('/kiosk/event')
+            ->assertRedirect('/')
+            ->assertSessionHas('gagal');
+    }
+
+    #[Test]
+    public function layar_absen_umum_tetap_terbuka_tanpa_kegiatan_apa_pun(): void
+    {
+        /*
+         * Absen Umum tidak terikat status event apa pun (revisi S29). Perangkat
+         * yang tidak bergabung ke kegiatan mana pun tetap dapat mengabsen
+         * harian — inilah yang memisahkannya dari Absen Event.
+         */
+        $this->event->update(['status' => StatusEvent::Ditutup, 'ditutup_pada' => now()]);
+
+        $this->denganToken()
+            ->get('/kiosk/umum')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Kiosk/Utama')
-                // Null menandakan tidak ada entry yang dibuka; layar
-                // menampilkan keadaan itu alih-alih menerima tap.
-                ->where('event', null)
+                ->where('mode', 'umum')
                 ->etc());
     }
 
@@ -144,7 +169,7 @@ class IdentifikasiTapTest extends TestCase
         ]);
 
         $this->denganToken()
-            ->post('/kiosk/tap/identifikasi', ['id_card' => '04a3:b2:1c'], ['Accept' => 'application/json'])
+            ->post('/kiosk/event/tap/identifikasi', ['id_card' => '04a3:b2:1c'], ['Accept' => 'application/json'])
             ->assertOk()
             ->assertJson([
                 'success' => true,
@@ -163,7 +188,7 @@ class IdentifikasiTapTest extends TestCase
 
         // Pegawai berkartu yang mengetik NIP tetap tercatat sebagai manual.
         $this->denganToken()
-            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->post('/kiosk/event/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
             ->assertOk()
             ->assertJson(['data' => ['metode' => 'manual']]);
     }
@@ -172,7 +197,7 @@ class IdentifikasiTapTest extends TestCase
     public function kartu_tak_dikenal_ditolak_dengan_kode_yang_dapat_dibaca_mesin(): void
     {
         $this->denganToken()
-            ->post('/kiosk/tap/identifikasi', ['id_card' => 'DEADBEEF'], ['Accept' => 'application/json'])
+            ->post('/kiosk/event/tap/identifikasi', ['id_card' => 'DEADBEEF'], ['Accept' => 'application/json'])
             ->assertStatus(404)
             ->assertJson(['success' => false, 'code' => 'ID_TIDAK_DIKENAL']);
     }
@@ -192,7 +217,7 @@ class IdentifikasiTapTest extends TestCase
         ]);
 
         $jawaban = $this->denganToken()
-            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->post('/kiosk/event/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
             ->assertOk();
 
         $data = $jawaban->json('data');
@@ -219,7 +244,7 @@ class IdentifikasiTapTest extends TestCase
         ]);
 
         $this->denganToken()
-            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->post('/kiosk/event/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
             ->assertOk()
             ->assertJson(['data' => ['wajah_terdaftar' => false, 'embedding_wajah' => null]]);
     }
@@ -229,7 +254,7 @@ class IdentifikasiTapTest extends TestCase
     {
         // FR-SET-03 dan FR-SET-04 dipakai modul verifikasi di sisi klien.
         $this->denganToken()
-            ->get('/kiosk')
+            ->get('/kiosk/event')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->where('ambang_kecocokan_wajah', 85)
@@ -248,7 +273,7 @@ class IdentifikasiTapTest extends TestCase
         ]);
 
         $isi = $this->denganToken()
-            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->post('/kiosk/event/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
             ->assertOk()
             ->getContent();
 
@@ -259,14 +284,19 @@ class IdentifikasiTapTest extends TestCase
     #[Test]
     public function tap_mencatat_kiosk_sebagai_terhubung_pada_event(): void
     {
-        // FR-EVT-03: kiosk yang melayani event tercatat beserta alamat IP-nya.
+        // FR-EVT-03: alamat IP perangkat mengikuti aktivitas terbarunya —
+        // satu perangkat dapat berpindah jaringan di tengah kegiatan, dan yang
+        // dicari panitia saat menelusuri absen mencurigakan adalah alamat
+        // terkininya, bukan alamat saat ia pertama bergabung.
         Pegawai::factory()->create([
             'nip' => '199001012020011001',
             'unit_kerja_id' => $this->unitKerja->id,
         ]);
 
+        DB::table('event_kiosk')->update(['ip_address' => '10.10.0.9']);
+
         $this->denganToken()
-            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->post('/kiosk/event/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
             ->assertOk();
 
         $this->assertDatabaseHas('event_kiosk', [
@@ -277,15 +307,24 @@ class IdentifikasiTapTest extends TestCase
     }
 
     #[Test]
-    public function membuka_layar_kiosk_sudah_menghitungnya_terhubung(): void
+    public function membuka_layar_event_tidak_pernah_menjadikan_perangkat_anggota(): void
     {
-        // Tidak perlu menunggu tap pertama untuk dianggap terhubung.
-        $this->denganToken()->get('/kiosk')->assertOk();
-
-        $this->assertDatabaseHas('event_kiosk', [
-            'event_absen_id' => $this->event->id,
-            'kiosk_id' => Kiosk::sole()->id,
+        /*
+         * FR-EVT-03 (revisi S29). Keanggotaan lahir satu-satunya dari
+         * penukaran kode unit kerja. Bila membuka layar saja sudah cukup untuk
+         * tercatat sebagai anggota, kodenya kehilangan seluruh gunanya —
+         * siapa pun yang tahu alamatnya menjadi titik absen event itu.
+         */
+        $lain = Kiosk::factory()->diaktifkan('token-perangkat-kedua')->create([
+            'nama_titik' => 'Lobi BLK Surabaya',
+            'unit_kerja_id' => $this->unitKerja->id,
         ]);
+
+        $this->withCookie(KioskService::NAMA_COOKIE, 'token-perangkat-kedua')
+            ->get('/kiosk/event')
+            ->assertRedirect('/');
+
+        $this->assertDatabaseMissing('event_kiosk', ['kiosk_id' => $lain->id]);
     }
 
     #[Test]
@@ -303,7 +342,7 @@ class IdentifikasiTapTest extends TestCase
         ]);
 
         $this->denganToken()
-            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], [
+            ->post('/kiosk/event/tap/identifikasi', ['id_card' => '199001012020011001'], [
                 'Accept' => 'application/json',
             ])
             ->assertOk()
@@ -317,7 +356,7 @@ class IdentifikasiTapTest extends TestCase
         ]);
 
         $this->denganToken()
-            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], [
+            ->post('/kiosk/event/tap/identifikasi', ['id_card' => '199001012020011001'], [
                 'Accept' => 'application/json',
             ])
             ->assertOk()
@@ -340,7 +379,7 @@ class IdentifikasiTapTest extends TestCase
         $this->event->update(['status' => StatusEvent::Ditutup, 'ditutup_pada' => now()]);
 
         $this->denganToken()
-            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->post('/kiosk/event/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
             ->assertStatus(409)
             ->assertJson([
                 'success' => false,
@@ -349,15 +388,32 @@ class IdentifikasiTapTest extends TestCase
     }
 
     #[Test]
-    public function tap_ditolak_bila_unit_kiosk_tidak_punya_event_yang_dibuka(): void
+    public function tap_ditolak_bila_perangkat_belum_bergabung_ke_event(): void
     {
-        // Event ada, tetapi cakupannya unit lain.
+        /*
+         * FR-EVT-03 (revisi S29). Sebelumnya cukup unit perangkat tercakup
+         * event; kini tercakup TIDAK berarti melayani. Perangkat kedua di unit
+         * yang sama — meja registrasi yang belum diberi kode — tidak boleh
+         * ikut menampung tap kegiatan yang tidak dilayaninya.
+         *
+         * Absen umum dimatikan supaya yang diuji benar-benar penolakannya;
+         * dengan absen umum menyala, tap perangkat ini tetap dilayani sesi
+         * harian pada alamat yang berbeda.
+         */
         $this->matikanAbsenUmum();
 
-        $this->event->unitKerja()->sync([UnitKerja::factory()->create(['kode' => 'BLK-MJK'])->id]);
+        Kiosk::factory()->diaktifkan('token-perangkat-kedua')->create([
+            'nama_titik' => 'Lobi BLK Surabaya',
+            'unit_kerja_id' => $this->unitKerja->id,
+        ]);
 
-        $this->denganToken()
-            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
+        Pegawai::factory()->create([
+            'nip' => '199001012020011001',
+            'unit_kerja_id' => $this->unitKerja->id,
+        ]);
+
+        $this->withCookie(KioskService::NAMA_COOKIE, 'token-perangkat-kedua')
+            ->post('/kiosk/event/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
             ->assertStatus(409)
             ->assertJson(['code' => 'EVENT_TIDAK_AKTIF']);
     }
@@ -374,7 +430,7 @@ class IdentifikasiTapTest extends TestCase
         $this->event->update(['cakupan' => CakupanEvent::SemuaUnit]);
 
         $this->denganToken()
-            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->post('/kiosk/event/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
             ->assertOk()
             ->assertJson(['success' => true]);
     }
@@ -390,7 +446,7 @@ class IdentifikasiTapTest extends TestCase
         ]);
 
         $this->denganToken()
-            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->post('/kiosk/event/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
             ->assertOk()
             ->assertJson([
                 'data' => [
@@ -403,7 +459,7 @@ class IdentifikasiTapTest extends TestCase
     public function nip_tak_dikenal_dijawab_dengan_kode_yang_dapat_dibaca_mesin(): void
     {
         $this->denganToken()
-            ->post('/kiosk/tap/identifikasi', ['id_card' => '199901012020011009'], ['Accept' => 'application/json'])
+            ->post('/kiosk/event/tap/identifikasi', ['id_card' => '199901012020011009'], ['Accept' => 'application/json'])
             ->assertNotFound()
             ->assertJson(['success' => false, 'code' => 'ID_TIDAK_DIKENAL']);
     }
@@ -418,7 +474,7 @@ class IdentifikasiTapTest extends TestCase
         ]);
 
         $this->denganToken()
-            ->post('/kiosk/tap/identifikasi', ['id_card' => '198512312010011001'], ['Accept' => 'application/json'])
+            ->post('/kiosk/event/tap/identifikasi', ['id_card' => '198512312010011001'], ['Accept' => 'application/json'])
             ->assertForbidden()
             ->assertJson(['success' => false, 'code' => 'PEGAWAI_TIDAK_AKTIF']);
     }
@@ -434,7 +490,7 @@ class IdentifikasiTapTest extends TestCase
         ]);
 
         $this->denganToken()
-            ->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->post('/kiosk/event/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
             ->assertOk()
             ->assertJson(['data' => ['unit_kerja_sama' => false]]);
     }
@@ -444,7 +500,7 @@ class IdentifikasiTapTest extends TestCase
     {
         Pegawai::factory()->create(['nip' => '199001012020011001', 'unit_kerja_id' => $this->unitKerja->id]);
 
-        $this->post('/kiosk/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
+        $this->post('/kiosk/event/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
             ->assertRedirect('/kiosk/aktivasi');
     }
 
@@ -465,7 +521,7 @@ class IdentifikasiTapTest extends TestCase
             ),
         ]);
 
-        $respons = $this->denganToken()->get('/kiosk/pegawai/199001012020011001/foto');
+        $respons = $this->denganToken()->get('/kiosk/event/pegawai/199001012020011001/foto');
 
         $respons->assertOk();
         $respons->assertHeader('Content-Type', 'image/jpeg');
@@ -482,7 +538,7 @@ class IdentifikasiTapTest extends TestCase
         Http::fake();
 
         $this->denganToken()
-            ->get('/kiosk/pegawai/199901012020011009/foto')
+            ->get('/kiosk/event/pegawai/199901012020011009/foto')
             ->assertNotFound();
 
         // Rute ini tidak boleh menjadi jalan memindai NIP di WORKA.
@@ -495,7 +551,7 @@ class IdentifikasiTapTest extends TestCase
         Pegawai::factory()->create(['nip' => '199001012020011001', 'unit_kerja_id' => $this->unitKerja->id]);
         Http::fake();
 
-        $this->get('/kiosk/pegawai/199001012020011001/foto')
+        $this->get('/kiosk/event/pegawai/199001012020011001/foto')
             ->assertRedirect('/kiosk/aktivasi');
 
         Http::assertNothingSent();

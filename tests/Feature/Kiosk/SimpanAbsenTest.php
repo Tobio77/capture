@@ -43,7 +43,7 @@ class SimpanAbsenTest extends TestCase
 
         $this->unitKerja = UnitKerja::factory()->create(['kode' => 'BLK-SBY']);
 
-        Kiosk::factory()->diaktifkan(self::TOKEN)->create([
+        $perangkat = Kiosk::factory()->diaktifkan(self::TOKEN)->create([
             'unit_kerja_id' => $this->unitKerja->id,
         ]);
 
@@ -53,6 +53,10 @@ class SimpanAbsenTest extends TestCase
             'toleransi_menit' => 15,
         ]);
         $this->event->unitKerja()->attach($this->unitKerja);
+
+        // Sejak revisi S29, perangkat melayani event hanya setelah bergabung
+        // lewat kode unit kerja (FR-EVT-03).
+        $this->gabungkanKeEvent($this->event, $perangkat);
 
         $this->pegawai = Pegawai::factory()->create([
             'nip' => '199001012020011001',
@@ -87,7 +91,7 @@ class SimpanAbsenTest extends TestCase
      */
     protected function kirim(array $ubahan = []): TestResponse
     {
-        return $this->denganToken()->post('/kiosk/absen', array_merge([
+        return $this->denganToken()->post('/kiosk/event/absen', array_merge([
             'id_card' => '199001012020011001',
             'jenis' => 'datang',
             'metode' => 'manual',
@@ -322,7 +326,7 @@ class SimpanAbsenTest extends TestCase
         // NFR-04: berkas foto tidak dapat diakses tanpa autentikasi.
         $absensi = $this->absensiBerfoto();
 
-        $this->get("/kiosk/absen/{$absensi->id}/foto")->assertRedirect('/kiosk/aktivasi');
+        $this->get("/kiosk/event/absen/{$absensi->id}/foto")->assertRedirect('/kiosk/aktivasi');
     }
 
     #[Test]
@@ -330,7 +334,7 @@ class SimpanAbsenTest extends TestCase
     {
         $absensi = $this->absensiBerfoto();
 
-        $this->denganToken()->get("/kiosk/absen/{$absensi->id}/foto")->assertOk();
+        $this->denganToken()->get("/kiosk/event/absen/{$absensi->id}/foto")->assertOk();
     }
 
     #[Test]
@@ -343,7 +347,7 @@ class SimpanAbsenTest extends TestCase
         Kiosk::factory()->diaktifkan('token-kiosk-lain')->create(['unit_kerja_id' => $unitLain->id]);
 
         $this->withCookie(KioskService::NAMA_COOKIE, 'token-kiosk-lain')
-            ->get("/kiosk/absen/{$absensi->id}/foto")
+            ->get("/kiosk/event/absen/{$absensi->id}/foto")
             ->assertForbidden();
     }
 
@@ -449,7 +453,7 @@ class SimpanAbsenTest extends TestCase
         ]);
 
         $this->denganToken()
-            ->get('/kiosk/presensi', ['Accept' => 'application/json'])
+            ->get('/kiosk/event/presensi', ['Accept' => 'application/json'])
             ->assertOk()
             ->assertJson([
                 'event' => ['id' => $this->event->id],
@@ -464,7 +468,7 @@ class SimpanAbsenTest extends TestCase
         $this->event->update(['status' => StatusEvent::Ditutup, 'ditutup_pada' => now()]);
 
         $this->denganToken()
-            ->get('/kiosk/presensi', ['Accept' => 'application/json'])
+            ->get('/kiosk/event/presensi', ['Accept' => 'application/json'])
             ->assertOk()
             ->assertJson(['event' => null, 'daftar_presensi' => []]);
     }
@@ -472,7 +476,7 @@ class SimpanAbsenTest extends TestCase
     #[Test]
     public function daftar_presensi_tertutup_bagi_perangkat_tanpa_token(): void
     {
-        $this->get('/kiosk/presensi')->assertRedirect('/kiosk/aktivasi');
+        $this->get('/kiosk/event/presensi')->assertRedirect('/kiosk/aktivasi');
     }
 
     #[Test]
@@ -488,7 +492,7 @@ class SimpanAbsenTest extends TestCase
         $this->kirim(['jenis' => 'pulang']);
         $this->kirim(['jenis' => 'pulang']);
 
-        $daftar = $this->denganToken()->get('/kiosk/presensi', ['Accept' => 'application/json'])->json('daftar_presensi');
+        $daftar = $this->denganToken()->get('/kiosk/event/presensi', ['Accept' => 'application/json'])->json('daftar_presensi');
 
         $this->assertCount(1, $daftar);
         $this->assertSame('16:00', $daftar[0]['jam_pulang']);
@@ -501,7 +505,7 @@ class SimpanAbsenTest extends TestCase
         $this->kirim()->assertOk();
 
         $this->denganToken()
-            ->get('/kiosk')
+            ->get('/kiosk/event')
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->has('daftar_presensi', 1)

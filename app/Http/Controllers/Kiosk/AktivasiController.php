@@ -26,7 +26,7 @@ class AktivasiController extends Controller
     public function create(Request $request): Response|RedirectResponse
     {
         if ($this->kiosk->kioskDariToken($request->cookie(KioskService::NAMA_COOKIE))) {
-            return redirect()->route('kiosk.utama');
+            return redirect()->route('beranda');
         }
 
         $modeTerbuka = $this->setting->modeTerbuka();
@@ -73,7 +73,7 @@ class AktivasiController extends Controller
         ['token' => $token] = $this->kiosk->masukTanpaKode($unitKerja, $request);
 
         return redirect()
-            ->route('kiosk.utama')
+            ->route('beranda')
             ->with('sukses', 'Perangkat masuk tanpa kode aktivasi (Mode Terbuka).')
             ->withCookie(Cookie::make(
                 name: KioskService::NAMA_COOKIE,
@@ -95,7 +95,7 @@ class AktivasiController extends Controller
         );
 
         return redirect()
-            ->route('kiosk.utama')
+            ->route('beranda')
             ->with('sukses', 'Perangkat berhasil diaktifkan.')
             ->withCookie(Cookie::make(
                 name: KioskService::NAMA_COOKIE,

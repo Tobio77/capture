@@ -283,6 +283,51 @@ Konsekuensi yang disengaja:
 - Pencabutan menghapus berkas dan embedding, tetapi **tidak** menghapus baris
   pegawai — datanya milik WORKA (FR-PEG-02).
 
+**Dua cara memasukkan foto (S29).** Selain mengunggah berkas, admin dapat
+mengambil foto langsung dari kamera perambannya — keadaan yang paling sering
+terjadi ketika unit kerja mengejar kelengkapan pendaftaran dan pegawainya
+berdiri di depan meja admin. Keduanya bermuara pada satu jalan masuk yang sama,
+sehingga pemeriksaan "tepat satu wajah" tidak dapat dilewati oleh salah
+satunya. Foto dari kamera tidak dicerminkan: foto referensi adalah dokumen, dan
+sisi tubuh pada foto harus sama dengan kenyataan supaya pencocokan kelak
+membandingkan hal yang sama.
+
+### Foto absen dipromosikan menjadi foto referensi (revisi FR-PEG-05, S29)
+
+Pendaftaran wajah massal tidak pernah selesai serentak: selalu ada pegawai yang
+belum sempat difoto admin. Selama verifikasi wajah dimatikan, mereka tetap
+mengabsen dengan kamera menyala (lihat §3.8), dan fotonya sudah berukuran akhir
+serta sudah menampilkan orang yang benar. Membiarkannya menganggur berarti
+pendaftaran wajah harus diulang dari nol pada hari verifikasi dinyalakan.
+
+Foto absen karena itu dipromosikan menjadi foto referensi — **hanya bila
+seluruh syarat berikut terpenuhi**:
+
+| Syarat | Alasan |
+|---|---|
+| Verifikasi wajah sedang **mati** | Saat menyala, skor pada tap berasal dari pencocokan terhadap foto referensi yang justru belum ada; tidak ada yang pernah memastikan itu orang yang benar. |
+| Pegawai **belum** punya foto referensi | Foto hasil sesi pemotretan admin jauh lebih baik daripada tangkapan sekilas di depan titik absen; menimpanya menurunkan mutu pembanding. |
+| Absen membawa foto | Tidak ada yang dapat dipromosikan tanpanya. |
+| Deskriptor 128 dimensi menyertainya | Pemeriksaan kualitas yang sama dengan pendaftaran manual. |
+
+Syarat terakhir adalah intinya. Deskriptor itu **satu-satunya bukti** bahwa
+peramban menemukan tepat satu wajah pada foto tersebut: `useFaceApi`
+mengembalikannya hanya pada keadaan itu, dan menolak foto tanpa wajah maupun
+berisi lebih dari satu orang. Tingkat kepercayaannya karena itu sama persis
+dengan pendaftaran manual admin — server tidak pernah memproses wajah (§5), dan
+bentuk deskriptornya tetap diperiksa ulang di server.
+
+Mempromosikan foto sembarangan akan merusak pencocokan begitu verifikasi
+dinyalakan kembali, dan kerusakannya baru ketahuan pada hari itu juga. Karena
+itu setiap syarat gagal **dengan diam**: absennya tetap tercatat, hanya
+pendaftaran wajahnya yang menunggu tap berikutnya.
+
+Fotonya **disalin, bukan dipindahkan** — foto absen adalah bukti kehadiran dan
+tetap harus dapat dibuka dari Rekap Absen. Promosinya dicatat pada audit trail
+tanpa pelaku (tidak ada admin yang menekan tombol), justru supaya admin dapat
+menemukan pegawai mana saja yang foto referensinya lahir dari absen alih-alih
+dari sesi pendaftaran.
+
 ## 3.3 users (akun admin)
 
 | **Kolom**     | **Tipe**             | **Keterangan**                         |
@@ -383,6 +428,49 @@ seluruh unit ke pivot akan basi begitu unit baru masuk dari sinkronisasi WORKA,
 sehingga event bercakupan semua unit dikenali dari kolom `cakupan` saja dan
 otomatis mencakup unit yang lahir setelahnya.
 
+### Cakupan bawaan sistem — Wilayah Kerja Surabaya (S29)
+
+Selain `unit` dan `semua_unit`, `CakupanEvent` mengenal cakupan yang **daftar
+unitnya ditentukan sistem, bukan dicentang admin**. Yang pertama adalah
+`wilayah_surabaya`: empat UPT yang berkantor di Surabaya dan lazim
+menyelenggarakan apel bersama.
+
+Berbeda dari "semua unit", cakupan ini **tetap mengisi pivot**. Pivotnya diisi
+`SimpanEventRequest::prepareForValidation()` dari kode yang tertanam pada enum,
+sehingga seluruh mesin yang membaca cakupan lewat pivot — pencocokan perangkat,
+rekap, kode unit kerja per event — bekerja tanpa perlu mengenali cakupan baru
+ini sama sekali.
+
+**Unitnya dinyatakan sebagai KODE, bukan id.** Id berbeda antar lingkungan:
+sebagian unit Surabaya bernomor kecil karena ikut sinkronisasi awal, sebagian
+menyusul belakangan. Kode adalah satu-satunya penanda yang selamat melewati
+re-sync maupun basis data baru.
+
+Pemetaannya diverifikasi terhadap hasil sinkronisasi WORKA di produksi
+(5 September 2026). **Keempatnya sudah ada; tidak ada yang perlu dibuatkan unit
+lokal** seperti preseden `DISNAKER` di §3.1. Nama resmi WORKA tidak selalu sama
+dengan sebutan sehari-hari di kantor, sehingga pemetaannya dicatat di sini:
+
+| Sebutan sehari-hari                  | Nama resmi pada `unit_kerja`                                          | Kode       |
+|--------------------------------------|-----------------------------------------------------------------------|------------|
+| BLK Surabaya                         | UPT Balai Latihan Kerja di Surabaya                                   | `BLK-SBY`  |
+| UPT K2                               | UPT Keselamatan Kerja                                                 | `UPT-K3`   |
+| UPT Balai Pengembangan Produktivitas | UPT Balai Latihan Pengembangan Produktivitas Tenaga Kerja di Surabaya | `UPT-BLPP` |
+| UPT Pelayanan Perlindungan Tenaga Kerja | UPT Pelayanan dan Perlindungan Tenaga Kerja                        | `UPT-P2TK` |
+
+Dua catatan yang perlu diingat saat menyunting daftarnya. Pertama, "UPT K2"
+adalah singkatan *Keselamatan Kerja* — kodenya justru tertulis `UPT-K3`, dan
+ketidakcocokan itu berasal dari WORKA, bukan dari kekeliruan pemetaan. Kedua,
+`UPT-BLPP` bernama jauh lebih panjang daripada sebutannya; ia satu-satunya unit
+produktivitas di Surabaya, sehingga tidak ada kandidat lain yang mungkin.
+
+**Kode yang tidak ditemukan menggagalkan penyimpanan event**, bukan diam-diam
+menghasilkan cakupan yang lebih sempit. Cakupan yang bolong berarti pegawai
+satu unit tidak dapat mengabsen, dan tidak ada yang menyadarinya sampai hari-H.
+
+Cakupan ini melampaui satu unit kerja, sehingga — seperti "semua unit" — hanya
+tersedia bagi Superadmin dan Admin Dinas (FR-EVT-02).
+
 **Batasan peran (FR-EVT-02).** Admin UPT hanya dapat memilih unit level teratas
 yang menaunginya — termasuk bila akunnya menempel pada seksi di bawahnya — dan
 tidak dapat memakai cakupan "semua unit". Pada daftar event, Admin UPT melihat
@@ -452,38 +540,111 @@ Pemeriksaannya menoleransi keadaan tabel `absensi` belum ada — tabel itu
 dibuat pada S16 — dengan menganggap jumlah absensi nol, sehingga tidak perlu
 diubah lagi setelah tabelnya lahir.
 
-## 3.7 event_kiosk (kiosk aktif per event)
+## 3.7 event_kode_unit & event_kiosk (keanggotaan perangkat pada event)
+
+### Kode unit kerja per event (FR-EVT-03, revisi S29)
+
+Sampai S28b, sebuah perangkat melayani event semata-mata karena unit tempat ia
+dipasang termasuk cakupan event. Dua akibatnya nyata di lapangan: setiap
+perangkat di unit itu ikut terseret ke kegiatan yang tidak ada hubungannya
+dengan ruangan tempat ia berdiri, dan panitia tidak punya cara menyatakan
+"perangkat inilah yang melayani apel pagi".
+
+Sejak S29 keanggotaan dinyatakan **eksplisit**. Tiap unit kerja dalam cakupan
+sebuah event memperoleh satu kode pendek, dan perangkat bergabung dengan
+mengetikkannya.
+
+| **Kolom**      | **Tipe**             | **Keterangan**                              |
+|----------------|----------------------|---------------------------------------------|
+| id             | bigint, PK           |                                             |
+| event_absen_id | bigint, FK           | cascade on delete                           |
+| unit_kerja_id  | bigint, FK           | cascade on delete                           |
+| kode           | varchar(8), unik     | 8 karakter, abjad tanpa 0/O dan 1/I         |
+| direset_oleh   | bigint, FK, nullable | null on delete                              |
+| direset_pada   | timestamp, nullable  |                                             |
+|                |                      | unik per pasangan event × unit              |
+
+**Kode ini bukan kode aktivasi perangkat.** Keduanya mudah tertukar, padahal
+menjawab pertanyaan yang berbeda:
+
+|              | Kode aktivasi (S04)                             | Kode unit kerja (S29)                    |
+|--------------|-------------------------------------------------|------------------------------------------|
+| Menjawab     | boleh-tidaknya sebuah mesin menjadi titik absen | event mana yang dilayani titik absen itu |
+| Dipakai      | sekali, ditukar dengan `device_token`           | berkali-kali, oleh beberapa perangkat    |
+| Disimpan     | hash                                             | **apa adanya**                           |
+| Masa hidup   | sampai ditukarkan                                | selama eventnya berjalan                 |
+
+Kodenya sengaja **tidak** di-hash: berbeda dari `device_token`, kode ini justru
+harus dapat dibaca ulang admin untuk dibacakan kepada petugas di ruangan lain.
+
+**Mode Terbuka bukan jalan pintas.** Mode Terbuka (FR-SET-06) melonggarkan kode
+*aktivasi*, bukan kode unit kerja — dua mekanisme yang tujuannya mirip tetapi
+cakupannya terpisah total. Perangkat ad-hoc yang masuk lewat Mode Terbuka tetap
+harus mengetikkan kode untuk membuka Absen Event; yang terbuka baginya tanpa
+kode hanyalah Absen Umum. Membiarkan yang pertama melonggarkan yang kedua
+berarti, selama Mode Terbuka menyala, mesin mana pun yang dapat menjangkau
+alamat server langsung menjadi titik absen sebuah kegiatan.
+
+**Penyelarasan saat cakupan berubah.** Unit yang baru masuk cakupan memperoleh
+kode baru; unit yang keluar kehilangan kodenya. Unit yang **tetap** dalam
+cakupan mempertahankan kode lamanya — panitia sudah membacakannya kepada
+petugas, dan menggantinya diam-diam hanya karena admin menambah unit lain akan
+membuat seluruh perangkat di unit itu gagal bergabung tanpa penjelasan.
+
+**Reset kode.** Berwenang atas kode = berwenang atas eventnya, pagar yang sama
+dengan mengubah dan menutup event: Superadmin dan Admin Dinas untuk event mana
+pun, Admin UPT hanya untuk event yang menyentuh unitnya sendiri dan bukan event
+bercakupan "semua unit" (matriks peran SRS §6). Reset **tidak memutus perangkat
+yang sudah bergabung**: ia menutup pintu bagi yang belum masuk — kode yang
+telanjur beredar ke luar ruangan — bukan mengusir titik absen yang sedang
+melayani antrean pegawai di tengah apel. Untuk memutus perangkat tertentu,
+cabut aksesnya lewat Kelola Perangkat Absen (FR-USR-03).
+
+Kode salah dan event yang sudah ditutup dijawab **pesan yang sama**. Membedakan
+keduanya akan mengubah kolom kode menjadi alat menebak: penebak langsung tahu
+ia sudah menemukan kode yang benar.
+
+### event_kiosk (keanggotaan perangkat)
 
 | **Kolom**            | **Tipe**              | **Keterangan**                            |
 |----------------------|-----------------------|-------------------------------------------|
 | id                   | bigint, PK            |                                           |
 | event_absen_id       | bigint, FK            | cascade on delete                         |
 | kiosk_id             | bigint, FK            | cascade on delete                         |
+| unit_kerja_id        | bigint, FK, nullable  | lewat kode unit mana perangkat bergabung  |
 | ip_address           | varchar(45), nullable | alamat IP terbaru; 45 menampung IPv6      |
 | aktif_pada           | timestamp             | pertama kali kiosk melayani event ini     |
+| bergabung_pada       | timestamp, nullable   | penggabungan terakhir                     |
 | terakhir_aktif_pada  | timestamp             | aktivitas terbaru                         |
 |                      |                       | unik per pasangan event × kiosk           |
 
-**Satu baris per pasangan event × kiosk, bukan satu baris per kunjungan.**
-Yang dibutuhkan layar detail event adalah daftar kiosk terhubung, bukan riwayat
-setiap kali kiosk menyentuh event. Karena itu `aktif_pada` menahan waktu
-pertama, sedangkan `ip_address` dan `terakhir_aktif_pada` bergerak mengikuti
-aktivitas terbaru — kiosk dapat berpindah alamat IP di tengah satu event.
-Kolom `terakhir_aktif_pada` adalah tambahan di luar rancangan awal, diperlukan
-agar admin dapat membedakan kiosk yang masih melayani dari yang sudah lama
-diam.
+**Tabel ini berubah makna pada S29**: dari catatan "perangkat ini pernah
+melayani event" menjadi **daftar keanggotaan** yang menentukan boleh-tidaknya
+sebuah perangkat membuka layar Absen Event. Perangkat yang unitnya tercakup
+namun belum mengetikkan kode tidak ada di sini, dan karenanya tidak melayani
+event tersebut.
 
-**Kapan dicatat.** Kiosk terhitung terhubung sejak **membuka layar kiosk**,
-tidak perlu menunggu tap pertama, dan pencatatannya diperbarui pada setiap tap
-berikutnya. Event yang sudah ditutup tidak pernah dicatat: tidak ada kiosk yang
-sah "terhubung" ke entry yang sudah selesai.
+**Satu baris per pasangan event × kiosk, bukan satu baris per kunjungan.**
+`aktif_pada` menahan waktu pertama, `bergabung_pada` mengikuti penggabungan
+terakhir, sedangkan `ip_address` dan `terakhir_aktif_pada` bergerak mengikuti
+aktivitas terbaru — perangkat dapat berpindah alamat IP di tengah satu event,
+dan yang dicari panitia saat menelusuri absen mencurigakan adalah alamat
+terkininya.
+
+**Keanggotaan lahir satu-satunya dari penukaran kode.**
+`EventAbsenService::catatKioskAktif()` hanya MEMPERBARUI baris yang sudah ada;
+ia tidak pernah menyisipkan. Bila membuka layar saja sudah cukup untuk tercatat
+sebagai anggota, kodenya kehilangan seluruh gunanya. Event yang sudah ditutup
+tidak dicatat sama sekali.
 
 **Detail event (FR-EVT-05).** `GET /admin/kelola-absen/event/{event}/detail`
-menjawab JSON berisi daftar kiosk terhubung (titik, unit, alamat IP, waktu
-aktif terakhir), jumlah absen masuk, dan status entry. Dijawab sebagai JSON
-karena dimuat modal di atas daftar event yang sudah tampil. Hak melihat lebih
-longgar daripada hak mengubah: Admin UPT dapat membuka detail event bercakupan
-semua unit, walau tidak dapat mengubahnya.
+menjawab JSON berisi kode unit kerja beserta jumlah perangkat yang memakainya,
+daftar perangkat terhubung (titik, unit, alamat IP, waktu aktif terakhir),
+jumlah absen masuk, dan status entry. Dijawab sebagai JSON karena dimuat modal
+di atas daftar event yang sudah tampil. Hak melihat lebih longgar daripada hak
+mengubah: Admin UPT dapat membuka detail event bercakupan semua unit, walau
+tidak dapat mengubahnya — dan tombol reset kodenya tidak ditampilkan, mengikuti
+medan `boleh_reset` yang ikut pada payload.
 
 ## 3.8 absensi
 
@@ -604,8 +765,53 @@ dimatikan admin, skor yang telanjur dikirim kiosk tidak ikut disimpan.
 
 Tepat waktu selama tap terjadi pada atau sebelum `jam_mulai + toleransi_menit`
 event; setelahnya terlambat. Hanya berlaku untuk jenis Datang — absen Pulang
-menyimpan `null`. Tap berulang menggeser waktu sekaligus menghitung ulang
-ketepatannya.
+menyimpan `null`. Tap kedua untuk jenis yang sama ditolak, sehingga jam maupun
+ketepatan yang sudah tercatat tidak pernah bergeser (revisi FR-TAP-05, S28a).
+
+### Zona waktu jam kehadiran
+
+**`absensi.waktu` selalu jam setempat (WIB), termasuk untuk `waktu_tap` yang
+dikirim perangkat.** Peramban mengirimkannya sebagai ISO-8601 berakhiran `Z` —
+yaitu UTC — dan Carbon mempertahankan zona itu, sementara Eloquent menyimpan
+jam dinding instance apa adanya. Tanpa `->setTimezone(config('app.timezone'))`
+sesudah `Carbon::parse()`, tap pukul 09.00 WIB tersimpan 02:00.
+
+Ini bug kedua dengan gejala yang sama; yang pertama (S28b) adalah aplikasi yang
+berjalan pada UTC dan diperbaiki lewat `config('app.timezone')`. Yang kedua
+bertahan setelahnya dan tidak tertangkap sama sekali oleh perbaikan itu.
+
+Yang rusak adalah jam yang **tersimpan**, dan ia terbawa ke Daftar e-Presensi,
+Rekap Absen, laporan, serta seluruh ekspor. Penilaian tepat/terlambat justru
+kebetulan selamat — Carbon membandingkan instan, bukan jam dinding — sehingga
+barisnya tampil ganjil alih-alih salah: "01:00" berlabel Terlambat terhadap
+batas 07.45. Justru itu yang membuatnya sukar dilaporkan sebagai bug.
+
+Ada efek kedua yang lebih licik. Penjaga "waktu tap harus berada pada hari
+penyelenggaraan event" memakai `isSameDay()`, yang membandingkan tanggal pada
+zona masing-masing. Tap sebelum pukul 07.00 WIB — yang di UTC masih tanggal
+kemarin — karena itu dianggap di luar hari penyelenggaraan lalu diam-diam
+diganti jam server. Sebagian absen pada satu hari yang sama menjadi benar dan
+sebagian salah, bergantung pukul berapa orangnya datang.
+
+**Cara mengenalinya:** bandingkan `absensi.waktu` terhadap `created_at` pada
+baris yang sama. `created_at` memakai `Carbon::now()` sehingga selalu benar;
+selisih tepat sebesar offset WIB pada `waktu` adalah tanda tangan bug ini.
+`tests/Feature/ZonaWaktuAbsenTest.php` menguncinya.
+
+### Jam berjalan di layar titik absen
+
+Layar titik absen menampilkan jam berjalan yang disetel ke **jam server**,
+bukan jam perangkat. Jam perangkat titik absen kerap meleset — sebagian tidak
+pernah disetel sejak dibeli, sebagian kehilangan setelannya setiap kali listrik
+padam — sementara jam yang tercatat pada absensi selalu jam server. Petugas
+yang membaca jam layar harus melihat angka yang sama dengan yang kelak
+tersimpan.
+
+Yang disimpan layar adalah **selisihnya**, bukan jamnya: dengan begitu jam
+tetap berdetak sendiri antar penarikan alih-alih melompat mengikuti jaringan.
+Selisih itu disetel ulang dari medan `waktu_server` pada setiap penarikan
+Daftar e-Presensi, sehingga perangkat yang menyala berhari-hari tidak perlahan
+menyimpang. `waktu_tap` yang menyertai tap pun dirakit dari jam terkoreksi itu.
 
 ### Pembaruan live Daftar e-Presensi (FR-TAP-08)
 
@@ -638,6 +844,35 @@ indeks unik, dan null untuk event kegiatan yang memang boleh berapa pun
 jumlahnya. `AbsenUmumService::buatSesi()` menangkap pelanggarannya dan
 mengembalikan sesi yang menang, sehingga balapan berakhir sebagai satu sesi
 tanpa galat.
+
+### Unit bawaan Absen Umum adalah simpul OPD (S29)
+
+Pilihan pertama pada layar dan pemantauan Absen Umum bagi peran lintas unit
+adalah **simpul OPD sendiri** (`DISNAKERTRANS`) — bukan salah satu unit level
+teratas. Absen harian berlaku bagi seluruh pegawai dinas, sehingga bawaan yang
+benar adalah sesi yang mencakup semuanya; cakupannya lewat
+`UnitKerja::idsDenganTurunan()` meliputi `DISNAKER`, seluruh UPT, seluruh
+bidang, beserta seksi/subbag di bawahnya.
+
+Sebelum S29, bawaannya jatuh ke unit pertama menurut abjad — "Bidang Hubungan
+Industrial dan Jaminan Sosial" — semata-mata karena itulah baris pertama
+daftar, dan admin yang tidak menyadarinya memantau sesi yang salah sepanjang
+hari.
+
+Simpul OPD memang **bukan** anggota `levelTeratas()`; ia justru induk dari
+seluruh anggotanya (§3.1). Karena itu ia ditambahkan terpisah pada
+`AbsenUmumService::unitTersedia()` dan diizinkan terpisah pada
+`unitTerpilih()` — sebagai pengecualian yang dinyatakan, bukan pintu terbuka:
+seksi/subbag tetap tidak dapat menjadi pemilik sesi harian.
+
+Pengecualian ini hanya berlaku bagi peran lintas unit. Admin UPT tetap terkunci
+pada unitnya sendiri; memantau kehadiran seluruh dinas berada di luar
+cakupannya (FR-REK-02).
+
+**Sesi OPD berdiri sendiri, terpisah dari sesi per-UPT.** Perangkat absen di
+sebuah UPT tetap jatuh ke sesi UPT-nya (`AbsenUmumService::sesiUntukKiosk()`),
+karena itulah satuan tempat kehadiran hariannya direkap. Yang berpindah hanyalah
+bawaan layar admin.
 ### Batas laju dihitung per perangkat, bukan per alamat IP
 
 Endpoint titik absen — identifikasi tap, simpan absen, daftar presensi, dan
@@ -693,8 +928,9 @@ dalam savepoint dan membaca ulang barisnya ketika kunci unik dilanggar.
 ### Dua macam titik absen — satu implementasi
 
 **Absen Umum dan perangkat absen berbasis event bukan dua implementasi.**
-Keduanya menjalankan kode yang sama; yang berbeda hanya pagar autentikasi dan
-prefiks rutenya. Perubahan aturan absensi karena itu cukup dilakukan sekali.
+Keduanya menjalankan kode yang sama; yang berbeda hanya pagar autentikasi,
+prefiks rutenya, dan — sejak S29 — MODE yang menentukan event mana yang
+dilayani. Perubahan aturan absensi karena itu cukup dilakukan sekali.
 
 | Lapisan | Berbagi? | Berkas |
 |---|---|---|
@@ -704,37 +940,76 @@ prefiks rutenya. Perubahan aturan absensi karena itu cukup dilakukan sekali.
 | Kunci unik | ya | `absensi (event_absen_id, pegawai_id, jenis)` |
 | Penentuan event | ya, lewat satu titik | `TitikAbsenService::untuk()` |
 | **Pagar autentikasi** | **tidak** | device token pada `/kiosk/*`, sesi admin pada `/admin/kelola-absen/absen-umum/*` |
-| **Prefiks rute** | **tidak** | dua grup rute yang menunjuk controller yang sama |
+| **Prefiks rute** | **tidak** | tiga grup rute yang menunjuk controller yang sama |
+| **Mode** | **tidak** | `event` atau `umum`, dari default rute |
+
+### Absen Event dan Absen Umum adalah dua halaman (revisi S29)
+
+Sampai S28b, perangkat mendarat di satu layar tap yang isinya berpindah
+sendiri: kegiatan bila ada yang berjalan di unitnya, absen harian bila tidak.
+Dua hal buruk mengikutinya. Petugas tidak pernah tahu pasti tap yang barusan
+masuk ke mana, dan sebuah kegiatan yang berlangsung di gedung lain dapat
+menyerobot layar absen rutin tanpa seorang pun memilihnya.
+
+Sejak S29 keduanya dipilih secara sadar dari beranda perangkat (`GET /kiosk`),
+dengan syarat akses yang berbeda:
+
+| | Absen Event (`/kiosk/event`) | Absen Umum (`/kiosk/umum`) |
+|---|---|---|
+| Syarat akses | perangkat sudah bergabung lewat kode unit kerja | selalu terbuka |
+| Terikat status event? | ya — entry ditutup, layarnya ikut menutup | tidak |
+| Longgar lewat Mode Terbuka? | **tidak** | ya (Mode Terbuka mengatur aktivasi perangkatnya) |
+| Sesi dibuat saat layar dibuka? | tidak berlaku | tidak — sesi lahir pada tap pertama |
+
+Perangkat yang belum bergabung dan membuka `/kiosk/event` **dipulangkan ke
+beranda**, bukan disuguhi layar tap kosong yang tampak rusak di mata petugas.
+
+**Modenya ditentukan default rute, bukan masukan peramban.**
+`Route::defaults('mode', …)` memasangnya saat rute didaftarkan, dan
+`TitikAbsenService::mode()` membacanya kembali. Bila modenya datang dari medan
+kiriman, sebuah perangkat dapat mengaku sedang melayani kegiatan hanya dengan
+menambahkan satu medan pada tapnya. Apa pun selain `event` diperlakukan sebagai
+`umum`, jalur yang paling sedikit haknya.
 
 `TitikAbsenService::untuk()` adalah satu-satunya tempat yang tahu perbedaan
-itu: bila permintaan membawa device token, event ditentukan dari unit tempat
-perangkat dipasang; bila membawa sesi admin, dari unit yang dipilih pada layar.
-Selebihnya seluruh lapisan tidak perlu tahu sedang melayani yang mana.
+itu: perangkat pada mode `event` memperoleh event yang diikutinya lewat
+`event_kiosk`; perangkat pada mode `umum` memperoleh sesi harian unitnya; layar
+admin memperoleh sesi harian unit yang dipilih. Selebihnya seluruh lapisan
+tidak perlu tahu sedang melayani yang mana.
 
 **Konsekuensi yang mudah terlewat.** Karena pagar autentikasinya berbeda, URL
 yang DIBANGUN server untuk dikonsumsi peramban tidak boleh dipatok ke salah
 satu grup rute. Foto absen dan foto referensi pegawai adalah satu-satunya hal
 semacam itu, dan keduanya dirakit lewat `TitikAbsenService::urlFotoAbsen()` /
-`urlFotoPegawai()` — yang sekaligus menyertakan `unit_kerja_id` pada jalur
-admin, karena di sana event baru dapat ditentukan setelah unit kerjanya
-diketahui.
+`urlFotoPegawai()` — yang memilih di antara **tiga** grup rute (`/kiosk/event`,
+`/kiosk/umum`, `/admin`) dan menyertakan `unit_kerja_id` pada jalur admin,
+karena di sana event baru dapat ditentukan setelah unit kerjanya diketahui.
+
+Karena itu pula `AbsensiService::daftarPresensi()` **mewajibkan** perakit URL
+foto sebagai parameter, tanpa nilai bawaan: bawaan yang mematok satu grup rute
+akan menjawab 302 atau 403 pada dua grup lainnya, dan di layar itu tampak
+sebagai ikon gambar rusak — bukan sebagai kegagalan yang terbaca (pelajaran
+S28b).
 
 Bila kelak ada endpoint baru yang merakit URL untuk peramban, ia harus lewat
 kedua method itu juga. Itulah satu-satunya aturan yang perlu diingat saat
-menambah fitur absensi; sisanya otomatis berlaku pada kedua titik absen.
+menambah fitur absensi; sisanya otomatis berlaku pada ketiga titik absen.
 ### Dua macam titik absen
 
-Layar absen dipakai dua konteks dengan pagar autentikasi berbeda: **perangkat
-absen** yang membawa device token, dan **layar absen umum** yang dibuka admin di
+Layar absen dipakai tiga konteks: **perangkat absen** yang membawa device token
+pada mode `event` maupun `umum`, dan **layar absen umum** yang dibuka admin di
 perambannya sendiri — jalan pintas ketika tidak ada perangkat terpasang di
-ruangan. Keduanya memakai satu komponen layar dan satu set controller; yang
-berbeda hanya prefiks endpointnya (`/kiosk/*` versus
+ruangan. Ketiganya memakai satu komponen layar dan satu set controller; yang
+berbeda hanya prefiks endpointnya (`/kiosk/event/*`, `/kiosk/umum/*`, versus
 `/admin/kelola-absen/absen-umum/*`) dan cara event ditentukan.
 
 Penentuan itu dipusatkan pada `TitikAbsenService`:
 
-- **Perangkat** mengikuti unit tempat ia dipasang: kegiatan aktif lebih dahulu,
-  lalu sesi absen umum harian unit tersebut.
+- **Perangkat, mode `event`** melayani kegiatan yang benar-benar diikutinya —
+  yaitu yang tercatat pada `event_kiosk` setelah kode unit kerja ditukarkan.
+  Tercakup saja tidak cukup (§3.7).
+- **Perangkat, mode `umum`** melayani sesi absen harian unit tempat ia
+  dipasang, tanpa memandang ada-tidaknya kegiatan yang berjalan.
 - **Layar admin** mengikuti unit yang dipilih; Admin UPT terkunci pada unitnya
   sendiri, dan pilihannya diabaikan bila ia mencoba unit lain. Absensi dari
   layar ini tercatat dengan `kiosk_id = null` — bukan perangkat terdaftar —
@@ -951,15 +1226,24 @@ yang sama persis tidak menambah catatan.
 
 Ringkasan endpoint inti; daftar lengkap akan dirinci sebagai route Laravel pada tahap implementasi.
 
+`{mode}` pada grup `/kiosk` bukan parameter yang dikirim peramban, melainkan
+**default rute** yang dipasang server saat mendaftarkan rutenya — satu rute per
+mode, dengan bentuk endpoint yang identik. Lihat §3.8, "Absen Event dan Absen
+Umum adalah dua halaman".
+
 | **Method** | **Endpoint**                           | **Keterangan**                                                                  |
 |------------|----------------------------------------|---------------------------------------------------------------------------------|
+| GET        | /                                      | Halaman depan: Absen Umum, Absen Event, dan Masuk Admin. Terbuka tanpa autentikasi (S30) |
 | POST       | /admin/login                           | Login akun admin                                                                |
 | POST       | /kiosk/aktivasi                        | Aktivasi perangkat kiosk, menghasilkan device_token                             |
-| POST       | /kiosk/tap/identifikasi                | Kenali pegawai dari UID kartu RFID atau NIP yang diketik (FR-TAP-03)            |
-| GET        | /kiosk                                 | Layar utama kiosk; membawa event aktif, metode yang menyala, dan daftar presensi |
-| POST       | /kiosk/absen                           | Kirim hasil absen; seluruh syarat diperiksa ulang di server (FR-TAP-05)          |
-| GET        | /kiosk/presensi                        | Daftar e-Presensi terkini beserta keadaan event, ditarik berkala (FR-TAP-08)     |
-| GET        | /kiosk/absen/{absensi}/foto            | Foto absen untuk Daftar e-Presensi, terbatas kiosk pada event yang sama (NFR-04) |
+| GET        | /kiosk                                 | Pengalihan ke halaman depan; alamat lama beranda perangkat (S29 → S30)           |
+| POST       | /kiosk/event/gabung                    | Tukarkan kode unit kerja dengan keanggotaan pada eventnya (FR-EVT-03)            |
+| POST       | /kiosk/event/keluar                    | Lepaskan perangkat dari event yang sedang dilayaninya                            |
+| GET        | /kiosk/{mode}                           | Layar tap; `mode` = `event` atau `umum` (lihat §3.8, "Dua macam titik absen")    |
+| POST       | /kiosk/{mode}/tap/identifikasi          | Kenali pegawai dari UID kartu RFID atau NIP yang diketik (FR-TAP-03)            |
+| POST       | /kiosk/{mode}/absen                     | Kirim hasil absen; seluruh syarat diperiksa ulang di server (FR-TAP-05)          |
+| GET        | /kiosk/{mode}/presensi                  | Daftar e-Presensi terkini beserta keadaan event, ditarik berkala (FR-TAP-08)     |
+| GET        | /kiosk/{mode}/absen/{absensi}/foto      | Foto absen untuk Daftar e-Presensi, terbatas titik absen pada event yang sama (NFR-04) |
 | GET        | /admin/dashboard                       | Kartu statistik dan tren kehadiran, terfilter peran (FR-DASH-01, FR-DASH-02)     |
 | GET        | /admin/dashboard/aktivitas             | Feed aktivitas absen terbaru untuk pembaruan berkala (FR-DASH-03)                |
 | GET        | /admin/kelola-absen/event              | Daftar event (terfilter sesuai peran)                                           |
@@ -968,6 +1252,7 @@ Ringkasan endpoint inti; daftar lengkap akan dirinci sebagai route Laravel pada 
 | PATCH      | /admin/kelola-absen/event/{event}      | Ubah event yang masih aktif                                                     |
 | DELETE     | /admin/kelola-absen/event/{event}      | Hapus permanen event yang belum menautkan absensi                               |
 | POST       | /admin/kelola-absen/event/{event}/tutup| Tutup entry event (FR-EVT-04)                                                   |
+| POST       | /admin/kelola-absen/event/{event}/kode/{kode}/reset | Terbitkan ulang kode unit kerja event (FR-EVT-03)                   |
 | GET        | /admin/kelola-absen/absen-umum         | Pemantauan sesi absen harian tanpa event kegiatan                                |
 | POST       | /admin/kelola-absen/absen-umum/buka    | Buka sesi absen umum hari ini tanpa menunggu tap pertama                         |
 | GET        | /admin/kelola-absen/absen-umum/data    | Rekap sesi berjalan dalam JSON, untuk penyegaran berkala                         |
@@ -1000,7 +1285,7 @@ Ringkasan endpoint inti; daftar lengkap akan dirinci sebagai route Laravel pada 
 | DELETE     | /admin/pegawai/{pegawai}/kartu         | Cabut kartu RFID pegawai                                                        |
 | POST       | /admin/pegawai/sinkron                 | Trigger sinkronisasi manual dari WORKA/BKD                                      |
 | GET        | /admin/pegawai/{pegawai}/wajah         | Sajikan foto referensi lewat route terautentikasi (NFR-04)                      |
-| POST       | /admin/pegawai/{pegawai}/wajah         | Daftarkan/perbarui foto referensi beserta embedding dari browser (FR-PEG-05)    |
+| POST       | /admin/pegawai/{pegawai}/wajah         | Daftarkan/perbarui foto referensi beserta embedding dari browser — unggahan berkas maupun tangkapan kamera (FR-PEG-05) |
 | DELETE     | /admin/pegawai/{pegawai}/wajah         | Cabut pendaftaran wajah; foto dan embedding dihapus                             |
 | GET        | /admin/laporan                         | Laporan kehadiran terfilter tanggal & unit kerja                                |
 

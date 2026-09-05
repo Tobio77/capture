@@ -149,7 +149,7 @@ class PivotJamAbsenTest extends TestCase
         $this->isiKehadiran($event, '07:16:00', '15:04:00');
 
         $absensi = app(AbsensiService::class);
-        $presensi = $absensi->daftarPresensi($event);
+        $presensi = $absensi->daftarPresensi($event, fn (int $id) => "/foto/{$id}");
         $rekap = $absensi->rekap($event);
 
         $this->assertCount(1, $presensi);

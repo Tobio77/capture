@@ -176,25 +176,30 @@ class UjiBebanAbsenTest extends TestCase
     #[Test]
     public function batas_laju_tap_juga_terpisah_antar_perangkat(): void
     {
-        Kiosk::factory()->diaktifkan('token-a')->create(['unit_kerja_id' => $this->unitKerja->id]);
-        Kiosk::factory()->diaktifkan('token-b')->create(['unit_kerja_id' => $this->unitKerja->id]);
+        $a = Kiosk::factory()->diaktifkan('token-a')->create(['unit_kerja_id' => $this->unitKerja->id]);
+        $b = Kiosk::factory()->diaktifkan('token-b')->create(['unit_kerja_id' => $this->unitKerja->id]);
+
+        // Keduanya melayani event yang sama — dua meja registrasi pada satu
+        // kegiatan, keadaan yang justru paling sering memicu batas laju.
+        $this->gabungkanKeEvent($this->event, $a);
+        $this->gabungkanKeEvent($this->event, $b);
 
         foreach (range(1, 120) as $ke) {
             $this->withCookie(KioskService::NAMA_COOKIE, 'token-a')
-                ->post('/kiosk/tap/identifikasi', ['id_card' => $this->pegawai->nip], [
+                ->post('/kiosk/event/tap/identifikasi', ['id_card' => $this->pegawai->nip], [
                     'Accept' => 'application/json',
                 ])
                 ->assertOk();
         }
 
         $this->withCookie(KioskService::NAMA_COOKIE, 'token-a')
-            ->post('/kiosk/tap/identifikasi', ['id_card' => $this->pegawai->nip], [
+            ->post('/kiosk/event/tap/identifikasi', ['id_card' => $this->pegawai->nip], [
                 'Accept' => 'application/json',
             ])
             ->assertStatus(429);
 
         $this->withCookie(KioskService::NAMA_COOKIE, 'token-b')
-            ->post('/kiosk/tap/identifikasi', ['id_card' => $this->pegawai->nip], [
+            ->post('/kiosk/event/tap/identifikasi', ['id_card' => $this->pegawai->nip], [
                 'Accept' => 'application/json',
             ])
             ->assertOk();
@@ -203,6 +208,6 @@ class UjiBebanAbsenTest extends TestCase
     protected function tarikPresensi(string $token): TestResponse
     {
         return $this->withCookie(KioskService::NAMA_COOKIE, $token)
-            ->get('/kiosk/presensi', ['Accept' => 'application/json']);
+            ->get('/kiosk/event/presensi', ['Accept' => 'application/json']);
     }
 }

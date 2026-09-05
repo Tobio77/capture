@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { router } from '@inertiajs/vue3'
 import Modal from '@/Components/Modal.vue'
 import { useFaceApi } from '@/Composables/useFaceApi'
@@ -26,6 +26,19 @@ const galat = ref(null)
 const memeriksa = ref(false)
 const mengirim = ref(false)
 
+/*
+ * Dua cara memasukkan foto, dan keduanya bermuara pada berkas yang sama.
+ *
+ * Mengunggah berkas cocok ketika fotonya sudah ada — hasil pemotretan massal,
+ * atau foto pegawai dari arsip kepegawaian. Mengambil langsung dari kamera
+ * cocok ketika pegawainya berdiri di depan meja admin, dan itulah keadaan yang
+ * paling sering terjadi saat unit kerja mengejar kelengkapan pendaftaran.
+ */
+const cara = ref('unggah')
+const video = ref(null)
+const kamera = ref(null)
+const kameraGagal = ref(null)
+
 const terbuka = computed(() => props.pegawai !== null)
 const sudahTerdaftar = computed(() => props.pegawai?.wajah_terdaftar === true)
 
@@ -36,9 +49,23 @@ const statusPeriksa = computed(() => {
 })
 
 watch(terbuka, (nilai) => {
-  if (!nilai) return
+  if (!nilai) {
+    matikanKamera()
+
+    return
+  }
+
+  cara.value = 'unggah'
   bersihkan()
 })
+
+watch(cara, (nilai) => {
+  bersihkan()
+
+  nilai === 'kamera' ? nyalakanKamera() : matikanKamera()
+})
+
+onBeforeUnmount(matikanKamera)
 
 function bersihkan() {
   if (pratinjau.value) URL.revokeObjectURL(pratinjau.value)
@@ -50,12 +77,80 @@ function bersihkan() {
 
 function tutup() {
   bersihkan()
+  matikanKamera()
   emit('tutup')
 }
 
-async function pilihBerkas(event) {
-  const dipilih = event.target.files?.[0] ?? null
+async function nyalakanKamera() {
+  kameraGagal.value = null
 
+  try {
+    kamera.value = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+      audio: false,
+    })
+
+    if (video.value) {
+      video.value.srcObject = kamera.value
+    }
+  } catch {
+    kameraGagal.value =
+      'Kamera tidak dapat diakses. Periksa izin kamera pada peramban, atau unggah berkas foto.'
+  }
+}
+
+function matikanKamera() {
+  kamera.value?.getTracks().forEach((jalur) => jalur.stop())
+  kamera.value = null
+}
+
+/**
+ * Ambil satu bingkai dari kamera sebagai berkas JPEG.
+ *
+ * Tidak dicerminkan, sama seperti pratinjau titik absen: foto referensi adalah
+ * dokumen, dan sisi tubuh pada foto harus sama dengan kenyataan supaya
+ * pencocokan kelak membandingkan hal yang sama.
+ */
+async function ambilDariKamera() {
+  const elemen = video.value
+
+  if (!elemen || !elemen.videoWidth) {
+    galat.value = 'Kamera belum siap. Tunggu sejenak lalu coba lagi.'
+
+    return
+  }
+
+  const kanvas = document.createElement('canvas')
+
+  kanvas.width = elemen.videoWidth
+  kanvas.height = elemen.videoHeight
+  kanvas.getContext('2d').drawImage(elemen, 0, 0)
+
+  const gumpalan = await new Promise((selesai) => kanvas.toBlob(selesai, 'image/jpeg', 0.92))
+
+  if (!gumpalan) {
+    galat.value = 'Foto gagal diambil dari kamera. Coba sekali lagi.'
+
+    return
+  }
+
+  await terimaBerkas(
+    new File([gumpalan], `${props.pegawai.nip}.jpg`, { type: 'image/jpeg' }),
+  )
+}
+
+async function pilihBerkas(event) {
+  await terimaBerkas(event.target.files?.[0] ?? null)
+}
+
+/**
+ * Satu-satunya jalan masuk foto, dari mana pun asalnya.
+ *
+ * Pemeriksaan kualitasnya — tepat satu wajah terdeteksi — karena itu tidak
+ * dapat dilewati oleh salah satu cara, dan foto yang sama tidak akan diterima
+ * lewat kamera bila ditolak lewat unggahan.
+ */
+async function terimaBerkas(dipilih) {
   if (pratinjau.value) URL.revokeObjectURL(pratinjau.value)
 
   berkas.value = dipilih
@@ -159,16 +254,58 @@ function cabut() {
             alt="Pratinjau foto referensi"
             class="aspect-square w-full rounded-lg border border-garis object-cover"
           />
+
+          <!--
+            Pratinjau kamera menempati bingkai yang sama dengan pratinjau foto,
+            sehingga admin melihat persis bidang yang akan tersimpan.
+            Dipasang v-show, bukan v-if: elemennya harus tetap terpasang agar
+            aliran kameranya tidak putus setiap kali foto diambil dan diulang.
+          -->
+          <video
+            v-show="!pratinjau && cara === 'kamera' && !kameraGagal"
+            ref="video"
+            autoplay
+            playsinline
+            muted
+            class="aspect-square w-full rounded-lg border border-garis bg-navy-900 object-cover"
+          ></video>
+
           <div
-            v-else
-            class="flex aspect-square w-full items-center justify-center rounded-lg border border-dashed border-garis text-center text-xs text-redup"
+            v-if="!pratinjau && (cara !== 'kamera' || kameraGagal)"
+            class="flex aspect-square w-full items-center justify-center rounded-lg border border-dashed border-garis px-4 text-center text-xs text-redup"
           >
-            Belum ada foto dipilih
+            {{ kameraGagal ?? 'Belum ada foto dipilih' }}
           </div>
         </div>
       </div>
 
-      <div>
+      <!--
+        Dua cara memasukkan foto. Unggah berkas untuk foto yang sudah ada;
+        kamera untuk pegawai yang sedang berdiri di depan meja admin — keadaan
+        yang paling sering terjadi saat unit kerja mengejar kelengkapan
+        pendaftaran wajah.
+      -->
+      <div class="flex gap-1 rounded-lg bg-permukaan-2 p-1">
+        <button
+          v-for="pilihan in [
+            { nilai: 'unggah', label: 'Unggah berkas' },
+            { nilai: 'kamera', label: 'Ambil dari kamera' },
+          ]"
+          :key="pilihan.nilai"
+          type="button"
+          class="flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-150"
+          :class="
+            cara === pilihan.nilai
+              ? 'bg-permukaan text-utama bayang'
+              : 'text-sekunder hover:text-utama'
+          "
+          @click="cara = pilihan.nilai"
+        >
+          {{ pilihan.label }}
+        </button>
+      </div>
+
+      <div v-if="cara === 'unggah'">
         <label class="mb-1.5 block text-sm font-medium text-utama" for="berkas-wajah">Pilih foto</label>
         <input
           id="berkas-wajah"
@@ -179,6 +316,21 @@ function cabut() {
         />
         <p class="mt-1.5 text-xs text-redup">
           Foto tampak depan, satu orang, pencahayaan cukup. JPG atau PNG, maksimal 5 MB.
+        </p>
+      </div>
+
+      <div v-else>
+        <button
+          type="button"
+          :disabled="kamera === null || memeriksa"
+          class="w-full rounded-lg bg-navy-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors duration-150 hover:bg-navy-800 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.99]"
+          @click="pratinjau ? bersihkan() : ambilDariKamera()"
+        >
+          {{ pratinjau ? 'Ambil Ulang' : 'Ambil Foto' }}
+        </button>
+        <p class="mt-1.5 text-xs text-redup">
+          Pegawai menghadap kamera, satu orang dalam bingkai, pencahayaan cukup. Foto tidak
+          dicerminkan.
         </p>
       </div>
 

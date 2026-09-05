@@ -28,7 +28,7 @@ class AutentikasiKioskTest extends TestCase
         $kiosk = $this->kioskAktif();
 
         $this->denganToken()
-            ->get('/kiosk')
+            ->get('/kiosk/umum')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Kiosk/Utama')
@@ -40,7 +40,7 @@ class AutentikasiKioskTest extends TestCase
     #[Test]
     public function perangkat_tanpa_token_diarahkan_ke_layar_aktivasi(): void
     {
-        $this->get('/kiosk')
+        $this->get('/kiosk/umum')
             ->assertRedirect('/kiosk/aktivasi')
             ->assertSessionHas('gagal');
     }
@@ -51,7 +51,7 @@ class AutentikasiKioskTest extends TestCase
         $this->kioskAktif();
 
         $this->withCookie(KioskService::NAMA_COOKIE, 'token-palsu')
-            ->get('/kiosk')
+            ->get('/kiosk/umum')
             ->assertRedirect('/kiosk/aktivasi');
     }
 
@@ -60,11 +60,11 @@ class AutentikasiKioskTest extends TestCase
     {
         $kiosk = $this->kioskAktif();
 
-        $this->denganToken()->get('/kiosk')->assertOk();
+        $this->denganToken()->get('/kiosk/umum')->assertOk();
 
         $kiosk->update(['aktif' => false]);
 
-        $this->denganToken()->get('/kiosk')->assertRedirect('/kiosk/aktivasi');
+        $this->denganToken()->get('/kiosk/umum')->assertRedirect('/kiosk/aktivasi');
     }
 
     #[Test]
@@ -74,7 +74,7 @@ class AutentikasiKioskTest extends TestCase
 
         $this->denganToken()
             ->get('/kiosk/aktivasi')
-            ->assertRedirect('/kiosk');
+            ->assertRedirect('/');
     }
 
     #[Test]
@@ -90,7 +90,7 @@ class AutentikasiKioskTest extends TestCase
         $this->assertSame(1, LogAktivitas::aksi(AksiLog::LepasKiosk)->count());
 
         // Token lama tidak bisa dipakai lagi.
-        $this->denganToken()->get('/kiosk')->assertRedirect('/kiosk/aktivasi');
+        $this->denganToken()->get('/kiosk/umum')->assertRedirect('/kiosk/aktivasi');
     }
 
     #[Test]
@@ -99,7 +99,7 @@ class AutentikasiKioskTest extends TestCase
         $kiosk = $this->kioskAktif();
         $kiosk->forceFill(['ip_terakhir' => '10.10.10.10'])->save();
 
-        $this->denganToken()->get('/kiosk')->assertOk();
+        $this->denganToken()->get('/kiosk/umum')->assertOk();
 
         $this->assertSame('127.0.0.1', $kiosk->refresh()->ip_terakhir);
     }

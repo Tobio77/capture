@@ -35,7 +35,7 @@ class AktivasiKioskTest extends TestCase
 
         $respons = $this->post('/kiosk/aktivasi', ['kode_aktivasi' => 'ABCD2345']);
 
-        $respons->assertRedirect('/kiosk');
+        $respons->assertRedirect('/');
         $respons->assertCookie(KioskService::NAMA_COOKIE);
 
         $kiosk->refresh();
@@ -67,7 +67,7 @@ class AktivasiKioskTest extends TestCase
     {
         $this->kioskMenungguAktivasi();
 
-        $this->post('/kiosk/aktivasi', ['kode_aktivasi' => 'ABCD2345'])->assertRedirect('/kiosk');
+        $this->post('/kiosk/aktivasi', ['kode_aktivasi' => 'ABCD2345'])->assertRedirect('/');
 
         $this->post('/kiosk/aktivasi', ['kode_aktivasi' => 'ABCD2345'])
             ->assertSessionHasErrors('kode_aktivasi');
@@ -103,7 +103,7 @@ class AktivasiKioskTest extends TestCase
         $this->kioskMenungguAktivasi();
 
         $this->post('/kiosk/aktivasi', ['kode_aktivasi' => 'abcd-2345'])
-            ->assertRedirect('/kiosk');
+            ->assertRedirect('/');
 
         $this->assertNotNull(Kiosk::sole()->device_token);
     }

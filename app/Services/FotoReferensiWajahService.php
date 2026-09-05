@@ -72,6 +72,78 @@ class FotoReferensiWajahService
     }
 
     /**
+     * Jadikan foto sebuah absen sebagai foto referensi pegawai yang belum
+     * memilikinya (FR-PEG-05, revisi S29).
+     *
+     * Pendaftaran wajah massal tidak pernah selesai serentak: selalu ada
+     * pegawai yang belum sempat difoto admin, dan selama verifikasi wajah
+     * dimatikan mereka tetap mengabsen dengan kamera menyala. Foto itu sudah
+     * ada, sudah berukuran akhir, dan sudah menampilkan orang yang benar —
+     * membiarkannya menganggur berarti pendaftaran wajah harus diulang dari
+     * nol pada hari verifikasi dinyalakan.
+     *
+     * Yang dipromosikan HANYA foto yang lolos pemeriksaan kualitas yang sama
+     * dengan alur pendaftaran S08: tepat satu wajah terdeteksi. Peramban yang
+     * melakukan pemeriksaannya — server tidak pernah memproses wajah (SDD §3)
+     * — dan bukti lolosnya adalah deskriptor 128 dimensi yang menyertainya:
+     * {@see useFaceApi.hitungEmbedding} hanya mengembalikannya ketika tepat
+     * satu wajah ditemukan. Tingkat kepercayaannya karena itu sama persis
+     * dengan pendaftaran manual admin.
+     *
+     * Mempromosikan foto sembarangan akan merusak pencocokan begitu verifikasi
+     * dinyalakan kembali, dan kerusakannya baru ketahuan pada hari itu juga —
+     * karena itu setiap syarat di bawah ini gagal dengan diam, tanpa
+     * menggagalkan absennya.
+     *
+     * @param  mixed  $embedding  deskriptor dari peramban, belum divalidasi
+     * @return bool apakah foto benar-benar dipromosikan
+     */
+    public function promosikanDariAbsen(Pegawai $pegawai, ?string $fotoAbsenPath, $embedding): bool
+    {
+        if ($pegawai->wajah_terdaftar || $fotoAbsenPath === null) {
+            return false;
+        }
+
+        if (! self::embeddingSah($embedding)) {
+            return false;
+        }
+
+        $sumber = Storage::disk(AbsensiService::DISK);
+        $tujuan = Storage::disk(self::DISK);
+
+        if (! $sumber->exists($fotoAbsenPath)) {
+            return false;
+        }
+
+        $path = self::DIREKTORI."/{$pegawai->nip}-".Carbon::now()->format('YmdHis').'.jpg';
+
+        // Disalin, bukan dipindahkan: foto absen adalah bukti kehadiran dan
+        // tetap harus dapat dibuka dari Rekap Absen.
+        $tujuan->put($path, $sumber->get($fotoAbsenPath));
+
+        $pegawai->update([
+            'foto_referensi_path' => $path,
+            'embedding_wajah' => array_map(fn ($nilai) => (float) $nilai, $embedding),
+            'wajah_terdaftar' => true,
+            'wajah_didaftarkan_at' => Carbon::now(),
+        ]);
+
+        /*
+         * Dicatat tanpa pelaku: tidak ada admin yang menekan tombol. Justru
+         * karena itu jejaknya penting — admin harus dapat menemukan pegawai
+         * mana saja yang foto referensinya lahir dari absen, bukan dari sesi
+         * pendaftaran.
+         */
+        $this->log->catat(
+            AksiLog::Ubah,
+            "Foto referensi wajah {$pegawai->nip} — {$pegawai->nama} didaftarkan otomatis dari foto absen.",
+            subjek: $pegawai,
+        );
+
+        return true;
+    }
+
+    /**
      * Cabut pendaftaran wajah: berkas dan embedding dihapus, baris pegawai
      * tetap ada karena datanya milik WORKA.
      */

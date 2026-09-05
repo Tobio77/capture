@@ -107,10 +107,17 @@ class FotoDanSesiAbsenUmumTest extends TestCase
     #[Test]
     public function foto_pada_perangkat_absen_tetap_memakai_rute_kiosk(): void
     {
+        /*
+         * Perangkat ini melayani absen harian, bukan kegiatan, sehingga URL
+         * fotonya harus jatuh ke grup rute mode umum. Sejak layar dipisah
+         * (revisi S29) ada TIGA grup yang mungkin — /kiosk/event, /kiosk/umum,
+         * dan /admin — dan memilih yang keliru menghasilkan gejala yang sama
+         * dengan bug S28b: ikon gambar rusak, bukan kegagalan yang terbaca.
+         */
         Kiosk::factory()->diaktifkan('token-uji')->create(['unit_kerja_id' => $this->upt->id]);
 
         $jawaban = $this->withCookie(KioskService::NAMA_COOKIE, 'token-uji')
-            ->post('/kiosk/absen', [
+            ->post('/kiosk/umum/absen', [
                 'id_card' => '199001012020011001',
                 'jenis' => 'datang',
                 'metode' => 'manual',
@@ -120,7 +127,7 @@ class FotoDanSesiAbsenUmumTest extends TestCase
 
         $url = $jawaban->json('data.daftar_presensi.0.foto_url');
 
-        $this->assertStringContainsString('/kiosk/absen/', $url);
+        $this->assertStringContainsString('/kiosk/umum/absen/', $url);
 
         $this->withCookie(KioskService::NAMA_COOKIE, 'token-uji')
             ->get($this->jalur($url))

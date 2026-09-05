@@ -32,6 +32,14 @@ class SimpanAbsenRequest extends FormRequest
             // dari antrian luring (NFR-05).
             'waktu_tap' => ['nullable', 'date'],
             'foto' => ['nullable', 'string'],
+
+            /*
+             * Deskriptor wajah hasil capture, dikirim HANYA untuk pegawai yang
+             * belum punya foto referensi (FR-PEG-05, revisi S29). Bentuknya
+             * diperiksa di controller bersama syarat-syarat lain sebelum foto
+             * dipromosikan; di sini cukup dipastikan ia sebuah array.
+             */
+            'embedding' => ['nullable', 'array'],
         ];
     }
 

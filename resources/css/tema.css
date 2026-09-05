@@ -13,9 +13,19 @@
  *   Sistem  — tanpa atribut; mengikuti `prefers-color-scheme`
  *
  * Warna latar sengaja bukan putih polos melainkan tint pucat dari palet
- * proyek: kertas bernuansa navy, permukaan kartu bernuansa teal/navy yang
- * nyaris tak terlihat. Kejenuhan penuh disimpan untuk elemen interaktif —
- * tombol, lencana status, tautan — supaya mata langsung menemukannya.
+ * proyek: kertas bernuansa teal-navy, kartu putih bersih yang mengambang di
+ * atasnya. Kejenuhan penuh disimpan untuk elemen interaktif — tombol, lencana
+ * status, tautan — supaya mata langsung menemukannya.
+ *
+ * ARAH PASTEL (S30). Identitas warnanya tidak berubah — navy struktural, teal
+ * aksi, emerald berhasil, amber peringatan, dan tidak pernah ungu/indigo —
+ * yang bergeser adalah kejenuhan dan terangnya: seluruh tint "lembut"
+ * dinaikkan terangnya dan diturunkan kejenuhannya, bayangan dibuat lebih
+ * menyebar dan lebih tipis, dan sudut membulat lebih besar. Yang menghasilkan
+ * kesan pastel bukan warnanya sendirian, melainkan tiga hal itu bersamaan.
+ *
+ * Karena seluruh halaman — termasuk Panel Admin — hanya menyebut token peran,
+ * pergeseran ini berlaku di mana-mana tanpa menyentuh satu pun berkas Vue.
  */
 
 @theme {
@@ -23,6 +33,22 @@
     --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
     --font-display: 'Lexend', ui-sans-serif, system-ui, sans-serif;
+
+    /* --------------------------------------------------------------- sudut */
+    /*
+     * Sudut membulat dinaikkan satu tingkat dari bawaan Tailwind (S30).
+     * Ditulis di sini, bukan dengan mengganti kelas di ratusan tempat: seluruh
+     * `rounded-lg`, `rounded-xl`, dan `rounded-md` yang sudah tersebar di
+     * halaman kiosk maupun Panel Admin ikut melunak sekaligus.
+     *
+     * Sudut kecil terbaca sebagai "formulir kantor", sudut besar sebagai
+     * "kartu" — dan itulah separuh dari kesan pastel yang dicari, sebelum
+     * warnanya sendiri ikut bicara.
+     */
+    --radius-md: 0.625rem;
+    --radius-lg: 0.875rem;
+    --radius-xl: 1.125rem;
+    --radius-2xl: 1.375rem;
 
     /* --------------------------------------------------------------- palet */
     /* Navy — elemen struktural (sidebar, header) */
@@ -117,32 +143,32 @@
 :root {
     color-scheme: light;
 
-    --tema-kertas: #eef4f9;
-    --tema-permukaan: #fbfdfe;
-    --tema-permukaan-2: #e6eff6;
-    --tema-permukaan-hover: #dfebf4;
+    --tema-kertas: #f1f7fa;
+    --tema-permukaan: #ffffff;
+    --tema-permukaan-2: #eff5f9;
+    --tema-permukaan-hover: #e7f0f6;
 
-    --tema-garis: #d5e3ee;
-    --tema-garis-kuat: #b5cadb;
+    --tema-garis: #e0ebf2;
+    --tema-garis-kuat: #c3d7e4;
 
-    --tema-utama: #0f2a43;
-    --tema-sekunder: #3f5a72;
-    --tema-redup: #6f8698;
+    --tema-utama: #102c46;
+    --tema-sekunder: #48627a;
+    --tema-redup: #7b93a6;
 
     --tema-aksen: #0d9488;
     --tema-aksen-kuat: #0f766e;
-    --tema-aksen-lembut: #d8f1ed;
+    --tema-aksen-lembut: #ddf5f0;
     --tema-aksen-teks: #0f766e;
 
     --tema-berhasil: #059669;
-    --tema-berhasil-lembut: #d5f0e3;
+    --tema-berhasil-lembut: #ddf5e8;
     --tema-berhasil-teks: #047857;
 
     --tema-peringatan: #b45309;
-    --tema-peringatan-lembut: #fbeed6;
+    --tema-peringatan-lembut: #fdf1de;
     --tema-peringatan-teks: #92400e;
 
-    --tema-info-lembut: #dde9f4;
+    --tema-info-lembut: #e5eff8;
     --tema-info-teks: #24507b;
 
     --tema-sidebar: #0f2a43;
@@ -151,8 +177,13 @@
     --tema-sidebar-redup: #a3c1d8;
     --tema-sidebar-garis: rgb(255 255 255 / 0.1);
 
-    --tema-bayang: 0 1px 2px rgb(15 42 67 / 0.05), 0 1px 3px rgb(15 42 67 / 0.07);
-    --tema-bayang-naik: 0 4px 14px rgb(15 42 67 / 0.1), 0 2px 4px rgb(15 42 67 / 0.06);
+    /*
+     * Bayangan pastel: lebih lebar, lebih tipis, nyaris tanpa garis gelap di
+     * tepi. Bayangan pekat membuat kartu tampak "ditempel" di atas halaman;
+     * yang dicari di sini adalah kartu yang seolah mengapung sedikit saja.
+     */
+    --tema-bayang: 0 1px 2px rgb(16 44 70 / 0.04), 0 2px 8px rgb(16 44 70 / 0.05);
+    --tema-bayang-naik: 0 8px 24px rgb(16 44 70 / 0.08), 0 2px 6px rgb(16 44 70 / 0.04);
 }
 
 /* ==========================================================================
@@ -175,42 +206,43 @@
     :root:not([data-tema='terang']) {
         color-scheme: dark;
 
-        --tema-kertas: #071726;
-        --tema-permukaan: #0e2438;
-        --tema-permukaan-2: #14304a;
-        --tema-permukaan-hover: #1a3a58;
+        --tema-kertas: #08192a;
+        --tema-permukaan: #10273c;
+        --tema-permukaan-2: #17324c;
+        --tema-permukaan-hover: #1e3d5b;
 
-        --tema-garis: #1d4160;
-        --tema-garis-kuat: #2b587c;
+        --tema-garis: #21455f;
+        --tema-garis-kuat: #2f5c80;
 
-        --tema-utama: #eaf2f8;
-        --tema-sekunder: #b3c9db;
-        --tema-redup: #7f9bb2;
+        --tema-utama: #e9f2f8;
+        --tema-sekunder: #b6cbdc;
+        --tema-redup: #849fb6;
 
         --tema-aksen: #14b8a6;
         --tema-aksen-kuat: #2dd4bf;
-        --tema-aksen-lembut: rgb(45 212 191 / 0.14);
+        --tema-aksen-lembut: rgb(45 212 191 / 0.16);
         --tema-aksen-teks: #5eead4;
 
         --tema-berhasil: #10b981;
-        --tema-berhasil-lembut: rgb(52 211 153 / 0.14);
+        --tema-berhasil-lembut: rgb(52 211 153 / 0.16);
         --tema-berhasil-teks: #6ee7b7;
 
         --tema-peringatan: #f59e0b;
-        --tema-peringatan-lembut: rgb(251 191 36 / 0.14);
+        --tema-peringatan-lembut: rgb(251 191 36 / 0.16);
         --tema-peringatan-teks: #fcd34d;
 
-        --tema-info-lembut: rgb(109 153 189 / 0.16);
+        --tema-info-lembut: rgb(109 153 189 / 0.18);
         --tema-info-teks: #a3c1d8;
 
-        --tema-sidebar: #0b2035;
-        --tema-sidebar-2: #071726;
+        --tema-sidebar: #0c2236;
+        --tema-sidebar-2: #08192a;
         --tema-sidebar-teks: #e6eff6;
         --tema-sidebar-redup: #8dabc4;
         --tema-sidebar-garis: rgb(255 255 255 / 0.08);
 
-        --tema-bayang: 0 1px 2px rgb(0 0 0 / 0.4), 0 1px 3px rgb(0 0 0 / 0.3);
-        --tema-bayang-naik: 0 4px 14px rgb(0 0 0 / 0.45), 0 2px 4px rgb(0 0 0 / 0.35);
+        /* Selaras dengan mode terang: lebih lebar, lebih tipis. */
+        --tema-bayang: 0 1px 2px rgb(0 0 0 / 0.35), 0 2px 10px rgb(0 0 0 / 0.3);
+        --tema-bayang-naik: 0 10px 28px rgb(0 0 0 / 0.42), 0 2px 8px rgb(0 0 0 / 0.3);
     }
 }
 
@@ -218,42 +250,43 @@
 :root[data-tema='gelap'] {
     color-scheme: dark;
 
-    --tema-kertas: #071726;
-    --tema-permukaan: #0e2438;
-    --tema-permukaan-2: #14304a;
-    --tema-permukaan-hover: #1a3a58;
+    --tema-kertas: #08192a;
+    --tema-permukaan: #10273c;
+    --tema-permukaan-2: #17324c;
+    --tema-permukaan-hover: #1e3d5b;
 
-    --tema-garis: #1d4160;
-    --tema-garis-kuat: #2b587c;
+    --tema-garis: #21455f;
+    --tema-garis-kuat: #2f5c80;
 
-    --tema-utama: #eaf2f8;
-    --tema-sekunder: #b3c9db;
-    --tema-redup: #7f9bb2;
+    --tema-utama: #e9f2f8;
+    --tema-sekunder: #b6cbdc;
+    --tema-redup: #849fb6;
 
     --tema-aksen: #14b8a6;
     --tema-aksen-kuat: #2dd4bf;
-    --tema-aksen-lembut: rgb(45 212 191 / 0.14);
+    --tema-aksen-lembut: rgb(45 212 191 / 0.16);
     --tema-aksen-teks: #5eead4;
 
     --tema-berhasil: #10b981;
-    --tema-berhasil-lembut: rgb(52 211 153 / 0.14);
+    --tema-berhasil-lembut: rgb(52 211 153 / 0.16);
     --tema-berhasil-teks: #6ee7b7;
 
     --tema-peringatan: #f59e0b;
-    --tema-peringatan-lembut: rgb(251 191 36 / 0.14);
+    --tema-peringatan-lembut: rgb(251 191 36 / 0.16);
     --tema-peringatan-teks: #fcd34d;
 
-    --tema-info-lembut: rgb(109 153 189 / 0.16);
+    --tema-info-lembut: rgb(109 153 189 / 0.18);
     --tema-info-teks: #a3c1d8;
 
-    --tema-sidebar: #0b2035;
-    --tema-sidebar-2: #071726;
+    --tema-sidebar: #0c2236;
+    --tema-sidebar-2: #08192a;
     --tema-sidebar-teks: #e6eff6;
     --tema-sidebar-redup: #8dabc4;
     --tema-sidebar-garis: rgb(255 255 255 / 0.08);
 
-    --tema-bayang: 0 1px 2px rgb(0 0 0 / 0.4), 0 1px 3px rgb(0 0 0 / 0.3);
-    --tema-bayang-naik: 0 4px 14px rgb(0 0 0 / 0.45), 0 2px 4px rgb(0 0 0 / 0.35);
+    /* Selaras dengan mode terang: lebih lebar, lebih tipis. */
+    --tema-bayang: 0 1px 2px rgb(0 0 0 / 0.35), 0 2px 10px rgb(0 0 0 / 0.3);
+    --tema-bayang-naik: 0 10px 28px rgb(0 0 0 / 0.42), 0 2px 8px rgb(0 0 0 / 0.3);
 }
 
 /* --------------------------------------------------------------- bayangan */
@@ -263,6 +296,59 @@
 
 .bayang-naik {
     box-shadow: var(--tema-bayang-naik);
+}
+
+/* ==========================================================================
+ * Gerak halus pada kartu yang dapat diklik.
+ *
+ * Hanya untuk kartu yang MEMANG sebuah aksi — pilihan pada halaman depan,
+ * pintasan pada dashboard. Kartu yang sekadar menampilkan angka tidak boleh
+ * ikut terangkat: gerak yang tidak menjanjikan apa-apa hanya membuat halaman
+ * gelisah.
+ *
+ * `prefers-reduced-motion` sudah menetralkan transisinya secara global di
+ * bagian Gerak di bawah.
+ * ======================================================================== */
+.kartu-naik {
+    transition:
+        transform 200ms cubic-bezier(0.2, 0, 0.2, 1),
+        box-shadow 200ms cubic-bezier(0.2, 0, 0.2, 1),
+        border-color 200ms ease;
+}
+
+.kartu-naik:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--tema-bayang-naik);
+}
+
+.kartu-naik:active {
+    transform: translateY(0);
+}
+
+/* ==========================================================================
+ * Latar struktural.
+ *
+ * Navy tetap warna sidebar dan header titik absen (palet proyek), tetapi
+ * sebagai bidang rata ia terasa berat di samping halaman pastel. Gradien
+ * sangat tipis antara dua nuansa navy yang sudah ada membuatnya bernapas
+ * tanpa menambah warna baru.
+ * ======================================================================== */
+.lapis-sidebar {
+    background-image: linear-gradient(160deg, var(--tema-sidebar) 0%, var(--tema-sidebar-2) 100%);
+}
+
+/* ==========================================================================
+ * Bidang pastel dekoratif.
+ *
+ * Dipakai halaman depan dan layar kosong: dua bulatan tint yang sangat pucat
+ * di belakang isi, memberi kedalaman tanpa gambar dan tanpa permintaan
+ * jaringan tambahan.
+ * ======================================================================== */
+.latar-pastel {
+    background-image:
+        radial-gradient(38rem 26rem at 12% -8%, var(--tema-aksen-lembut), transparent 62%),
+        radial-gradient(34rem 24rem at 96% 4%, var(--tema-info-lembut), transparent 60%);
+    background-repeat: no-repeat;
 }
 
 /* Judul & angka memakai Lexend */

@@ -99,7 +99,7 @@ class ModeTerbukaTest extends TestCase
         $this->nyalakanModeTerbuka();
 
         $this->post('/kiosk/aktivasi/terbuka', ['unit_kerja_id' => $this->unitKerja->id])
-            ->assertRedirect('/kiosk')
+            ->assertRedirect('/')
             ->assertCookie(KioskService::NAMA_COOKIE);
 
         $perangkat = Kiosk::sole();

@@ -4,6 +4,7 @@ import PanelEntry from '@/Components/Kiosk/PanelEntry.vue'
 import PanelPresensi from '@/Components/Kiosk/PanelPresensi.vue'
 import { useVerifikasiWajah } from '@/Composables/useVerifikasiWajah'
 import { useAntrianAbsen } from '@/Composables/useAntrianAbsen'
+import { useFaceApi } from '@/Composables/useFaceApi'
 
 /**
  * Layar Utama Kiosk (UIUX §4.2) — header status event dan dua panel yang
@@ -33,6 +34,20 @@ const props = defineProps({
   ambang_kecocokan_wajah: { type: Number, required: true },
   kompresi: { type: Object, required: true },
   daftar_presensi: { type: Array, required: true },
+
+  /*
+   * Jam server saat halaman dirakit, ISO-8601 lengkap dengan offset. Layar
+   * memakainya untuk menyetel jam berjalannya sendiri; lihat `selisihJam`.
+   */
+  waktu_server: { type: String, default: null },
+
+  /*
+   * FR-PEG-05 (revisi S29): foto capture pegawai yang belum punya foto
+   * referensi dipromosikan menjadi foto referensinya. Hanya berlaku selagi
+   * verifikasi wajah dimatikan — server yang menentukannya, layar hanya
+   * mengikuti.
+   */
+  daftar_wajah_otomatis: { type: Boolean, default: false },
 })
 
 const jenis = ref('datang')
@@ -48,6 +63,7 @@ const entryDibuka = computed(() => eventAktif.value !== null)
 const tahap = ref(entryDibuka.value ? 'menunggu_tap' : 'menunggu_event')
 
 const { siapkanModel, verifikasi } = useVerifikasiWajah()
+const { hitungEmbedding } = useFaceApi()
 const { antrian, antrikan, kirimUlang } = useAntrianAbsen()
 
 let jedaPulih = null
@@ -61,14 +77,75 @@ const JEDA_TARIK_MS = 10000
 
 let jedaTarik = null
 
+/*
+ * Jam berjalan di layar, disetel ke jam SERVER.
+ *
+ * Jam perangkat titik absen kerap meleset — sebagian tidak pernah disetel
+ * sejak dibeli, sebagian lagi kehilangan setelannya setiap kali listrik padam
+ * — sementara jam yang tercatat pada absensi selalu jam server. Menampilkan
+ * jam perangkat apa adanya membuat petugas membaca angka yang berbeda dari
+ * yang tersimpan, dan pertengkaran soal "saya absen jam berapa" tidak pernah
+ * ada ujungnya.
+ *
+ * Yang disimpan adalah SELISIHNYA, bukan jamnya: dengan begitu jam tetap
+ * berdetak sendiri antar penarikan, tidak melompat-lompat mengikuti jaringan,
+ * dan tetap menempel pada jam server setiap kali daftar presensi ditarik.
+ */
+const selisihJam = ref(0)
+const jamSekarang = ref('')
+
+const JEDA_JAM_MS = 1000
+
+let jedaJam = null
+
+function setelJam(waktuServer) {
+  if (!waktuServer) return
+
+  const server = Date.parse(waktuServer)
+
+  if (Number.isNaN(server)) return
+
+  selisihJam.value = Date.now() - server
+}
+
+function detakJam() {
+  jamSekarang.value = new Date(Date.now() - selisihJam.value).toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+}
+
+/** Jam server saat ini dalam bentuk ISO, dikirim bersama tap. */
+function waktuServerSekarang() {
+  return new Date(Date.now() - selisihJam.value).toISOString()
+}
+
+/** Jam server saat ini sebagai HH.MM, untuk kartu hasil tap. */
+function jamSingkat() {
+  return new Date(Date.now() - selisihJam.value).toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 onMounted(() => {
+  setelJam(props.waktu_server)
+  detakJam()
+  jedaJam = setInterval(detakJam, JEDA_JAM_MS)
+
   /*
    * Model face-api berukuran ~6,8 MB dan butuh beberapa detik untuk dimuat.
    * Pemuatannya dimulai begitu layar terbuka — bukan saat tap pertama —
    * supaya pegawai pertama tidak menunggu lebih lama daripada yang
    * berikutnya (NFR-01: tap hingga hasil rata-rata di bawah 3 detik).
    */
-  if (props.metode.wajah && entryDibuka.value) {
+  /*
+   * Modelnya juga dibutuhkan ketika verifikasi wajah MATI tetapi pendaftaran
+   * otomatis menyala: pemeriksaan "tepat satu wajah" pada foto yang hendak
+   * dipromosikan memakai modul yang sama.
+   */
+  if ((props.metode.wajah || props.daftar_wajah_otomatis) && entryDibuka.value) {
     siapkanModel().catch(() => {
       // Kegagalan dilaporkan saat tap, bukan sebagai peringatan yang
       // menghalangi layar sebelum ada yang mencoba absen.
@@ -80,6 +157,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   clearInterval(jedaTarik)
+  clearInterval(jedaJam)
   clearTimeout(jedaPulih)
 })
 
@@ -102,6 +180,10 @@ async function tarikPresensi() {
     if (!jawaban.ok) return
 
     const isi = await jawaban.json()
+
+    // Jam layar ikut disetel ulang setiap penarikan, sehingga perangkat yang
+    // menyala berhari-hari tidak perlahan menyimpang dari jam server.
+    setelJam(isi.waktu_server)
 
     presensi.value = isi.daftar_presensi
     eventAktif.value = isi.event
@@ -157,7 +239,9 @@ async function tangkapTap({ id_card, jenis: jenisTap }) {
       nip: isi.data.nip,
       nama: isi.data.nama,
       unit_kerja: isi.data.unit_kerja_nama,
-      jam: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+      // Jam sementara sampai server menjawab; sudah dikoreksi ke jam server
+      // supaya angkanya tidak sempat berkedip berbeda dari yang tersimpan.
+      jam: jamSingkat(),
 
       jenis: jenisTap,
       metode: isi.data.metode,
@@ -193,6 +277,30 @@ async function tangkapTap({ id_card, jenis: jenisTap }) {
  */
 async function verifikasiWajah(data) {
   let skor = null
+  let embedding = null
+
+  /*
+   * Verifikasi mati dan pegawai ini belum punya foto referensi: hitung
+   * deskriptornya supaya foto capture dapat dipromosikan menjadi foto
+   * referensi (FR-PEG-05).
+   *
+   * Kegagalan di sini — wajah tidak terdeteksi, dua orang masuk bingkai, model
+   * gagal dimuat — sengaja TIDAK menggagalkan absennya: kehadirannya tetap
+   * tercatat, hanya pendaftaran wajahnya yang menunggu tap berikutnya. Justru
+   * di sinilah pemeriksaan itu bekerja: foto yang tidak layak tidak pernah
+   * menjadi pembanding.
+   */
+  if (!props.metode.wajah && props.daftar_wajah_otomatis && !data.wajah_terdaftar) {
+    try {
+      const hasilDeteksi = await hitungEmbedding(panel.value?.elemenVideo())
+
+      if (!hasilDeteksi.galat) {
+        embedding = hasilDeteksi.embedding
+      }
+    } catch {
+      // Modul pengenalan wajah tidak tersedia; absen tetap berjalan.
+    }
+  }
 
   if (props.metode.wajah) {
     const hasilVerifikasi = await verifikasi(
@@ -223,7 +331,7 @@ async function verifikasiWajah(data) {
 
   // Foto hasil capture sudah disusutkan sesuai preset Setting Absen sebelum
   // dikirim, sehingga yang melintasi jaringan sudah berukuran akhir.
-  await simpanAbsen(data, panel.value?.ambilFoto(props.kompresi), skor)
+  await simpanAbsen(data, panel.value?.ambilFoto(props.kompresi), skor, embedding)
 }
 
 /**
@@ -232,7 +340,7 @@ async function verifikasiWajah(data) {
  * Server memeriksa ulang seluruh syaratnya — event, pegawai, dan ambang skor —
  * sehingga jawaban gagal di sini tetap berarti kehadiran tidak dicatat.
  */
-async function simpanAbsen(data, foto, skor) {
+async function simpanAbsen(data, foto, skor, embedding = null) {
   const muatan = {
     id_card: data.nip,
     jenis: hasil.value.jenis,
@@ -240,9 +348,17 @@ async function simpanAbsen(data, foto, skor) {
     skor,
     foto,
 
-    // Waktu tap sesungguhnya ikut dikirim, supaya absen yang tertahan
-    // antrian luring tetap tercatat pada jamnya (NFR-05).
-    waktu_tap: new Date().toISOString(),
+    // Hanya terisi bagi pegawai yang belum punya foto referensi; server
+    // memeriksa ulang seluruh syarat promosinya (FR-PEG-05).
+    embedding,
+
+    /*
+     * Waktu tap sesungguhnya ikut dikirim, supaya absen yang tertahan antrian
+     * luring tetap tercatat pada jamnya (NFR-05). Yang dikirim adalah jam
+     * SERVER menurut layar ini, bukan jam perangkat: perangkat yang jamnya
+     * meleset tidak boleh menggeser kehadiran orang.
+     */
+    waktu_tap: waktuServerSekarang(),
   }
 
   try {
@@ -270,7 +386,12 @@ async function simpanAbsen(data, foto, skor) {
     }
 
     presensi.value = isi.data.daftar_presensi
-    hasil.value = { ...hasil.value, jam: isi.data.waktu, ketepatan: isi.data.status_ketepatan }
+    hasil.value = {
+      ...hasil.value,
+      jam: isi.data.waktu,
+      ketepatan: isi.data.status_ketepatan,
+      wajah_didaftarkan: isi.data.wajah_didaftarkan === true,
+    }
 
     tahap.value = 'berhasil'
     pulihkan()
@@ -367,7 +488,7 @@ function pulihkan() {
     dan sulit dibaca dari jarak berdiri.
   -->
   <div class="flex min-h-screen flex-col bg-kertas text-utama">
-    <header class="border-b border-sidebar-garis bg-sidebar text-sidebar-teks">
+    <header class="border-b border-sidebar-garis bg-sidebar lapis-sidebar text-sidebar-teks">
       <div
         class="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6"
       >
@@ -406,6 +527,18 @@ function pulihkan() {
 
           <p v-if="eventAktif" class="text-right text-xs text-sidebar-redup">
             Mulai {{ eventAktif.jam_mulai }} · toleransi {{ eventAktif.toleransi_menit }} menit
+          </p>
+
+          <!--
+            Jam berjalan menurut SERVER, bukan menurut perangkat. Petugas yang
+            membacanya harus melihat angka yang sama dengan yang kelak tercatat
+            pada absensi.
+          -->
+          <p
+            class="font-display text-xl font-semibold tabular-nums text-sidebar-teks"
+            title="Jam server — sama dengan jam yang tercatat pada absensi"
+          >
+            {{ jamSekarang }}
           </p>
 
           <!-- Aksi khas tiap titik absen: lepas perangkat, pilih unit, kembali. -->

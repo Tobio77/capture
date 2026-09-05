@@ -7,6 +7,7 @@ use App\Services\AbsensiService;
 use App\Services\TitikAbsenService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 /**
  * Daftar e-Presensi terkini untuk layar kiosk (FR-TAP-08).
@@ -33,10 +34,20 @@ class DaftarPresensiController extends Controller
         ['event' => $event] = $this->titik->untuk($request);
 
         if ($event === null) {
-            return response()->json(['event' => null, 'daftar_presensi' => []]);
+            return response()->json([
+                'waktu_server' => Carbon::now()->toIso8601String(),
+                'event' => null,
+                'daftar_presensi' => [],
+            ]);
         }
 
         return response()->json([
+            /*
+             * Jam server ikut pada setiap penarikan supaya jam berjalan di
+             * layar tetap menempel pada jam yang kelak tercatat, walau
+             * perangkat menyala berhari-hari dan jamnya sendiri melenceng.
+             */
+            'waktu_server' => Carbon::now()->toIso8601String(),
             'event' => [
                 'id' => $event->id,
                 'nama' => $event->nama,

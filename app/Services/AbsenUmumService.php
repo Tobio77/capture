@@ -27,9 +27,11 @@ use Illuminate\Support\Collection;
  * foto, rekap, laporan — bekerja pada absen umum tanpa perubahan, sementara
  * kunci uniknya tetap berarti "satu kali datang per hari".
  *
- * Sesi umum tidak pernah menghalangi kegiatan: FR-EVT-06 hanya berlaku antar
- * event kegiatan, dan perangkat absen selalu mendahulukan kegiatan yang
- * sedang berjalan (lihat {@see EventAbsenService::eventAktifUntukKiosk()}).
+ * Sesi umum tidak pernah menghalangi kegiatan, dan sejak revisi S29 juga tidak
+ * pernah didahului kegiatan: keduanya dua layar terpisah pada perangkat absen,
+ * dipilih petugas dari beranda, bukan satu layar yang berpindah isi sendiri
+ * (lihat {@see TitikAbsenService}). FR-EVT-06 pun hanya berlaku antar event
+ * kegiatan — sesi harian tidak pernah ikut dihitung bentrok.
  */
 class AbsenUmumService
 {
@@ -122,19 +124,43 @@ class AbsenUmumService
             return null;
         }
 
+        // Simpul OPD sendiri bukan anggota `levelTeratas()` — ia induknya —
+        // sehingga harus diizinkan terpisah; lihat self::unitTersedia().
+        if ($unitKerjaId === UnitKerja::idOpd()) {
+            return $unitKerjaId;
+        }
+
         return UnitKerja::query()->levelTeratas()->whereKey($unitKerjaId)->exists()
             ? $unitKerjaId
             : null;
     }
 
     /**
-     * Unit level teratas yang dapat dipilih pada layar dan pemantauan.
+     * Unit yang dapat dipilih pada layar dan pemantauan absen umum.
+     *
+     * Pilihan pertama bagi peran lintas unit adalah SIMPUL OPD sendiri —
+     * `DISNAKERTRANS`, induk seluruh UPT dan bidang — bukan salah satu unit
+     * level teratas. Absen harian berlaku bagi seluruh pegawai dinas, sehingga
+     * bawaan yang benar adalah sesi yang mencakup semuanya; sebelum revisi
+     * S29, bawaannya jatuh ke unit pertama menurut abjad ("Bidang Hubungan
+     * Industrial…") semata-mata karena itulah baris pertama daftar, dan admin
+     * yang tidak menyadarinya memantau sesi yang salah.
+     *
+     * Simpul OPD memang bukan anggota `levelTeratas()` — ia justru induk dari
+     * seluruh anggotanya — dan karena itu ditambahkan terpisah di sini.
+     * Cakupannya lewat {@see UnitKerja::idsDenganTurunan()} sudah meliputi
+     * `DISNAKER`, seluruh UPT, seluruh bidang, beserta seksi/subbag di
+     * bawahnya.
+     *
+     * Sesi OPD berdiri sendiri, terpisah dari sesi per-UPT: perangkat absen di
+     * sebuah UPT tetap jatuh ke sesi UPT-nya ({@see self::sesiUntukKiosk()}),
+     * karena itulah satuan tempat kehadiran hariannya direkap.
      *
      * @return Collection<int, array<string, mixed>>
      */
     public function unitTersedia(User $pelaku): Collection
     {
-        return UnitKerja::query()
+        $teratas = UnitKerja::query()
             ->levelTeratas()
             ->aktif()
             ->when(
@@ -144,6 +170,20 @@ class AbsenUmumService
             ->orderBy('nama')
             ->get(['id', 'kode', 'nama'])
             ->map(fn (UnitKerja $unit) => $unit->only(['id', 'kode', 'nama']));
+
+        if (! $pelaku->lintasUnit()) {
+            return $teratas;
+        }
+
+        $opd = UnitKerja::query()
+            ->whereKey(UnitKerja::idOpd())
+            ->first(['id', 'kode', 'nama']);
+
+        // Instalasi yang belum pernah menyinkronkan WORKA belum punya simpul
+        // OPD; daftarnya tetap terisi unit level teratas apa adanya.
+        return $opd === null
+            ? $teratas
+            : $teratas->prepend($opd->only(['id', 'kode', 'nama']))->values();
     }
 
     /**
