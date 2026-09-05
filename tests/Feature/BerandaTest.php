@@ -34,7 +34,11 @@ class BerandaTest extends TestCase
         parent::setUp();
 
         $opd = UnitKerja::factory()->create(['kode' => 'DISNAKERTRANS']);
-        $this->upt = UnitKerja::factory()->create(['kode' => 'BLK-SBY', 'induk_id' => $opd->id]);
+        $this->upt = UnitKerja::factory()->create([
+            'kode' => 'BLK-SBY',
+            'nama' => 'UPT BLK Surabaya',
+            'induk_id' => $opd->id,
+        ]);
     }
 
     protected function perangkat(): Kiosk
@@ -95,10 +99,17 @@ class BerandaTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->where('perangkat.nama_titik', 'Aula Senam BLK Surabaya')
-                ->where('perangkat.unit_kerja.kode', 'BLK-SBY')
+                /*
+                 * Nama, bukan kode. Kode unit adalah penanda internal untuk
+                 * admin; bagi orang yang berdiri di depan layar titik absen
+                 * ia hanya deretan huruf, dan tidak ada tindakan di layar itu
+                 * yang bergantung padanya.
+                 */
+                ->where('perangkat.unit_kerja.nama', 'UPT BLK Surabaya')
+                ->missing('perangkat.unit_kerja.kode')
                 ->has('event_aktif', 1)
                 ->where('event_aktif.0.nama', 'Apel Pagi Senin')
-                ->where('event_aktif.0.cakupan_label', 'BLK-SBY')
+                ->where('event_aktif.0.cakupan_label', 'UPT BLK Surabaya')
 
                 // Belum bergabung: kartunya menawarkan kolom kode, bukan
                 // pintasan ke layar tap.

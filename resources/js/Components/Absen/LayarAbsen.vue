@@ -26,7 +26,22 @@ const props = defineProps({
    */
   endpoint: { type: Object, required: true },
 
-  // Baris keterangan di bawah nama event: titik absen mana yang melayani.
+  /*
+   * Judul header dipecah menjadi tiga keterangan yang berdiri sendiri —
+   * jenis layar, nama yang dilayani, dan tempatnya — alih-alih satu untai
+   * yang disambung tanda pisah.
+   *
+   * Nama sesi absen umum yang tersimpan memang berbunyi "Absen Umum — Dinas
+   * Tenaga Kerja dan Transmigrasi", dan itu tepat pada lembar rekap yang
+   * dibaca lepas dari layarnya. Di sini, di mana jenis layarnya sudah
+   * dinyatakan tersendiri, separuh depannya hanya pengulangan.
+   */
+  label: { type: String, default: '' },
+
+  /** Nama yang dilayani layar ini; bila kosong, nama event yang dipakai. */
+  judul: { type: String, default: '' },
+
+  // Baris keterangan di bawah judul: titik absen mana yang melayani.
   titik: { type: String, default: '' },
 
   // Ditampilkan sebagai judul ketika belum ada event yang dibuka.
@@ -85,7 +100,28 @@ let jedaTarik = null
  * Jam berjalan disetel ke jam SERVER; logikanya di useJamServer, dipakai
  * bersama halaman depan supaya keduanya tidak pernah berbeda perlakuan.
  */
-const { jam, detik, setel: setelJam, waktuIso, jamSingkat } = useJamServer(props.waktu_server)
+const { jam, detik, sekarang, setel: setelJam, waktuIso, jamSingkat } = useJamServer(props.waktu_server)
+
+const judulTampil = computed(() => props.judul || eventAktif.value?.nama || props.judul_kosong)
+
+/*
+ * Batas tepat waktu hari ini, sebentuk dengan halaman depan.
+ *
+ * Menggantikan "Mulai 07:30 · toleransi 15 menit", yang menyodorkan dua
+ * angka mentah lalu menyerahkan penjumlahannya kepada petugas — padahal yang
+ * ditanyakan orang yang berdiri di depan layar cuma satu: sampai pukul
+ * berapa masih dihitung tepat waktu.
+ */
+const batasTepat = computed(() => {
+  if (eventAktif.value === null) return null
+
+  const [j, m] = eventAktif.value.jam_mulai.split(':').map(Number)
+  const waktu = new Date(sekarang.value)
+
+  waktu.setHours(j, m + Number(eventAktif.value.toleransi_menit), 0, 0)
+
+  return waktu.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+})
 
 onMounted(() => {
 
@@ -445,13 +481,17 @@ function pulihkan() {
   <div class="flex min-h-screen flex-col bg-kertas text-utama">
     <header class="border-b border-sidebar-garis bg-sidebar lapis-sidebar text-sidebar-teks">
       <div
-        class="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6"
+        class="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-4 px-4 py-3 sm:px-6"
       >
         <div class="flex flex-wrap items-center gap-3 sm:gap-5">
           <div class="min-w-0">
-            <p class="truncate font-display text-lg font-semibold">
-              {{ eventAktif?.nama ?? judul_kosong }}
+            <p
+              v-if="label"
+              class="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-sidebar-redup"
+            >
+              {{ label }}
             </p>
+            <p class="truncate font-display text-lg font-semibold">{{ judulTampil }}</p>
             <p v-if="titik" class="truncate text-sm text-sidebar-redup">{{ titik }}</p>
           </div>
 
@@ -480,10 +520,6 @@ function pulihkan() {
             {{ antrian.length }} menunggu terkirim
           </span>
 
-          <p v-if="eventAktif" class="text-right text-xs text-sidebar-redup">
-            Mulai {{ eventAktif.jam_mulai }} · toleransi {{ eventAktif.toleransi_menit }} menit
-          </p>
-
           <!--
             Jam berjalan menurut SERVER, bukan menurut perangkat. Petugas yang
             membacanya harus melihat angka yang sama dengan yang kelak tercatat
@@ -493,15 +529,20 @@ function pulihkan() {
             depan. Versi sebelumnya menampilkan "14.06.28" sebagai satu rangkai
             angka bertitik, yang pada pandangan pertama terbaca seperti tanggal.
           -->
-          <p
-            class="flex items-baseline gap-1 text-sidebar-teks"
-            title="Jam server — sama dengan jam yang tercatat pada absensi"
-          >
-            <span class="font-display text-2xl font-semibold tabular-nums">{{ jam }}</span>
-            <span class="font-display text-sm font-medium tabular-nums text-sidebar-redup">
-              {{ detik }}
-            </span>
-          </p>
+          <div class="text-right">
+            <p
+              class="flex items-baseline justify-end gap-1 text-sidebar-teks"
+              title="Jam server — sama dengan jam yang tercatat pada absensi"
+            >
+              <span class="font-display text-2xl font-semibold tabular-nums">{{ jam }}</span>
+              <span class="font-display text-sm font-medium tabular-nums text-sidebar-redup">
+                {{ detik }}
+              </span>
+            </p>
+            <p v-if="batasTepat" class="text-xs text-sidebar-redup">
+              Tepat waktu sampai {{ batasTepat.replace(':', '.') }}
+            </p>
+          </div>
 
           <!-- Aksi khas tiap titik absen: lepas perangkat, pilih unit, kembali. -->
           <slot name="aksi" />

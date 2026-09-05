@@ -61,7 +61,20 @@ class BerandaController extends Controller
              */
             'perangkat' => $perangkat === null ? null : [
                 'nama_titik' => $perangkat->nama_titik,
-                'unit_kerja' => $perangkat->unitKerja?->only(['id', 'kode', 'nama']),
+
+                /*
+                 * Asal perangkat dipakai layar depan untuk menandai Mode
+                 * Terbuka, bukan untuk mengubah perilaku apa pun.
+                 */
+                'sumber' => $perangkat->sumber->value,
+
+                /*
+                 * Hanya namanya. Kode unit ('DISNAKER') adalah penanda
+                 * internal untuk admin; bagi orang yang berdiri di depan
+                 * layar ini ia hanya deretan huruf tanpa arti, dan tidak
+                 * pernah ada tindakan yang bergantung padanya di sini.
+                 */
+                'unit_kerja' => $perangkat->unitKerja?->only(['nama']),
             ],
 
             // Null berarti perangkat belum bergabung ke event mana pun.
@@ -141,7 +154,7 @@ class BerandaController extends Controller
                 'jam_mulai' => substr((string) $event->jam_mulai, 0, 5),
                 'cakupan_label' => $event->berlakuUntukSemuaUnit()
                     ? $event->cakupan->label()
-                    : $event->unitKerja->pluck('kode')->implode(', '),
+                    : $event->unitKerja->pluck('nama')->implode(', '),
             ])
             ->all();
     }

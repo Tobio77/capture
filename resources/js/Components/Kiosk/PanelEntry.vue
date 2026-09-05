@@ -247,8 +247,14 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
 
 <template>
   <section class="panel p-4">
+    <!--
+      "Capture Foto & Entry Absen" adalah nama panel pada dokumen rancangan,
+      bukan kalimat yang berguna bagi petugas: ia menyebut dua mekanisme
+      internal yang disambung ampersand, padahal yang dilakukan di sini satu
+      hal saja.
+    -->
     <h2 class="font-display text-sm font-semibold uppercase tracking-wider text-redup">
-      Capture Foto &amp; Entry Absen
+      Entry Absen
     </h2>
 
     <!--
@@ -334,7 +340,7 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
       v-if="!kameraGagal && !metode.wajah"
       class="mt-1.5 text-center text-xs text-redup"
     >
-      Foto bukti kehadiran · tanpa pencocokan wajah
+      Foto bukti kehadiran, tanpa pencocokan wajah
     </p>
 
     <!-- Jenis absen -->
@@ -380,8 +386,12 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
 
     <!-- Kolom scan / ketik -->
     <div class="mt-3">
+      <!--
+        Cara memberikannya sudah tertulis pada placeholder kolomnya ("Tap
+        kartu atau ketik NIP"); judulnya cukup menyebut apa yang diminta.
+      -->
       <label for="id-card" class="text-xs font-medium uppercase tracking-wider text-redup">
-        Scan / Ketik ID Card
+        Kartu atau NIP
       </label>
       <input
         id="id-card"

@@ -76,7 +76,7 @@ const kartu = computed(() => [
   {
     label: 'Total Pegawai',
     nilai: props.statistik.total_pegawai,
-    keterangan: `${props.kesiapan.wajah_terdaftar} wajah · ${props.kesiapan.kartu_terdaftar} kartu RFID terdaftar`,
+    keterangan: `${props.kesiapan.wajah_terdaftar} foto wajah dan ${props.kesiapan.kartu_terdaftar} kartu RFID terdaftar`,
     ikon: 'pegawai',
     nada: 'biru',
   },
@@ -216,9 +216,16 @@ function waktuRelatif(iso) {
           :href="`/admin/kelola-absen/rekap?event_absen_id=${event.id}`"
           class="rounded-xl border border-garis bg-permukaan-2 px-4 py-3 transition-colors duration-150 hover:border-aksen hover:bg-permukaan"
         >
+          <p
+            v-if="event.harian"
+            class="text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-redup"
+          >
+            Absen Umum
+          </p>
           <p class="truncate font-medium text-utama">{{ event.nama }}</p>
           <p class="mt-0.5 truncate text-xs text-redup">
-            {{ event.jam_mulai }} · {{ event.cakupan }}
+            Mulai {{ event.jam_mulai.replace(':', '.') }}
+            <template v-if="event.cakupan">· {{ event.cakupan }}</template>
           </p>
           <p class="mt-2 font-display text-lg font-semibold tabular-nums text-berhasil-teks">
             {{ event.hadir }}
@@ -435,15 +442,23 @@ function waktuRelatif(iso) {
             <div class="min-w-0 flex-1">
               <p class="truncate text-sm font-medium text-utama">{{ baris.nama }}</p>
               <p class="truncate text-xs text-redup">{{ baris.unit_kerja ?? '—' }}</p>
-              <p class="mt-0.5 text-xs text-redup">
-                <span class="font-display tabular-nums">{{ baris.jam }}</span>
-                · {{ baris.jenis_label }} · {{ baris.metode_label }}
-                <span
-                  v-if="baris.status_label"
-                  :class="baris.status_ketepatan === 'terlambat' ? 'text-peringatan-teks' : 'text-berhasil-teks'"
-                >
-                  · {{ baris.status_label }}
+              <!--
+                Empat ruas yang disambung titik ("14:34 · Datang · Manual ·
+                Terlambat") terbaca sebagai isi kolom basis data. Ketepatannya
+                naik menjadi lencana, dan hanya muncul ketika TERLAMBAT —
+                menuliskan "Tepat Waktu" pada hampir setiap baris menambah
+                satu ruas tanpa menambah keterangan, sebagaimana kolom Status
+                pada Kelola Pegawai.
+              -->
+              <p class="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-redup">
+                <span>
+                  {{ baris.jenis_label }}
+                  <span class="font-display tabular-nums">{{ baris.jam.replace(':', '.') }}</span>
+                  · {{ baris.metode_label }}
                 </span>
+                <Lencana v-if="baris.status_ketepatan === 'terlambat'" warna="amber" :titik="false">
+                  Terlambat
+                </Lencana>
               </p>
             </div>
 

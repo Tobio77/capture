@@ -228,7 +228,7 @@ class DashboardService
     {
         $event = EventAbsen::query()
             ->aktif()
-            ->with('unitKerja:id,kode')
+            ->with('unitKerja:id,kode,nama')
             ->when(
                 ! $pelaku->lintasUnit(),
                 fn ($q) => $q->menyentuhUnit(UnitKerja::idsDenganTurunan($pelaku->unit_kerja_id)),
@@ -251,12 +251,31 @@ class DashboardService
         return $event
             ->map(fn (EventAbsen $satu) => [
                 'id' => $satu->id,
-                'nama' => $satu->nama,
+
+                /*
+                 * Nama sesi harian yang tersimpan berbunyi "Absen Umum —
+                 * <unit>", dan itu tepat pada lembar rekap yang dibaca lepas
+                 * dari layarnya. Pada kartu ini jenisnya sudah ditandai
+                 * tersendiri, sehingga separuh depannya hanya pengulangan
+                 * yang memakan tempat lalu memaksa nama unitnya terpotong.
+                 */
+                'nama' => $satu->absenUmum()
+                    ? ($satu->unitKerja->first()?->nama ?? $satu->nama)
+                    : $satu->nama,
+                'harian' => $satu->absenUmum(),
                 'jam_mulai' => substr((string) $satu->jam_mulai, 0, 5),
                 'tanggal' => $satu->tanggal->toDateString(),
-                'cakupan' => $satu->berlakuUntukSemuaUnit()
-                    ? 'Semua unit'
-                    : $satu->unitKerja->pluck('kode')->implode(', '),
+
+                /*
+                 * Kode unit ('DISNAKER') adalah penanda internal. Pada sesi
+                 * harian ia mengulang nama yang sudah menjadi judul kartu,
+                 * dan pada kegiatan nama unitnya sendiri lebih terbaca.
+                 */
+                'cakupan' => $satu->absenUmum()
+                    ? null
+                    : ($satu->berlakuUntukSemuaUnit()
+                        ? 'Semua unit'
+                        : $satu->unitKerja->pluck('nama')->implode(', ')),
                 'hadir' => (int) ($hadir[$satu->id] ?? 0),
             ])
             ->all();

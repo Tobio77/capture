@@ -53,6 +53,32 @@ const judulKosong = computed(() =>
       : 'Absen umum sedang dimatikan admin',
 )
 
+/*
+ * Judul header, dipecah menurut apa yang sebenarnya ditanyakan orang di depan
+ * layar: layar apa ini, melayani siapa, dan berdiri di mana.
+ *
+ * Untuk absen umum, nama sesi yang tersimpan ("Absen Umum — <unit>") tidak
+ * dipakai apa adanya: jenis layarnya sudah dinyatakan sebagai label, sehingga
+ * separuh depannya hanya pengulangan.
+ */
+const label = computed(() => (modeEvent.value ? 'Absen Event' : 'Absen Umum'))
+
+const judul = computed(() =>
+  modeEvent.value ? (props.event?.nama ?? '') : (kiosk.value?.unit_kerja?.nama ?? ''),
+)
+
+/*
+ * Baris tempat. Nama perangkat ad-hoc dibuat sistem dari nama unitnya
+ * ("Perangkat Ad-hoc — <unit>"), sehingga menampilkannya di bawah judul yang
+ * sudah menyebut unit itu berarti membaca hal yang sama dua kali. Yang
+ * tersisa untuk disampaikan hanyalah bahwa perangkat ini dadakan.
+ */
+const titik = computed(() =>
+  kiosk.value?.sumber === 'ad_hoc'
+    ? 'Perangkat dadakan — Mode Terbuka'
+    : (kiosk.value?.nama_titik ?? ''),
+)
+
 function keluarDariEvent() {
   if (window.confirm('Keluar dari event ini? Perangkat perlu kode unit kerja untuk bergabung lagi.')) {
     router.post('/kiosk/event/keluar')
@@ -73,7 +99,9 @@ function keluarDariEvent() {
     :daftar_wajah_otomatis="daftar_wajah_otomatis"
     :status_jendela="status_jendela"
     :endpoint="endpoint"
-    :titik="`${kiosk.nama_titik} · ${kiosk.unit_kerja?.nama ?? ''}`"
+    :label="label"
+    :judul="judul"
+    :titik="titik"
     :judul_kosong="judulKosong"
   >
     <template #aksi>

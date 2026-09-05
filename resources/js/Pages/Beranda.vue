@@ -51,6 +51,30 @@ const perangkatAktif = computed(() => props.perangkat !== null)
 const sudahIkutEvent = computed(() => props.event_diikuti !== null)
 
 /*
+ * Keadaan perangkat, dipecah menjadi tiga keterangan yang masing-masing
+ * berdiri sendiri.
+ *
+ * Sebelumnya ketiganya menempel jadi satu baris — "Perangkat Ad-hoc — Dinas
+ * Tenaga Kerja dan Transmigrasi DISNAKER" — yang membaca seperti isi kolom
+ * basis data, bukan kalimat. Nama sintetis perangkat ad-hoc memang sudah
+ * memuat nama unitnya, sehingga menampilkan keduanya berarti mengulang;
+ * yang tersisa untuk disampaikan hanyalah bahwa ia perangkat dadakan, dan
+ * itu keping tersendiri.
+ */
+const perangkatAdHoc = computed(() => props.perangkat?.sumber === 'ad_hoc')
+
+const namaPerangkat = computed(() =>
+  perangkatAdHoc.value
+    ? (props.perangkat.unit_kerja?.nama ?? 'Perangkat dadakan')
+    : props.perangkat.nama_titik,
+)
+
+/* Perangkat terdaftar punya nama tempat; unitnya keterangan kedua yang nyata. */
+const unitPerangkat = computed(() =>
+  perangkatAdHoc.value ? null : (props.perangkat.unit_kerja?.nama ?? null),
+)
+
+/*
  * Baris konteks di bawah tanggal. Angka jam sebesar itu perlu konsekuensi:
  * yang membacanya harus langsung tahu ia masih tepat waktu atau sudah lewat.
  * Ketika perangkat melayani sebuah kegiatan, jam kegiatan itulah yang berlaku
@@ -185,6 +209,16 @@ const tanggalRingkas = (nilai) =>
         </p>
 
         <div class="flex min-w-0 items-center gap-3">
+          <!--
+            Perangkat dadakan ditandai terpisah dan berwarna lain dari titik
+            hijau "tersambung": ia bukan keadaan sehat yang berjalan normal,
+            melainkan pengingat bahwa Mode Terbuka sedang menyala dan perangkat
+            ini belum pernah ditinjau siapa pun.
+          -->
+          <span v-if="perangkatAdHoc" class="keping nada-amber shrink-0 text-[0.6875rem]">
+            Ad-hoc
+          </span>
+
           <p class="flex min-w-0 items-center gap-2 text-xs text-sekunder">
             <span v-if="perangkatAktif" class="relative flex h-2 w-2 shrink-0">
               <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-berhasil opacity-60"></span>
@@ -192,11 +226,15 @@ const tanggalRingkas = (nilai) =>
             </span>
             <span v-else class="h-2 w-2 shrink-0 rounded-full bg-redup"></span>
 
-            <span class="truncate font-medium">
-              {{ perangkatAktif ? perangkat.nama_titik : 'Perangkat belum diaktifkan' }}
+            <span v-if="!perangkatAktif" class="truncate font-medium">
+              Perangkat belum diaktifkan
             </span>
-            <span v-if="perangkatAktif && perangkat.unit_kerja" class="truncate text-redup">
-              {{ perangkat.unit_kerja.kode }}
+
+            <span v-else class="min-w-0 leading-tight">
+              <span class="block truncate font-medium">{{ namaPerangkat }}</span>
+              <span v-if="unitPerangkat" class="block truncate text-[0.6875rem] text-redup">
+                {{ unitPerangkat }}
+              </span>
             </span>
           </p>
 
@@ -226,11 +264,14 @@ const tanggalRingkas = (nilai) =>
       -->
       <section class="text-center">
         <!--
-          Detik disejajarkan ke GARIS DASAR angka jam, bukan ke puncaknya:
-          diletakkan di atas ia terbaca sebagai pangkat, bukan sebagai satuan
-          waktu yang lebih kecil.
+          Detik disejajarkan ke TENGAH tinggi angka jam.
+          
+          Menempel di garis dasar membuatnya terbaca seperti catatan kaki yang
+          terselip di pojok, sementara diletakkan di puncak ia terbaca sebagai
+          pangkat. Di tengah, dengan jarak yang sedikit dilebarkan, ia terbaca
+          sebagai satuan waktu yang lebih kecil — yang memang itulah dia.
         -->
-        <p class="flex items-baseline justify-center gap-2.5 font-display tabular-nums">
+        <p class="flex items-center justify-center gap-3.5 font-display tabular-nums">
           <span
             class="font-bold leading-[0.85] tracking-[-0.045em]"
             style="font-size: clamp(4.5rem, 13vw, 8rem)"

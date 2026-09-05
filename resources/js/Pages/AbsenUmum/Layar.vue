@@ -44,6 +44,11 @@ const opsiUnit = computed(() =>
   props.unit_kerja.map((unit) => ({ nilai: unit.id, label: unit.nama, keterangan: unit.kode })),
 )
 
+/* Nama unit yang sedang dilayani; jenis layarnya dinyatakan terpisah. */
+const namaUnit = computed(
+  () => props.unit_kerja.find((unit) => unit.id === props.unit_kerja_id)?.nama ?? '',
+)
+
 /*
  * Berpindah unit memuat ulang halaman: sesi harian yang dilayani ikut
  * berganti, begitu pula daftar presensi yang sedang tampil.
@@ -75,9 +80,9 @@ function gantiUnit() {
   </div>
 
   <!--
-    `titik` tidak mengulang unit kerja: namanya sudah tercantum pada nama sesi
-    ("Absen Umum — <unit>"). Yang perlu diketahui petugas justru bahwa layar
-    ini dibuka di peramban admin, bukan di perangkat titik absen.
+    `titik` tidak mengulang unit kerja — namanya sudah menjadi judul. Yang
+    perlu diketahui petugas justru bahwa layar ini dibuka di peramban admin,
+    bukan di perangkat titik absen.
   -->
   <LayarAbsen
     v-else
@@ -90,6 +95,8 @@ function gantiUnit() {
     :daftar_wajah_otomatis="daftar_wajah_otomatis"
     :status_jendela="status_jendela"
     :endpoint="endpoint"
+    label="Absen Umum"
+    :judul="namaUnit"
     titik="Layar absen admin, bukan perangkat titik absen"
     judul_kosong="Pilih unit kerja untuk membuka sesi absen umum"
   >

@@ -62,6 +62,9 @@ class HandleInertiaRequests extends Middleware
             'kiosk' => fn () => $request->kiosk() ? [
                 'id' => $request->kiosk()->id,
                 'nama_titik' => $request->kiosk()->nama_titik,
+
+                // Dipakai layar tap menandai perangkat Mode Terbuka.
+                'sumber' => $request->kiosk()->sumber->value,
                 'status' => $request->kiosk()->status->value,
                 'ip_terakhir' => $request->kiosk()->ip_terakhir,
                 'diaktifkan_pada' => $request->kiosk()->diaktifkan_pada?->toIso8601String(),
