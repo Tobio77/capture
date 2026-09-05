@@ -52,6 +52,14 @@ class FotoDanSesiAbsenUmumTest extends TestCase
 
         // Yang diuji jalur pencatatannya, bukan pencocokan wajahnya.
         app(PengaturanRepository::class)->simpan(SettingAbsenService::KUNCI_WAJAH, '0');
+
+        /*
+         * Jam dipatok di dalam jendela "datang" (FR-SET-07). Sebelum jendela
+         * itu ada, berkas ini menumpang jam berapa pun yang kebetulan berlaku
+         * saat test dijalankan — dan itu berarti hasilnya bergantung pada pukul
+         * berapa seseorang menjalankan `php artisan test`.
+         */
+        $this->travelTo('2026-09-07 07:35:00');
     }
 
     /** Jalur relatif beserta query-nya — konteks unit ada di sana. */

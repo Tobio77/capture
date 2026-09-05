@@ -36,6 +36,14 @@ class SimpanSettingAbsenRequest extends FormRequest
             'kompresi_foto' => ['required', Rule::enum(KompresiFoto::class)],
             'absen_umum_aktif' => ['required', 'boolean'],
             'jam_masuk_umum' => ['required', 'date_format:H:i'],
+
+            // FR-SET-07. Jam tutup TIDAK diharuskan lebih besar daripada jam
+            // buka: jendela yang melewati tengah malam sah adanya bagi sif
+            // malam, dan AbsenUmumService::didalamJendela() menanganinya.
+            'jam_buka_datang' => ['required', 'date_format:H:i'],
+            'jam_tutup_datang' => ['required', 'date_format:H:i'],
+            'jam_buka_pulang' => ['required', 'date_format:H:i'],
+            'jam_tutup_pulang' => ['required', 'date_format:H:i'],
             'wajib_kode_aktivasi' => ['required', 'boolean'],
         ];
     }
@@ -76,6 +84,10 @@ class SimpanSettingAbsenRequest extends FormRequest
             'kompresi_foto' => 'kompresi foto absen',
             'absen_umum_aktif' => 'absen umum harian',
             'jam_masuk_umum' => 'jam masuk harian',
+            'jam_buka_datang' => 'jam buka absen datang',
+            'jam_tutup_datang' => 'jam tutup absen datang',
+            'jam_buka_pulang' => 'jam buka absen pulang',
+            'jam_tutup_pulang' => 'jam tutup absen pulang',
             'wajib_kode_aktivasi' => 'wajib kode aktivasi perangkat',
         ];
     }

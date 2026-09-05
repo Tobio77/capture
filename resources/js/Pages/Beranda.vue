@@ -3,19 +3,29 @@ import { computed, ref } from 'vue'
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3'
 import Ikon from '@/Components/Ikon.vue'
 import SaklarTema from '@/Components/UI/SaklarTema.vue'
+import { useJamServer } from '@/Composables/useJamServer'
 
 /**
- * Halaman depan aplikasi (S30).
+ * Halaman depan titik absen — "Papan Jam" (S31).
  *
- * Satu pintu masuk untuk tiga orang yang berbeda: pegawai yang hendak
- * mengabsen harian, petugas yang membuka titik absen sebuah kegiatan, dan
- * admin yang hendak masuk ke panel. Ketiganya sebelumnya harus tahu alamat
- * yang berbeda-beda.
+ * Layar ini menempel di pintu masuk kantor dinas atau ruang praktik BLK, dan
+ * dilihat orang yang sama setiap pagi. Setelah hari ketiga tidak ada lagi yang
+ * membaca sambutan; yang dicari hanya dua hal — pukul berapa sekarang, dan
+ * tombol mana yang ditekan.
  *
- * Dua pilihan absen dibuat besar dan sejajar karena layar ini dibaca dari
- * jarak berdiri, kerap di aula yang ramai. Masuk sebagai admin justru
- * dikecilkan ke sudut: ia jarang dipakai, dan bukan untuk orang yang sedang
- * mengantre.
+ * Karena itu jam menjadi elemen pertama dan terbesar, bukan judul. Susunan
+ * sebelumnya (eyebrow "TITIK ABSEN", judul "Selamat datang", dua kartu ikon
+ * bersebelahan) adalah susunan halaman pemasaran: ia memperkenalkan diri
+ * kepada pengunjung baru, padahal di sini tidak pernah ada pengunjung baru.
+ *
+ * Dua pilihan absen menjadi baris tekan selebar layar yang bertumpuk, bukan
+ * kartu bersebelahan. Alasannya fungsional: layar sentuh ini dioperasikan
+ * sambil berdiri, kerap dengan satu tangan memegang kartu identitas, dan
+ * sasaran selebar layar jauh lebih mudah dikenai daripada dua kartu yang
+ * berbagi lebar.
+ *
+ * Satu-satunya yang bergerak di layar ini adalah detik pada jam. Itulah yang
+ * membuatnya terbaca sebagai papan jam yang hidup, bukan halaman yang gelisah.
  */
 
 const props = defineProps({
@@ -25,35 +35,81 @@ const props = defineProps({
   absen_umum_aktif: { type: Boolean, required: true },
   aktivasi_tanpa_kode: { type: Boolean, required: true },
   panjang_kode: { type: Number, default: 8 },
+  waktu_server: { type: String, default: null },
+  jam_masuk: { type: String, default: '07:30' },
+  toleransi_menit: { type: Number, default: 15 },
 })
 
 const page = usePage()
-const namaAplikasi = computed(() => page.props.app?.nama ?? 'Capture')
 const pengguna = computed(() => page.props.auth?.pengguna ?? null)
 const sukses = computed(() => page.props.flash?.sukses)
 const gagal = computed(() => page.props.flash?.gagal)
+
+const { jam, detik, tanggalPanjang, sekarang } = useJamServer(props.waktu_server)
 
 const perangkatAktif = computed(() => props.perangkat !== null)
 const sudahIkutEvent = computed(() => props.event_diikuti !== null)
 
 /*
- * Langkah yang sedang terbuka: null (dua kartu sejajar) atau 'event' (daftar
- * event beserta kolom kode). Absen Umum tidak punya langkah kedua — ia
- * langsung menuju layarnya, sesuai aturan Mode Terbuka.
+ * Baris konteks di bawah tanggal. Angka jam sebesar itu perlu konsekuensi:
+ * yang membacanya harus langsung tahu ia masih tepat waktu atau sudah lewat.
+ * Ketika perangkat melayani sebuah kegiatan, jam kegiatan itulah yang berlaku
+ * baginya — bukan jam masuk harian.
  */
+const konteks = computed(() => {
+  if (sudahIkutEvent.value) {
+    return `${props.event_diikuti.nama} · mulai ${props.event_diikuti.jam_mulai}`
+  }
+
+  return `Jam masuk ${props.jam_masuk.replace(':', '.')} · toleransi ${props.toleransi_menit} menit`
+})
+
+/*
+ * Batas tepat waktu hari ini: jam masuk ditambah toleransi (FR-TAP-07).
+ * Selama perangkat melayani sebuah kegiatan, jam kegiatan itulah yang berlaku
+ * baginya — bukan jam masuk harian.
+ */
+const batas = computed(() => {
+  const [jamMulai, toleransi] = sudahIkutEvent.value
+    ? [props.event_diikuti.jam_mulai, props.event_diikuti.toleransi_menit]
+    : [props.jam_masuk, props.toleransi_menit]
+
+  const [j, m] = jamMulai.split(':').map(Number)
+  const waktu = new Date(sekarang.value)
+
+  waktu.setHours(j, m + Number(toleransi), 0, 0)
+
+  return waktu
+})
+
+const masihTepat = computed(() => sekarang.value <= batas.value)
+
+const batasTertulis = computed(() =>
+  batas.value.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+)
+
+/*
+ * Keping status di bawah jam.
+ *
+ * Inilah yang membuat angka sebesar itu punya konsekuensi: orang yang
+ * membacanya langsung tahu ia masih tepat waktu atau sudah lewat, tanpa
+ * menghitung sendiri selisihnya terhadap jam masuk. Sekaligus satu-satunya
+ * tempat emerald dan amber muncul di layar ini — warnanya menyampaikan
+ * keterangan, bukan menghias.
+ */
+const status = computed(() =>
+  masihTepat.value
+    ? { nada: 'nada-emerald', teks: `Masih tepat waktu — batas ${batasTertulis.value}` }
+    : { nada: 'nada-amber', teks: `Lewat batas ${batasTertulis.value} — tercatat terlambat` },
+)
+
 const langkah = ref(null)
 
 const formKode = useForm({ kode: '' })
 const kolomKode = ref(null)
 
 function pilihAbsenUmum() {
-  if (!perangkatAktif.value) {
-    router.get('/kiosk/aktivasi')
-
-    return
-  }
-
-  router.get('/kiosk/umum')
+  router.get(perangkatAktif.value ? '/kiosk/umum' : '/kiosk/aktivasi')
 }
 
 function pilihAbsenEvent() {
@@ -69,10 +125,11 @@ function pilihAbsenEvent() {
     return
   }
 
-  langkah.value = 'event'
+  langkah.value = langkah.value === 'event' ? null : 'event'
 
-  // Kolomnya baru ada setelah bagiannya tergambar.
-  requestAnimationFrame(() => kolomKode.value?.focus())
+  if (langkah.value === 'event') {
+    requestAnimationFrame(() => kolomKode.value?.focus())
+  }
 }
 
 function gabung() {
@@ -95,57 +152,60 @@ function lepasPerangkat() {
   }
 }
 
-const tanggalPanjang = (nilai) =>
-  new Date(`${nilai}T00:00:00`).toLocaleDateString('id-ID', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  })
+const tanggalRingkas = (nilai) =>
+  new Date(`${nilai}T00:00:00`).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
 </script>
 
 <template>
-  <Head title="Beranda" />
+  <Head title="Titik Absen" />
 
-  <div class="latar-pastel latar-pastel-hidup flex min-h-screen flex-col bg-kertas text-utama">
+  <div class="flex min-h-screen flex-col bg-kertas text-utama">
     <!--
-      Bilah atas sengaja ringan: bukan sidebar navy seperti Panel Admin, karena
-      halaman ini dilihat pegawai, bukan pengelola.
+      Strip identitas. Sengaja setipis dan sedatar mungkin: ia menjawab
+      pertanyaan yang hanya ditanyakan sekali ("mesin ini melayani unit mana?")
+      dan tidak boleh bersaing dengan jam.
     -->
-    <header class="border-b border-garis/70 bg-permukaan/70 backdrop-blur-sm">
-      <div class="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-5 py-4">
-        <div class="flex items-center gap-2.5">
-          <span class="inline-flex rounded-xl bg-aksen-lembut p-2 text-aksen-teks">
-            <Ikon nama="absen" ukuran="h-5 w-5" />
+    <header class="border-b border-garis">
+      <div class="mx-auto flex w-full max-w-4xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-3">
+        <!--
+          Identitas lembaga. Tanpa ini layar ini bisa jadi aplikasi jam mana
+          pun — dan papan yang menempel di pintu masuk kantor dinas justru
+          harus menyebut kantornya.
+        -->
+        <p class="flex min-w-0 items-center gap-2.5">
+          <span class="ubin-merek h-7 w-7 shrink-0">
+            <Ikon nama="absen" ukuran="h-3.5 w-3.5" />
           </span>
-          <div class="leading-tight">
-            <p class="font-display text-base font-semibold">{{ namaAplikasi }}</p>
-            <p class="text-xs text-redup">Absensi Disnakertrans Jawa Timur</p>
-          </div>
-        </div>
+          <span class="min-w-0 leading-tight">
+            <span class="block truncate font-display text-sm font-semibold">Capture</span>
+            <span class="block truncate text-[0.6875rem] text-redup">
+              Disnakertrans Provinsi Jawa Timur
+            </span>
+          </span>
+        </p>
 
-        <div class="flex items-center gap-2">
+        <div class="flex min-w-0 items-center gap-3">
+          <p class="flex min-w-0 items-center gap-2 text-xs text-sekunder">
+            <span v-if="perangkatAktif" class="relative flex h-2 w-2 shrink-0">
+              <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-berhasil opacity-60"></span>
+              <span class="relative inline-flex h-2 w-2 rounded-full bg-berhasil"></span>
+            </span>
+            <span v-else class="h-2 w-2 shrink-0 rounded-full bg-redup"></span>
+
+            <span class="truncate font-medium">
+              {{ perangkatAktif ? perangkat.nama_titik : 'Perangkat belum diaktifkan' }}
+            </span>
+            <span v-if="perangkatAktif && perangkat.unit_kerja" class="truncate text-redup">
+              {{ perangkat.unit_kerja.kode }}
+            </span>
+          </p>
+
           <SaklarTema />
-
-          <Link
-            v-if="pengguna"
-            href="/admin/dashboard"
-            class="tautan-aksi inline-flex items-center gap-1.5 panel px-3 py-2 text-sm font-medium text-sekunder transition-colors duration-150 hover:bg-permukaan-hover hover:text-utama"
-          >
-            <Ikon nama="dashboard" ukuran="h-4 w-4" /> Panel Admin
-          </Link>
-
-          <Link
-            v-else
-            href="/masuk"
-            class="tautan-aksi inline-flex items-center gap-1.5 panel px-3 py-2 text-sm font-medium text-sekunder transition-colors duration-150 hover:bg-permukaan-hover hover:text-utama"
-          >
-            <Ikon nama="kunci" ukuran="h-4 w-4" /> Masuk Admin
-          </Link>
         </div>
       </div>
     </header>
 
-    <main class="mx-auto w-full max-w-5xl flex-1 px-5 py-10 sm:py-14">
+    <main class="mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center px-5 py-8">
       <p
         v-if="sukses"
         class="mb-6 rounded-xl bg-berhasil-lembut px-4 py-3 text-sm text-berhasil-teks"
@@ -160,117 +220,107 @@ const tanggalPanjang = (nilai) =>
         {{ gagal }}
       </p>
 
-      <!-- Sambutan -->
-      <section class="masuk flex flex-col items-center text-center">
-        <p class="font-display text-xs font-semibold uppercase tracking-[0.14em] text-aksen-teks">
-          Titik Absen
+      <!--
+        Jam. Menit dan detik dipisah supaya angka menit tidak bergoyang setiap
+        detik: yang berdenyut hanya dua digit kecil di sampingnya.
+      -->
+      <section class="text-center">
+        <!--
+          Detik disejajarkan ke GARIS DASAR angka jam, bukan ke puncaknya:
+          diletakkan di atas ia terbaca sebagai pangkat, bukan sebagai satuan
+          waktu yang lebih kecil.
+        -->
+        <p class="flex items-baseline justify-center gap-2.5 font-display tabular-nums">
+          <span
+            class="font-bold leading-[0.85] tracking-[-0.045em]"
+            style="font-size: clamp(4.5rem, 13vw, 8rem)"
+          >
+            {{ jam }}
+          </span>
+          <span
+            class="font-medium leading-none text-redup"
+            style="font-size: clamp(1.15rem, 3vw, 1.9rem)"
+          >
+            {{ detik }}
+          </span>
         </p>
 
-        <h1 class="mt-3 font-display text-[2rem] font-semibold sm:text-[2.75rem]">
-          Selamat datang
-        </h1>
-
-        <p class="mt-3 max-w-lg text-sekunder sm:text-lg">
-          Silakan pilih jenis absensi. Kehadiran Anda tercatat beserta foto sebagai bukti.
+        <p
+          class="mt-1 font-display font-medium text-sekunder"
+          style="font-size: clamp(1rem, 2.2vw, 1.375rem)"
+        >
+          {{ tanggalPanjang }}
         </p>
 
         <!--
-          Keterangan perangkat dibuat sebagai keping berdenyut, bukan baris teks
-          biasa: petugas perlu memastikan sekilas bahwa mesin di depannya memang
-          titik absen yang benar sebelum mengizinkan orang menempel kartu.
+          Keping status. Satu-satunya tempat emerald dan amber muncul di layar
+          ini, dan keduanya menyampaikan keterangan yang tidak dapat dibaca
+          dari jam saja: apakah orang yang berdiri di sini masih tepat waktu.
         -->
         <p
-          v-if="perangkatAktif"
-          class="panel mt-6 inline-flex max-w-full items-center gap-2.5 rounded-full px-4 py-2 text-xs text-sekunder"
+          class="keping mt-4 px-3.5 py-1.5 text-[0.8125rem]"
+          :class="status.nada"
         >
-          <span class="relative flex h-2 w-2 shrink-0">
-            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-berhasil opacity-60"></span>
-            <span class="relative inline-flex h-2 w-2 rounded-full bg-berhasil"></span>
-          </span>
-          <span class="truncate font-medium text-utama">{{ perangkat.nama_titik }}</span>
-          <span v-if="perangkat.unit_kerja" class="truncate text-redup">
-            {{ perangkat.unit_kerja.nama }}
-          </span>
+          <span class="h-1.5 w-1.5 rounded-full" :style="{ backgroundColor: 'var(--nada-kuat)' }"></span>
+          {{ status.teks }}
         </p>
+
+        <p class="mt-3 text-sm text-sekunder">{{ konteks }}</p>
       </section>
 
       <!--
-        Dua pilihan besar. Keduanya kartu penuh yang dapat ditekan, bukan
-        tombol di dalam kartu: pada layar sentuh, sasaran seluas kartu jauh
-        lebih mudah dikenai daripada tautan setinggi satu baris.
+        Dua pilihan. Baris selebar layar, bertumpuk, tinggi minimum 96px —
+        ukuran tombol papan, bukan kartu bacaan.
       -->
-      <div class="mt-10 grid gap-5 sm:grid-cols-2">
+      <div class="mt-10 flex flex-col gap-3">
         <button
           type="button"
-          class="panel kartu-naik masuk group flex flex-col items-start p-7 text-left hover:border-aksen/40"
-          style="--tunda: 90ms"
+          class="tautan-aksi group flex min-h-[6rem] w-full items-center gap-4 rounded-2xl bg-aksen px-6 py-5 text-left text-white transition-[background-color,transform] duration-150 hover:bg-aksen-kuat active:scale-[0.995]"
           @click="pilihAbsenUmum"
         >
-          <span class="ubin-ikon nada-teal h-14 w-14 transition-transform duration-200 group-hover:scale-105">
-            <Ikon nama="jam" ukuran="h-7 w-7" />
-          </span>
-
-          <h2 class="mt-5 font-display text-xl font-semibold">Absen Umum</h2>
-          <p class="mt-2 flex-1 text-sm leading-relaxed text-sekunder">
-            Absensi harian datang dan pulang. Selalu tersedia, tanpa kode dan tanpa kegiatan.
-          </p>
-
-          <span
-            v-if="!absen_umum_aktif"
-            class="mt-3 rounded-lg bg-peringatan-lembut px-2.5 py-1 text-xs font-medium text-peringatan-teks"
-          >
-            Sedang dimatikan admin
-          </span>
-
-          <span class="mt-6 w-full border-t border-garis pt-4">
-            <span class="inline-flex items-center gap-1.5 text-sm font-semibold text-aksen-teks">
-              Mulai absen
-              <Ikon
-                nama="kanan"
-                ukuran="h-4 w-4"
-                class="transition-transform duration-200 group-hover:translate-x-1"
-              />
+          <span class="min-w-0 flex-1">
+            <span class="block font-display text-2xl font-semibold">Absen Umum</span>
+            <span class="mt-1 block text-sm text-white/75">
+              {{ absen_umum_aktif ? 'Datang & pulang harian' : 'Sedang dimatikan admin' }}
             </span>
           </span>
+
+          <Ikon
+            nama="kanan"
+            ukuran="h-7 w-7 shrink-0"
+            class="transition-transform duration-200 group-hover:translate-x-1"
+          />
         </button>
 
         <button
           type="button"
-          class="panel kartu-naik masuk group flex flex-col items-start p-7 text-left hover:border-aksen/40"
-          :class="langkah === 'event' && 'border-aksen/40'"
-          style="--tunda: 170ms"
+          class="tautan-aksi group flex min-h-[6rem] w-full items-center gap-4 rounded-2xl border-2 border-garis-kuat bg-permukaan px-6 py-5 text-left transition-[border-color,transform] duration-150 hover:border-aksen active:scale-[0.995]"
+          :class="langkah === 'event' && 'border-aksen'"
           @click="pilihAbsenEvent"
         >
-          <span class="ubin-ikon nada-langit h-14 w-14 transition-transform duration-200 group-hover:scale-105">
-            <Ikon nama="kalender" ukuran="h-7 w-7" />
-          </span>
-
-          <h2 class="mt-5 font-display text-xl font-semibold">Absen Event</h2>
-
-          <p v-if="sudahIkutEvent" class="mt-2 flex-1 text-sm leading-relaxed text-sekunder">
-            Perangkat ini melayani
-            <span class="font-medium text-utama">{{ event_diikuti.nama }}</span>
-            — mulai {{ event_diikuti.jam_mulai }}.
-          </p>
-          <p v-else class="mt-2 flex-1 text-sm leading-relaxed text-sekunder">
-            Absensi kegiatan: apel, rapat, atau pelatihan. Perlu kode unit kerja dari admin
-            penyelenggara.
-          </p>
-
-          <span class="mt-6 w-full border-t border-garis pt-4">
-            <span class="inline-flex items-center gap-1.5 text-sm font-semibold text-aksen-teks">
-              {{ sudahIkutEvent ? 'Mulai absen' : 'Pilih event' }}
-              <Ikon
-                nama="kanan"
-                ukuran="h-4 w-4"
-                class="transition-transform duration-200 group-hover:translate-x-1"
-              />
+          <span class="min-w-0 flex-1">
+            <span class="block font-display text-2xl font-semibold">Absen Event</span>
+            <span class="mt-1 flex items-center gap-1.5 text-sm text-sekunder">
+              <Ikon v-if="!sudahIkutEvent" nama="kunci" ukuran="h-3.5 w-3.5 shrink-0" />
+              <span class="truncate">
+                {{
+                  sudahIkutEvent
+                    ? `Melayani ${event_diikuti.nama}`
+                    : 'Perlu kode unit kerja dari admin penyelenggara'
+                }}
+              </span>
             </span>
           </span>
+
+          <Ikon
+            nama="kanan"
+            ukuran="h-7 w-7 shrink-0 text-sekunder"
+            class="transition-transform duration-200 group-hover:translate-x-1"
+          />
         </button>
       </div>
 
-      <!-- Langkah kedua Absen Event: daftar event aktif lalu kode unit kerja -->
+      <!-- Langkah kedua: daftar event yang dibuka, lalu kode unit kerja. -->
       <Transition
         enter-active-class="transition duration-200 ease-out"
         enter-from-class="-translate-y-2 opacity-0"
@@ -278,52 +328,26 @@ const tanggalPanjang = (nilai) =>
         leave-active-class="transition duration-150 ease-in"
         leave-to-class="-translate-y-2 opacity-0"
       >
-        <section
-          v-if="langkah === 'event'"
-          class="panel mt-5 p-6"
-        >
-          <div class="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h3 class="font-display text-base font-semibold">Event yang sedang dibuka</h3>
-              <p class="mt-1 text-sm text-sekunder">
-                Masukkan kode unit kerja dari admin penyelenggara untuk melayani salah satunya.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              class="rounded-lg p-2 text-redup transition-colors duration-150 hover:bg-permukaan-hover hover:text-utama"
-              aria-label="Tutup pilihan event"
-              @click="langkah = null"
-            >
-              <Ikon nama="tutup" ukuran="h-4 w-4" />
-            </button>
-          </div>
-
-          <ul v-if="event_aktif.length" class="mt-5 space-y-2">
+        <section v-if="langkah === 'event'" class="panel mt-3 p-5">
+          <ul v-if="event_aktif.length" class="flex flex-col gap-1.5">
             <li
               v-for="event in event_aktif"
               :key="event.id"
-              class="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-permukaan-2 px-4 py-3"
+              class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 rounded-lg bg-permukaan-2 px-3.5 py-2.5"
             >
-              <div class="min-w-0">
-                <p class="truncate font-medium text-utama">{{ event.nama }}</p>
-                <p class="mt-0.5 text-xs text-redup">
-                  {{ tanggalPanjang(event.tanggal) }} · mulai {{ event.jam_mulai }}
-                </p>
-              </div>
-
-              <span class="rounded-full bg-info-lembut px-2.5 py-1 font-display text-xs text-info-teks">
+              <span class="min-w-0 truncate font-medium">{{ event.nama }}</span>
+              <span class="font-display text-xs tabular-nums text-redup">
+                {{ tanggalRingkas(event.tanggal) }} · {{ event.jam_mulai }} ·
                 {{ event.cakupan_label }}
               </span>
             </li>
           </ul>
 
-          <p v-else class="mt-5 rounded-xl bg-permukaan-2 px-4 py-6 text-center text-sm text-redup">
+          <p v-else class="rounded-lg bg-permukaan-2 px-4 py-5 text-center text-sm text-redup">
             Belum ada event yang dibuka. Absen Umum tetap dapat dipakai.
           </p>
 
-          <form class="mt-5 flex flex-wrap items-end gap-3" @submit.prevent="gabung">
+          <form class="mt-4 flex flex-wrap items-end gap-3" @submit.prevent="gabung">
             <div class="min-w-[13rem] flex-1">
               <label
                 for="kode-unit"
@@ -359,24 +383,37 @@ const tanggalPanjang = (nilai) =>
           </p>
         </section>
       </Transition>
-
-      <!-- Keterangan perangkat yang belum diaktifkan -->
-      <p v-if="!perangkatAktif" class="mt-8 text-center text-sm text-redup">
-        {{
-          aktivasi_tanpa_kode
-            ? 'Perangkat ini belum diaktifkan. Memilih salah satu di atas akan meminta unit kerjanya lebih dahulu.'
-            : 'Perangkat ini belum diaktifkan. Memilih salah satu di atas akan meminta kode aktivasi dari admin.'
-        }}
-      </p>
-
-      <button
-        v-else
-        type="button"
-        class="mx-auto mt-8 block rounded-lg px-3 py-2 text-xs font-medium text-redup transition-colors duration-150 hover:bg-permukaan-hover hover:text-sekunder"
-        @click="lepasPerangkat"
-      >
-        Lepas perangkat dari titik absen ini
-      </button>
     </main>
+
+    <!-- Kaki: aksi yang jarang dipakai, dan memang tidak untuk yang mengantre. -->
+    <footer class="border-t border-garis">
+      <div
+        class="mx-auto flex w-full max-w-4xl flex-wrap items-center justify-between gap-3 px-5 py-3 text-xs"
+      >
+        <p v-if="!perangkatAktif" class="text-redup">
+          {{
+            aktivasi_tanpa_kode
+              ? 'Memilih salah satu di atas akan meminta unit kerjanya lebih dahulu.'
+              : 'Memilih salah satu di atas akan meminta kode aktivasi dari admin.'
+          }}
+        </p>
+
+        <button
+          v-else
+          type="button"
+          class="rounded-lg px-2 py-1 text-redup transition-colors duration-150 hover:bg-permukaan-hover hover:text-sekunder"
+          @click="lepasPerangkat"
+        >
+          Lepas perangkat
+        </button>
+
+        <Link
+          :href="pengguna ? '/admin/dashboard' : '/masuk'"
+          class="tautan-aksi rounded-lg px-2 py-1 font-medium text-sekunder transition-colors duration-150 hover:bg-permukaan-hover hover:text-utama"
+        >
+          {{ pengguna ? 'Panel Admin' : 'Masuk Admin' }}
+        </Link>
+      </div>
+    </footer>
   </div>
 </template>

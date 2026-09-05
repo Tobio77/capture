@@ -25,6 +25,7 @@ const props = defineProps({
   daftar_presensi: { type: Array, required: true },
   waktu_server: { type: String, default: null },
   daftar_wajah_otomatis: { type: Boolean, default: false },
+  status_jendela: { type: Object, default: null },
 })
 
 const unitDipilih = ref(props.unit_kerja_id)
@@ -41,10 +42,6 @@ const endpoint = computed(() => ({
 
 const opsiUnit = computed(() =>
   props.unit_kerja.map((unit) => ({ nilai: unit.id, label: unit.nama, keterangan: unit.kode })),
-)
-
-const namaUnit = computed(
-  () => props.unit_kerja.find((unit) => unit.id === props.unit_kerja_id)?.nama ?? '',
 )
 
 /*
@@ -77,6 +74,11 @@ function gantiUnit() {
     </div>
   </div>
 
+  <!--
+    `titik` tidak mengulang unit kerja: namanya sudah tercantum pada nama sesi
+    ("Absen Umum — <unit>"). Yang perlu diketahui petugas justru bahwa layar
+    ini dibuka di peramban admin, bukan di perangkat titik absen.
+  -->
   <LayarAbsen
     v-else
     :event="event"
@@ -86,8 +88,9 @@ function gantiUnit() {
     :daftar_presensi="daftar_presensi"
     :waktu_server="waktu_server"
     :daftar_wajah_otomatis="daftar_wajah_otomatis"
+    :status_jendela="status_jendela"
     :endpoint="endpoint"
-    :titik="namaUnit ? `Layar absen admin · ${namaUnit}` : 'Layar absen admin'"
+    titik="Layar absen admin, bukan perangkat titik absen"
     judul_kosong="Pilih unit kerja untuk membuka sesi absen umum"
   >
     <template #aksi>

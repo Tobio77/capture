@@ -34,6 +34,25 @@ class SettingAbsenService
 
     public const string KUNCI_JAM_MASUK_UMUM = 'absen.jam_masuk_umum';
 
+    /*
+     * Jendela operasional Absen Umum (FR-SET-07). Datang dan pulang dipisah,
+     * bukan satu jendela besar: satu jendela 06.00–18.00 berarti "Pulang"
+     * pukul 07.00 dan "Datang" pukul 17.00 sama-sama sah, dan sistem tidak
+     * punya dasar menolaknya. Dua jendela membuat jenis absen yang keliru
+     * tertolak dengan sendirinya.
+     *
+     * Berbeda dari `jam_masuk_umum`, yang menentukan batas TEPAT WAKTU: jendela
+     * ini menentukan kapan tap diterima sama sekali. Keduanya berdampingan —
+     * datang boleh dari 06.00, tetapi terhitung terlambat setelah 07.30.
+     */
+    public const string KUNCI_BUKA_DATANG = 'absen.jam_buka_datang';
+
+    public const string KUNCI_TUTUP_DATANG = 'absen.jam_tutup_datang';
+
+    public const string KUNCI_BUKA_PULANG = 'absen.jam_buka_pulang';
+
+    public const string KUNCI_TUTUP_PULANG = 'absen.jam_tutup_pulang';
+
     public const string KUNCI_WAJIB_KODE_AKTIVASI = 'absen.wajib_kode_aktivasi';
 
     /** Jam masuk harian bawaan bila admin belum menyetelnya. */
@@ -74,6 +93,12 @@ class SettingAbsenService
              */
             'absen_umum_aktif' => $this->bool(self::KUNCI_ABSEN_UMUM, true),
             'jam_masuk_umum' => $this->jam(self::KUNCI_JAM_MASUK_UMUM, self::JAM_MASUK_BAWAAN),
+
+            // Jendela operasional; lihat catatan pada konstantanya.
+            'jam_buka_datang' => $this->jam(self::KUNCI_BUKA_DATANG, '06:00'),
+            'jam_tutup_datang' => $this->jam(self::KUNCI_TUTUP_DATANG, '09:00'),
+            'jam_buka_pulang' => $this->jam(self::KUNCI_BUKA_PULANG, '15:00'),
+            'jam_tutup_pulang' => $this->jam(self::KUNCI_TUTUP_PULANG, '18:00'),
 
             /*
              * FR-SET-06. Bawaannya menyala: perangkat harus didaftarkan admin
@@ -134,6 +159,10 @@ class SettingAbsenService
             self::KUNCI_KOMPRESI => (string) $nilai('kompresi_foto'),
             self::KUNCI_ABSEN_UMUM => $this->dariBool($nilai('absen_umum_aktif')),
             self::KUNCI_JAM_MASUK_UMUM => substr((string) $nilai('jam_masuk_umum'), 0, 5),
+            self::KUNCI_BUKA_DATANG => substr((string) $nilai('jam_buka_datang'), 0, 5),
+            self::KUNCI_TUTUP_DATANG => substr((string) $nilai('jam_tutup_datang'), 0, 5),
+            self::KUNCI_BUKA_PULANG => substr((string) $nilai('jam_buka_pulang'), 0, 5),
+            self::KUNCI_TUTUP_PULANG => substr((string) $nilai('jam_tutup_pulang'), 0, 5),
             self::KUNCI_WAJIB_KODE_AKTIVASI => $this->dariBool($nilai('wajib_kode_aktivasi')),
         ]);
 

@@ -1255,6 +1255,7 @@ Umum adalah dua halaman".
 | POST       | /admin/kelola-absen/event/{event}/kode/{kode}/reset | Terbitkan ulang kode unit kerja event (FR-EVT-03)                   |
 | GET        | /admin/kelola-absen/absen-umum         | Pemantauan sesi absen harian tanpa event kegiatan                                |
 | POST       | /admin/kelola-absen/absen-umum/buka    | Buka sesi absen umum hari ini tanpa menunggu tap pertama                         |
+| POST       | /admin/kelola-absen/absen-umum/override| Pasang/cabut override buka-tutup paksa hari ini (FR-SET-07)                     |
 | GET        | /admin/kelola-absen/absen-umum/data    | Rekap sesi berjalan dalam JSON, untuk penyegaran berkala                         |
 | GET        | /admin/kelola-absen/absen-umum/ekspor  | Unduh rekap absen umum sebagai CSV atau PDF (FR-REK-03)                          |
 | GET        | /admin/kelola-absen/absen-umum/layar   | Layar tangkap absen umum di peramban admin                                       |
@@ -1275,7 +1276,7 @@ Umum adalah dua halaman".
 | POST       | /admin/pengguna/{pengguna}/reset-sandi | Terbitkan kata sandi sementara baru                                              |
 | GET        | /admin/laporan                         | Laporan kehadiran per pegawai, terfilter rentang dan unit (FR-LAP-01, FR-LAP-02) |
 | GET        | /admin/laporan/ekspor                  | Unduh laporan sebagai CSV siap Excel (FR-LAP-03)                                |
-| GET        | /admin/kelola-absen/rekap              | Rekap absen per event, terfilter cakupan unit (FR-REK-01, FR-REK-02)             |
+| GET        | /admin/kelola-absen/rekap              | Rekap absen, tab `event` (bawaan) atau `?tab=umum` (FR-REK-01, FR-REK-02)        |
 | GET        | /admin/kelola-absen/rekap/{event}/data | Rekap terkini sebagai JSON untuk pembaruan berkala                               |
 | GET        | /admin/absensi/{absensi}/foto          | Foto absen untuk panel admin, dibatasi cakupan unit (NFR-04)                     |
 | GET        | /admin/kelola-absen/setting            | Form Setting Absen (Superadmin & Admin Dinas)                                   |
@@ -1358,3 +1359,62 @@ dilewati seluruhnya dan identitas cukup dipastikan kartu atau NIP.
 - Deployment mengikuti pola existing WORKA di VPS Jagoan Hosting; disarankan direktori storage foto dipisah dari direktori aplikasi agar mudah di-backup terpisah.
 
 - CI sederhana (GitHub Actions) untuk menjalankan test suite sebelum deploy, selaras dengan praktik pada proyek WORKA/SIMPEG.
+
+---
+
+## Komponen tabel & paginasi bersama (revisi S31)
+
+Setiap halaman daftar di panel admin sebelumnya menuliskan sendiri rangka
+tabel yang sama: pembungkus bergulir, kepala tabel, garis pemisah baris,
+keadaan kosong, dan navigasi halaman. Enam salinan dari satu rangka berarti
+enam tempat yang harus diingat ketika salah satunya diperbaiki — dan tempat
+yang terlupakan tidak terlihat sampai seseorang membuka halaman itu.
+
+Sejak revisi ini rangkanya tunggal:
+
+| Komponen | Tugas |
+|---|---|
+| `UI/TabelData.vue` | Rangka tabel: kepala dari daftar `kolom`, isi sel lewat slot `baris`, keadaan kosong, dan kaki paginasi. Menomori baris dengan benar pada halaman kedua dan seterusnya. |
+| `UI/Paginasi.vue` | Navigasi halaman untuk paginator Laravel (pindah halaman lewat kunjungan Inertia). |
+| `UI/PaginasiLokal.vue` | Navigasi halaman untuk daftar yang sudah utuh di memori; menyebut jumlah asli ketika pencarian sedang menyaring. |
+| `Rekap/TabelRekap.vue` | Tabel kehadiran (NIP, Nama, Unit Kerja, Jam Masuk, Jam Pulang, Metode, Status, Foto opsional), dipakai bersama Rekap Event, Rekap Umum, dan halaman Absen Umum. |
+| `Rekap/RingkasanRekap.vue` | Deret angka ringkas di kepala rekap. |
+
+Halaman hanya menyediakan isi selnya. Dua macam paginasi sengaja dipertahankan
+karena datanya memang datang dari dua arah — dipotong di server (Kelola
+Pegawai, Daftar Event, Kelola User/Role, Setting Unit Kerja, Perangkat Absen,
+Laporan) atau sudah utuh di layar dan disaring di peramban (Rekap Absen,
+Daftar e-Presensi pada layar titik absen) — tetapi bentuk dan bunyinya dibuat
+sama supaya pengguna tidak perlu mempelajari dua pola.
+
+### Satu sumber baris untuk absen umum
+
+`AbsenUmumService::rekapHarian()` adalah satu-satunya tempat pertanyaan
+"siapa saja yang absen umum pada tanggal ini" dijawab. Halaman Absen Umum dan
+tab Rekap Umum sama-sama memanggilnya. Keduanya sempat hendak ditulis
+sendiri-sendiri; pengalaman dengan pengisian Jam Masuk/Jam Pulang yang sempat
+menyimpang antar-jalur membuat salinan kedua itu tidak sepadan risikonya.
+`RekapTabUmumTest::baris_tab_umum_sama_persis_dengan_halaman_absen_umum()`
+membandingkan keluaran kedua halaman pada data yang sama, sehingga salinan
+yang menyimpang memerahkan uji, bukan diketahui dari laporan yang angkanya
+berbeda berbulan-bulan kemudian.
+
+### Daftar e-Presensi: pencarian, paginasi, dan fokus
+
+Panel Daftar e-Presensi pada layar titik absen menyaring dan memaginasi di
+peramban: barisnya ditarik utuh setiap sepuluh detik dan sudah berada di
+layar. Dua catatan yang tidak terlihat dari kodenya:
+
+- **Tap baru melompat ke halaman yang memuat entri barunya**, bukan ke halaman
+  satu. Daftar ini urut menurut waktu kedatangan, sehingga entri terbaru justru
+  berada di halaman terakhir; kembali ke halaman satu akan menampilkan orang
+  yang datang jam tujuh pagi tepat ketika orang yang baru tap mencari namanya.
+  Urutan kedatangannya sengaja tidak dibalik — nomor urut daftar ini berarti
+  urutan hadir, sama dengan yang tercetak di rekap. Ketika pencarian sedang
+  aktif dan entri baru tidak termasuk hasilnya, halaman dibiarkan apa adanya.
+- **Kolom tap merebut fokus kembali hanya bila tidak ada kolom lain yang
+  dituju** (`PanelEntry::jagaFokus`). Merebutnya tanpa syarat — perilaku
+  sebelum revisi ini — membuat kolom pencarian tidak dapat dipakai sama sekali:
+  satu ketukan padanya langsung dikembalikan, dan huruf yang diketik petugas
+  jatuh ke kolom tap. Yang dijaga NFR-08 adalah keadaan diam, bukan hak veto
+  atas setiap elemen lain di layar.

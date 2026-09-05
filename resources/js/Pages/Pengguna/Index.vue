@@ -4,7 +4,7 @@ import { router, useForm, usePage } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
 import Modal from '@/Components/Modal.vue'
 import Ikon from '@/Components/Ikon.vue'
-import Paginasi from '@/Components/UI/Paginasi.vue'
+import TabelData from '@/Components/UI/TabelData.vue'
 import KolomCari from '@/Components/UI/KolomCari.vue'
 import Lencana from '@/Components/UI/Lencana.vue'
 import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
@@ -30,14 +30,9 @@ const sandiSementara = computed(() => page.props.flash.sandi_sementara ?? null)
 
 const filter = reactive({ ...props.filter })
 
-const opsiPeran = computed(() =>
-  props.peran.map((p) => ({ nilai: p.nilai, label: p.label })),
-)
+const opsiPeran = computed(() => props.peran.map((p) => ({ nilai: p.nilai, label: p.label })))
 
-const opsiPeranFilter = computed(() => [
-  { nilai: '', label: 'Semua peran' },
-  ...opsiPeran.value,
-])
+const opsiPeranFilter = computed(() => [{ nilai: '', label: 'Semua peran' }, ...opsiPeran.value])
 
 const opsiUnitForm = computed(() =>
   props.unit_kerja.map((u) => ({ nilai: u.id, label: u.nama, keterangan: u.kode })),
@@ -147,7 +142,16 @@ function salin(teks) {
   setTimeout(() => (tersalin.value = false), 2000)
 }
 
-const warnaPeran = (role) => (role === 'superadmin' ? 'navy' : role === 'admin_dinas' ? 'teal' : 'slate')
+const warnaPeran = (role) =>
+  role === 'superadmin' ? 'navy' : role === 'admin_dinas' ? 'teal' : 'slate'
+const kolom = [
+  { label: 'Nama' },
+  { label: 'Alamat Surel' },
+  { label: 'Peran' },
+  { label: 'Cakupan' },
+  { label: 'Status' },
+  { label: 'Aksi', kelas: 'text-right' },
+]
 </script>
 
 <template>
@@ -202,21 +206,14 @@ const warnaPeran = (role) => (role === 'superadmin' ? 'navy' : role === 'admin_d
       </div>
     </Transition>
 
-    <div class="mb-5 panel p-4">
+    <div class="mb-4 panel p-3">
       <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <span class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup">
-            Cari Akun
-          </span>
+          <span class="sr-only"> Cari Akun </span>
           <KolomCari v-model="filter.cari" placeholder="Nama atau surel…" @cari="terapkan" />
         </div>
         <div>
-          <label
-            for="peran"
-            class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup"
-          >
-            Peran
-          </label>
+          <label for="peran" class="sr-only"> Peran </label>
           <Pilihan
             id="peran"
             v-model="filter.role"
@@ -225,12 +222,7 @@ const warnaPeran = (role) => (role === 'superadmin' ? 'navy' : role === 'admin_d
           />
         </div>
         <div>
-          <label
-            for="status"
-            class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup"
-          >
-            Status
-          </label>
+          <label for="status" class="sr-only"> Status </label>
           <Pilihan
             id="status"
             v-model="filter.status"
@@ -255,92 +247,71 @@ const warnaPeran = (role) => (role === 'superadmin' ? 'navy' : role === 'admin_d
       </div>
     </div>
 
-    <div class="overflow-hidden panel">
-      <div class="tabel-gulir tabel-aksi gulir-halus">
-        <table class="min-w-full divide-y divide-garis text-sm">
-          <thead
-            class="border-b border-garis bg-permukaan-2 text-xs uppercase tracking-wider text-redup"
-          >
-            <tr>
-              <th scope="col" class="px-4 py-3 text-left font-medium">Nama</th>
-              <th scope="col" class="px-4 py-3 text-left font-medium">Alamat Surel</th>
-              <th scope="col" class="px-4 py-3 text-left font-medium">Peran</th>
-              <th scope="col" class="px-4 py-3 text-left font-medium">Cakupan</th>
-              <th scope="col" class="px-4 py-3 text-left font-medium">Status</th>
-              <th scope="col" class="px-4 py-3 text-right font-medium">Aksi</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-garis">
-            <tr
-              v-for="item in daftar.data"
-              :key="item.id"
-              class="transition-colors hover:bg-permukaan-hover"
-              :class="{ 'baris-redup bg-permukaan-2/60': !item.aktif }"
-            >
-              <td class="px-4 py-3 font-medium text-utama">
-                {{ item.nama }}
-                <span v-if="item.id === sayaId" class="ml-1.5 text-xs font-normal text-redup">
-                  (Anda)
-                </span>
-              </td>
-              <td class="px-4 py-3 text-sekunder">{{ item.email }}</td>
-              <td class="px-4 py-3">
-                <Lencana :warna="warnaPeran(item.role)" :titik="false">
-                  {{ item.role_label }}
-                </Lencana>
-              </td>
-              <td
-                class="max-w-[14rem] truncate px-4 py-3 text-sekunder"
-                :title="item.unit_kerja?.nama ?? 'Seluruh unit kerja'"
-              >
-                {{ item.unit_kerja?.nama ?? 'Seluruh unit kerja' }}
-              </td>
-              <td class="px-4 py-3">
-                <Lencana :warna="item.aktif ? 'emerald' : 'slate'">
-                  {{ item.aktif ? 'Aktif' : 'Nonaktif' }}
-                </Lencana>
-              </td>
-              <td class="whitespace-nowrap px-4 py-3 text-right">
-                <TombolAksi ikon="ubah" warna="teal" @click="bukaUbah(item)">Ubah</TombolAksi>
-                <TombolAksi ikon="kunci" warna="navy" @click="resetSandi(item)">
-                  Reset Sandi
-                </TombolAksi>
-                <TombolAksi
-                  v-if="item.id !== sayaId"
-                  :ikon="item.aktif ? 'cabut' : 'cek'"
-                  :warna="item.aktif ? 'amber' : 'emerald'"
-                  @click="ubahStatus(item)"
-                >
-                  {{ item.aktif ? 'Nonaktifkan' : 'Aktifkan' }}
-                </TombolAksi>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <KeadaanKosong
-        v-if="daftar.data.length === 0"
-        ikon="pengguna"
-        :judul="adaPenyaring ? 'Tidak ada akun yang cocok' : 'Belum ada akun admin'"
-        :keterangan="
-          adaPenyaring
-            ? 'Ubah kata kunci, peran, atau status pada penyaring di atas.'
-            : 'Tambahkan akun admin pertama melalui tombol di kanan atas.'
-        "
-      >
-        <button
-          v-if="adaPenyaring"
-          type="button"
-          class="inline-flex items-center gap-1.5 rounded-md border border-garis px-3 py-1.5 text-xs font-medium text-sekunder transition hover:bg-permukaan-hover"
-          @click="bersihkan"
+    <TabelData
+      :kolom="kolom"
+      :baris="daftar.data"
+      :paginator="daftar"
+      kelas-gulir="tabel-aksi"
+      :kelas-baris="(item) => !item.aktif && 'baris-redup bg-permukaan-2/60'"
+    >
+      <template #baris="{ isi: item }">
+        <td class="px-4 py-3 font-medium text-utama">
+          {{ item.nama }}
+          <span v-if="item.id === sayaId" class="ml-1.5 text-xs font-normal text-redup">
+            (Anda)
+          </span>
+        </td>
+        <td class="px-4 py-3 text-sekunder">{{ item.email }}</td>
+        <td class="px-4 py-3">
+          <Lencana :warna="warnaPeran(item.role)" :titik="false">
+            {{ item.role_label }}
+          </Lencana>
+        </td>
+        <td
+          class="max-w-[14rem] truncate px-4 py-3 text-sekunder"
+          :title="item.unit_kerja?.nama ?? 'Seluruh unit kerja'"
         >
-          <Ikon nama="tutup" ukuran="h-3.5 w-3.5" /> Bersihkan filter
-        </button>
-      </KeadaanKosong>
+          {{ item.unit_kerja?.nama ?? 'Seluruh unit kerja' }}
+        </td>
+        <td class="px-4 py-3">
+          <Lencana :warna="item.aktif ? 'emerald' : 'slate'">
+            {{ item.aktif ? 'Aktif' : 'Nonaktif' }}
+          </Lencana>
+        </td>
+        <td class="whitespace-nowrap px-4 py-3 text-right">
+          <TombolAksi ikon="ubah" warna="teal" @click="bukaUbah(item)">Ubah</TombolAksi>
+          <TombolAksi ikon="kunci" warna="navy" @click="resetSandi(item)"> Reset Sandi </TombolAksi>
+          <TombolAksi
+            v-if="item.id !== sayaId"
+            :ikon="item.aktif ? 'cabut' : 'cek'"
+            :warna="item.aktif ? 'amber' : 'emerald'"
+            @click="ubahStatus(item)"
+          >
+            {{ item.aktif ? 'Nonaktifkan' : 'Aktifkan' }}
+          </TombolAksi>
+        </td>
+      </template>
 
-      <Paginasi :data="daftar" />
-    </div>
+      <template #kosong>
+        <KeadaanKosong
+          ikon="pengguna"
+          :judul="adaPenyaring ? 'Tidak ada akun yang cocok' : 'Belum ada akun admin'"
+          :keterangan="
+            adaPenyaring
+              ? 'Ubah kata kunci, peran, atau status pada penyaring di atas.'
+              : 'Tambahkan akun admin pertama melalui tombol di kanan atas.'
+          "
+        >
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 rounded-md border border-garis px-3 py-1.5 text-xs font-medium text-sekunder transition hover:bg-permukaan-hover"
+            @click="bersihkan"
+          >
+            <Ikon nama="tutup" ukuran="h-3.5 w-3.5" /> Bersihkan filter
+          </button>
+        </KeadaanKosong>
+      </template>
+    </TabelData>
 
     <Modal :terbuka="modalTerbuka" :judul="judulForm" @tutup="tutup">
       <div class="space-y-4">
@@ -352,7 +323,9 @@ const warnaPeran = (role) => (role === 'superadmin' ? 'navy' : role === 'admin_d
             type="text"
             class="mt-1 block w-full rounded-md border-garis bayang transition focus:border-aksen focus:ring-aksen sm:text-sm"
           />
-          <p v-if="form.errors.nama" class="mt-1.5 text-xs text-peringatan-teks">{{ form.errors.nama }}</p>
+          <p v-if="form.errors.nama" class="mt-1.5 text-xs text-peringatan-teks">
+            {{ form.errors.nama }}
+          </p>
         </div>
 
         <div>
@@ -371,7 +344,9 @@ const warnaPeran = (role) => (role === 'superadmin' ? 'navy' : role === 'admin_d
         <div>
           <label for="role" class="block text-sm font-medium text-utama">Peran</label>
           <Pilihan id="role" v-model="form.role" :opsi="opsiPeran" class="mt-1" />
-          <p v-if="form.errors.role" class="mt-1.5 text-xs text-peringatan-teks">{{ form.errors.role }}</p>
+          <p v-if="form.errors.role" class="mt-1.5 text-xs text-peringatan-teks">
+            {{ form.errors.role }}
+          </p>
         </div>
 
         <div v-if="perluUnit">

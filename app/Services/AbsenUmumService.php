@@ -2,13 +2,18 @@
 
 namespace App\Services;
 
+use App\Enums\AksiLog;
 use App\Enums\CakupanEvent;
+use App\Enums\JenisAbsen;
 use App\Enums\JenisEvent;
+use App\Enums\OverrideAbsenUmum;
 use App\Enums\StatusEvent;
 use App\Models\EventAbsen;
 use App\Models\Kiosk;
+use App\Models\Pegawai;
 use App\Models\UnitKerja;
 use App\Models\User;
+use App\Support\StatusAbsenUmum;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -38,6 +43,7 @@ class AbsenUmumService
     public function __construct(
         protected SettingAbsenService $setting,
         protected AbsensiService $absensi,
+        protected LogAktivitasService $log,
     ) {}
 
     /**
@@ -184,6 +190,214 @@ class AbsenUmumService
         return $opd === null
             ? $teratas
             : $teratas->prepend($opd->only(['id', 'kode', 'nama']))->values();
+    }
+
+    /**
+     * Status efektif Absen Umum untuk satu jenis absen (FR-SET-07).
+     *
+     * Urutan resolusinya tetap, dan ketiganya harus disebut eksplisit karena
+     * dua di antaranya menghasilkan layar yang terlihat sama persis:
+     *
+     *   1. Absen umum dimatikan pada Setting Absen → tertutup, tanpa kecuali.
+     *   2. Sesi hari ini membawa override admin → override menang, apa pun
+     *      kata jadwal.
+     *   3. Selebihnya → di dalam jendela jam bawaan berarti terbuka.
+     *
+     * `$sesi` boleh null: sebelum tap pertama, sesi harian memang belum lahir.
+     * Pada keadaan itu tidak mungkin ada override, sehingga jadwalnya yang
+     * berlaku — dan itulah jawaban yang benar, bukan "tertutup".
+     */
+    public function status(JenisAbsen $jenis, ?EventAbsen $sesi = null, ?Carbon $waktu = null): StatusAbsenUmum
+    {
+        $setting = $this->setting->ambil();
+        $waktu ??= Carbon::now();
+
+        [$buka, $tutup] = $jenis === JenisAbsen::Datang
+            ? [$setting['jam_buka_datang'], $setting['jam_tutup_datang']]
+            : [$setting['jam_buka_pulang'], $setting['jam_tutup_pulang']];
+
+        if (! $setting['absen_umum_aktif']) {
+            return new StatusAbsenUmum($jenis, false, 'setting', $buka, $tutup);
+        }
+
+        $override = $sesi?->override_absen;
+
+        if ($override !== null) {
+            return new StatusAbsenUmum(
+                $jenis,
+                $override->terbuka(),
+                'override',
+                $buka,
+                $tutup,
+                $override,
+                $sesi->pemasangOverride?->nama,
+            );
+        }
+
+        return new StatusAbsenUmum(
+            $jenis,
+            $this->didalamJendela($waktu, $buka, $tutup),
+            'jadwal',
+            $buka,
+            $tutup,
+        );
+    }
+
+    /**
+     * Status kedua jenis sekaligus, untuk layar yang menampilkan keduanya.
+     *
+     * @return array<string, StatusAbsenUmum>
+     */
+    public function statusSemua(?EventAbsen $sesi = null, ?Carbon $waktu = null): array
+    {
+        return [
+            JenisAbsen::Datang->value => $this->status(JenisAbsen::Datang, $sesi, $waktu),
+            JenisAbsen::Pulang->value => $this->status(JenisAbsen::Pulang, $sesi, $waktu),
+        ];
+    }
+
+    /**
+     * Apakah jam sekarang berada di dalam jendela.
+     *
+     * Jendela yang jam tutupnya LEBIH AWAL daripada jam bukanya dianggap
+     * melewati tengah malam — sif malam yang pulangnya pukul 02.00 bukan
+     * kemustahilan di UPT yang menyelenggarakan pelatihan menginap.
+     */
+    protected function didalamJendela(Carbon $waktu, string $buka, string $tutup): bool
+    {
+        $menit = (int) $waktu->format('G') * 60 + (int) $waktu->format('i');
+        $awal = $this->keMenit($buka);
+        $akhir = $this->keMenit($tutup);
+
+        return $awal <= $akhir
+            ? $menit >= $awal && $menit <= $akhir
+            : $menit >= $awal || $menit <= $akhir;
+    }
+
+    protected function keMenit(string $jam): int
+    {
+        [$j, $m] = array_map('intval', explode(':', $jam) + [1 => '0']);
+
+        return $j * 60 + $m;
+    }
+
+    /**
+     * Pasang atau cabut override pada sesi hari ini.
+     *
+     * Sesinya dibuat bila belum ada: admin yang menekan "buka paksa" pukul
+     * lima sore memang bermaksud membuka sesi hari ini, dan menolak karena
+     * "sesinya belum lahir" hanya akan membingungkan.
+     */
+    public function aturOverride(int $unitKerjaId, ?OverrideAbsenUmum $override, User $pelaku): ?EventAbsen
+    {
+        $sesi = $this->sesi($unitKerjaId, buat: true);
+
+        if ($sesi === null) {
+            return null;
+        }
+
+        $sesi->update([
+            'override_absen' => $override,
+            'override_oleh' => $override === null ? null : $pelaku->id,
+            'override_pada' => $override === null ? null : Carbon::now(),
+        ]);
+
+        $this->log->catat(
+            AksiLog::Ubah,
+            $override === null
+                ? "Mencabut override Absen Umum pada {$sesi->nama}; kembali mengikuti jadwal."
+                : "{$override->label()} Absen Umum pada {$sesi->nama} untuk hari ini.",
+            user: $pelaku,
+            subjek: $sesi,
+        );
+
+        return $sesi->fresh();
+    }
+
+    /**
+     * Rekap sebuah sesi absen umum, lengkap dengan ringkasannya.
+     *
+     * Satu-satunya tempat pertanyaan "siapa saja yang absen umum pada tanggal
+     * ini" dijawab. Halaman Absen Umum dan tab Rekap Umum sama-sama memanggil
+     * ini; keduanya sempat hendak ditulis sendiri-sendiri, dan pengalaman
+     * dengan pengisian Jam Masuk/Jam Pulang yang sempat menyimpang antar-jalur
+     * membuat salinan kedua itu tidak sepadan risikonya. Satu jawaban berarti
+     * satu tempat untuk diperbaiki, dan satu tempat untuk diuji.
+     *
+     * Cakupannya mengikuti peran (FR-REK-02): Admin UPT hanya melihat
+     * pegawainya sendiri, walaupun sesi yang dibacanya milik unit yang
+     * menaunginya.
+     *
+     * @return array{sesi: ?EventAbsen, baris: Collection<int, array<string, mixed>>, ringkasan: array<string, mixed>}
+     */
+    public function rekapHarian(
+        User $pelaku,
+        ?int $unitKerjaId,
+        ?Carbon $tanggal = null,
+        string $cari = '',
+    ): array {
+        $sesi = $unitKerjaId === null ? null : $this->sesi($unitKerjaId, $tanggal);
+
+        $baris = $sesi === null
+            ? collect()
+            : $this->saring($this->absensi->rekap($sesi, $this->cakupan($pelaku)), $cari);
+
+        return [
+            'sesi' => $sesi,
+            'baris' => $baris,
+            'ringkasan' => $this->ringkasan($baris, $unitKerjaId),
+        ];
+    }
+
+    /**
+     * Cakupan unit pengguna, atau null bila tidak perlu disaring (FR-REK-02).
+     *
+     * @return array<int, int>|null
+     */
+    public function cakupan(User $pelaku): ?array
+    {
+        return $pelaku->lintasUnit()
+            ? null
+            : UnitKerja::idsDenganTurunan($pelaku->unit_kerja_id);
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $baris
+     * @return Collection<int, array<string, mixed>>
+     */
+    protected function saring(Collection $baris, string $cari): Collection
+    {
+        $kunci = mb_strtolower(trim($cari));
+
+        if ($kunci === '') {
+            return $baris;
+        }
+
+        return $baris->filter(
+            fn (array $isi) => str_contains(mb_strtolower($isi['nama']), $kunci)
+                || str_contains((string) $isi['nip'], $kunci),
+        );
+    }
+
+    /**
+     * Ringkasan sesi, ditambah jumlah pegawai yang belum mencatat kehadiran.
+     *
+     * @param  Collection<int, array<string, mixed>>  $baris
+     * @return array<string, mixed>
+     */
+    protected function ringkasan(Collection $baris, ?int $unitKerjaId): array
+    {
+        $ringkasan = $this->absensi->ringkasanRekap($baris);
+
+        $jumlahPegawai = $unitKerjaId === null ? 0 : Pegawai::query()
+            ->where('aktif', true)
+            ->whereIn('unit_kerja_id', UnitKerja::idsDenganTurunan($unitKerjaId))
+            ->count();
+
+        $ringkasan['pegawai'] = $jumlahPegawai;
+        $ringkasan['belum_absen'] = max(0, $jumlahPegawai - $ringkasan['hadir']);
+
+        return $ringkasan;
     }
 
     /**

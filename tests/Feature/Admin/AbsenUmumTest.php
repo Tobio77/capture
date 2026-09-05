@@ -366,6 +366,10 @@ class AbsenUmumTest extends TestCase
         // bukan pencocokan wajah yang berjalan di sisi peramban.
         app(PengaturanRepository::class)->simpan(SettingAbsenService::KUNCI_WAJAH, '0');
 
+        // Di dalam jendela "datang" (FR-SET-07); tanpa ini hasilnya bergantung
+        // pada pukul berapa test dijalankan.
+        $this->travelTo('2026-09-07 07:35:00');
+
         $this->actingAs($admin)
             ->post(self::URL."/tap/identifikasi?unit_kerja_id={$upt->id}", [
                 'id_card' => '199001012020011001',

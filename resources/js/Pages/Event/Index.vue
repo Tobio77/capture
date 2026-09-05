@@ -4,7 +4,7 @@ import { router, useForm } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
 import Modal from '@/Components/Modal.vue'
 import Ikon from '@/Components/Ikon.vue'
-import Paginasi from '@/Components/UI/Paginasi.vue'
+import TabelData from '@/Components/UI/TabelData.vue'
 import KolomCari from '@/Components/UI/KolomCari.vue'
 import Lencana from '@/Components/UI/Lencana.vue'
 import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
@@ -204,7 +204,11 @@ function tutup(event) {
 }
 
 function hapus(event) {
-  if (window.confirm(`Hapus event "${event.nama}" secara permanen? Tindakan ini tidak dapat dibatalkan.`)) {
+  if (
+    window.confirm(
+      `Hapus event "${event.nama}" secara permanen? Tindakan ini tidak dapat dibatalkan.`,
+    )
+  ) {
     router.delete(`/admin/kelola-absen/event/${event.id}`, { preserveScroll: true })
   }
 }
@@ -227,6 +231,13 @@ function waktuSingkat(iso) {
     minute: '2-digit',
   })
 }
+const kolom = [
+  { label: 'Nama Event' },
+  { label: 'Cakupan' },
+  { label: 'Jadwal' },
+  { label: 'Masuk', kelas: 'text-right' },
+  { label: 'Aksi', kelas: 'text-right' },
+]
 </script>
 
 <template>
@@ -236,18 +247,10 @@ function waktuSingkat(iso) {
   >
     <template #aksi>
       <div class="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          class="tombol tombol-garis"
-          @click="unduh('csv')"
-        >
+        <button type="button" class="tombol tombol-garis" @click="unduh('csv')">
           <Ikon nama="unduh" ukuran="h-4 w-4" /> CSV
         </button>
-        <button
-          type="button"
-          class="tombol tombol-garis"
-          @click="unduh('pdf')"
-        >
+        <button type="button" class="tombol tombol-garis" @click="unduh('pdf')">
           <Ikon nama="cetak" ukuran="h-4 w-4" /> PDF
         </button>
         <button
@@ -260,10 +263,14 @@ function waktuSingkat(iso) {
       </div>
     </template>
 
-    <div class="mb-5 panel p-4">
+    <div class="mb-4 panel p-3">
       <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <div class="lg:col-span-2">
-          <KolomCari v-model="filter.cari" placeholder="Cari nama event atau catatan…" @cari="terapkan" />
+          <KolomCari
+            v-model="filter.cari"
+            placeholder="Cari nama event atau catatan…"
+            @cari="terapkan"
+          />
         </div>
         <Pilihan v-model="filter.status" :opsi="opsiStatus" @update:model-value="terapkan" />
         <Pilihan v-model="filter.unit_kerja_id" :opsi="opsiUnit" @update:model-value="terapkan" />
@@ -286,113 +293,116 @@ function waktuSingkat(iso) {
       </button>
     </div>
 
-    <div class="overflow-hidden panel">
-      <div class="tabel-gulir tabel-aksi gulir-halus">
-        <table class="min-w-full divide-y divide-garis text-sm">
-          <thead class="border-b border-garis bg-permukaan-2 text-xs uppercase tracking-wider text-redup">
-            <tr>
-              <th scope="col" class="px-4 py-3 text-left font-medium">Nama Event</th>
-              <th scope="col" class="px-4 py-3 text-left font-medium">Cakupan</th>
-              <th scope="col" class="px-4 py-3 text-left font-medium">Jadwal</th>
-              <th scope="col" class="px-4 py-3 text-right font-medium">Toleransi</th>
-              <th scope="col" class="px-4 py-3 text-right font-medium">Perangkat</th>
-              <th scope="col" class="px-4 py-3 text-right font-medium">Masuk</th>
-              <th scope="col" class="px-4 py-3 text-left font-medium">Status</th>
-              <th scope="col" class="px-4 py-3 text-right font-medium">Aksi</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-garis">
-            <tr v-for="event in daftar.data" :key="event.id" class="transition-colors hover:bg-permukaan-hover">
-              <td class="px-4 py-3">
-                <span class="font-medium text-utama">{{ event.nama }}</span>
-                <span v-if="event.catatan" class="mt-0.5 block max-w-xs truncate text-xs text-redup">
-                  {{ event.catatan }}
-                </span>
-              </td>
-              <td class="px-4 py-3">
-                <!--
-                  Cakupan bawaan sistem diberi lencana bernama, bukan sekadar
-                  deretan kode: yang perlu terbaca sekilas adalah "ini Wilayah
-                  Kerja Surabaya", sementara unit penyusunnya menyusul di
-                  bawahnya.
-                -->
-                <Lencana v-if="event.cakupan !== cakupan_unit" warna="navy" :titik="false">
-                  {{ event.cakupan_label }}
-                </Lencana>
+    <TabelData :kolom="kolom" :baris="daftar.data" :paginator="daftar" kelas-gulir="tabel-aksi">
+      <template #baris="{ isi: event }">
+        <td class="px-4 py-3">
+          <!--
+              Nama dipotong bila perlu supaya lencana tetap sebaris. Ketika
+              keduanya dibiarkan membungkus, baris dengan nama panjang
+              menjadi lebih tinggi daripada tetangganya dan tabel kehilangan
+              irama vertikalnya — nama utuhnya tetap terbaca pada Detail.
+            -->
+          <span class="flex items-center gap-2">
+            <span class="min-w-0 truncate font-medium text-utama" :title="event.nama">
+              {{ event.nama }}
+            </span>
 
-                <span
-                  v-if="event.cakupan !== cakupan_semua_unit"
-                  class="text-xs text-sekunder"
-                  :class="event.cakupan !== cakupan_unit ? 'mt-0.5 block' : ''"
-                >
-                  {{ event.unit_kerja.map((u) => u.kode).join(', ') || '—' }}
-                </span>
-              </td>
-              <td class="whitespace-nowrap px-4 py-3 text-sekunder">
-                <span class="flex items-center gap-1.5">
-                  <Ikon nama="kalender" ukuran="h-3.5 w-3.5" class="text-redup" />
-                  {{ tanggalPanjang(event.tanggal) }}
-                </span>
-                <span class="mt-0.5 flex items-center gap-1.5 font-display text-xs tabular-nums text-redup">
-                  <Ikon nama="jam" ukuran="h-3.5 w-3.5" class="text-redup" />
-                  {{ event.jam_mulai }}
-                </span>
-              </td>
-              <td class="px-4 py-3 text-right font-display tabular-nums text-sekunder">
-                {{ event.toleransi_menit }} mnt
-              </td>
-              <td class="px-4 py-3 text-right font-display tabular-nums text-sekunder">
-                {{ event.jumlah_kiosk }}
-              </td>
-              <td class="px-4 py-3 text-right font-display font-medium tabular-nums text-berhasil-teks">
-                {{ event.jumlah_absensi }}
-              </td>
-              <td class="px-4 py-3">
-                <Lencana
-                  :warna="event.status === 'aktif' ? 'emerald' : 'slate'"
-                  :denyut="event.status === 'aktif'"
-                >
-                  {{ event.status_label }}
-                </Lencana>
-              </td>
-              <td class="whitespace-nowrap px-4 py-3 text-right">
-                <TombolAksi ikon="detail" @click="bukaDetail(event)">Detail</TombolAksi>
-                <TombolAksi v-if="event.status === 'aktif'" ikon="ubah" warna="teal" @click="bukaUbah(event)">
-                  Ubah
-                </TombolAksi>
-                <TombolAksi v-if="event.status === 'aktif'" ikon="cek" warna="navy" @click="tutup(event)">
-                  Tutup
-                </TombolAksi>
-                <TombolAksi v-if="event.dapat_dihapus" ikon="hapus" warna="amber" @click="hapus(event)">
-                  Hapus
-                </TombolAksi>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+            <Lencana
+              class="shrink-0"
+              :warna="event.status === 'aktif' ? 'emerald' : 'slate'"
+              :denyut="event.status === 'aktif'"
+            >
+              {{ event.status_label }}
+            </Lencana>
+          </span>
 
-      <KeadaanKosong
-        v-if="daftar.data.length === 0"
-        ikon="absen"
-        :judul="adaFilter ? 'Tidak ada event yang cocok' : 'Belum ada event'"
-        :keterangan="
-          adaFilter
-            ? 'Coba longgarkan penyaringan, atau bersihkan seluruhnya.'
-            : 'Mulai dengan menekan “Buat Event” di kanan atas.'
-        "
-      />
+          <span v-if="event.catatan" class="mt-0.5 block max-w-xs truncate text-xs text-redup">
+            {{ event.catatan }}
+          </span>
+        </td>
+        <td class="px-4 py-3">
+          <!--
+              Cakupan bawaan sistem diberi lencana bernama, bukan sekadar
+              deretan kode: yang perlu terbaca sekilas adalah "ini Wilayah
+              Kerja Surabaya", sementara unit penyusunnya menyusul di
+              bawahnya.
+            -->
+          <Lencana v-if="event.cakupan !== cakupan_unit" warna="navy" :titik="false">
+            {{ event.cakupan_label }}
+          </Lencana>
 
-      <Paginasi :data="daftar" />
-    </div>
+          <span
+            v-if="event.cakupan !== cakupan_semua_unit"
+            class="text-xs text-sekunder"
+            :class="event.cakupan !== cakupan_unit ? 'mt-0.5 block' : ''"
+          >
+            {{ event.unit_kerja.map((u) => u.kode).join(', ') || '—' }}
+          </span>
+        </td>
+        <td class="whitespace-nowrap px-4 py-3 text-sekunder">
+          <span class="flex items-center gap-1.5">
+            <Ikon nama="kalender" ukuran="h-3.5 w-3.5" class="text-redup" />
+            {{ tanggalPanjang(event.tanggal) }}
+          </span>
+          <span
+            class="mt-0.5 flex items-center gap-1.5 font-display text-xs tabular-nums text-redup"
+          >
+            <Ikon nama="jam" ukuran="h-3.5 w-3.5" class="text-redup" />
+            {{ event.jam_mulai }} · toleransi {{ event.toleransi_menit }} mnt
+          </span>
+        </td>
+        <td class="whitespace-nowrap px-4 py-3 text-right">
+          <span class="font-display font-medium tabular-nums text-berhasil-teks">
+            {{ event.jumlah_absensi }}
+          </span>
+          <span class="mt-0.5 block font-display text-xs tabular-nums text-redup">
+            {{ event.jumlah_kiosk }} perangkat
+          </span>
+        </td>
+        <td class="whitespace-nowrap px-4 py-3 text-right">
+          <TombolAksi ikon="detail" @click="bukaDetail(event)">Detail</TombolAksi>
+          <TombolAksi
+            v-if="event.status === 'aktif'"
+            ikon="ubah"
+            warna="teal"
+            @click="bukaUbah(event)"
+          >
+            Ubah
+          </TombolAksi>
+          <TombolAksi v-if="event.status === 'aktif'" ikon="cek" warna="navy" @click="tutup(event)">
+            Tutup
+          </TombolAksi>
+          <TombolAksi v-if="event.dapat_dihapus" ikon="hapus" warna="amber" @click="hapus(event)">
+            Hapus
+          </TombolAksi>
+        </td>
+      </template>
+
+      <template #kosong>
+        <KeadaanKosong
+          ikon="absen"
+          :judul="adaFilter ? 'Tidak ada event yang cocok' : 'Belum ada event'"
+          :keterangan="
+            adaFilter
+              ? 'Coba longgarkan penyaringan, atau bersihkan seluruhnya.'
+              : 'Mulai dengan menekan “Buat Event” di kanan atas.'
+          "
+        />
+      </template>
+    </TabelData>
 
     <Modal :terbuka="detailTerbuka" judul="Detail Event" @tutup="detailTerbuka = false">
-      <p v-if="detailGagal" class="rounded-md bg-peringatan-lembut px-3 py-2 text-sm text-peringatan-teks">
+      <p
+        v-if="detailGagal"
+        class="rounded-md bg-peringatan-lembut px-3 py-2 text-sm text-peringatan-teks"
+      >
         {{ detailGagal }}
       </p>
 
       <p v-else-if="!detail" class="flex items-center gap-2 text-sm text-redup">
-        <span class="h-3 w-3 animate-spin rounded-full border-2 border-teal-600 border-t-transparent"></span>
+        <span
+          class="h-3 w-3 animate-spin rounded-full border-2 border-teal-600 border-t-transparent"
+        ></span>
         Memuat rincian…
       </p>
 
@@ -400,7 +410,8 @@ function waktuSingkat(iso) {
         <div class="rounded-lg bg-permukaan-2 px-4 py-3">
           <p class="font-medium text-utama">{{ detail.nama }}</p>
           <p class="mt-0.5 text-xs text-redup">
-            {{ tanggalPanjang(detail.tanggal) }} · {{ detail.jam_mulai }} · {{ detail.cakupan_label }}
+            {{ tanggalPanjang(detail.tanggal) }} · {{ detail.jam_mulai }} ·
+            {{ detail.cakupan_label }}
           </p>
         </div>
 
@@ -459,8 +470,7 @@ function waktuSingkat(iso) {
                 </p>
                 <p class="mt-0.5 truncate text-xs text-redup">
                   <span class="font-display tabular-nums">{{ kode.unit_kerja_kode }}</span>
-                  · {{ kode.unit_kerja_nama }}
-                  · {{ kode.jumlah_perangkat }} perangkat bergabung
+                  · {{ kode.unit_kerja_nama }} · {{ kode.jumlah_perangkat }} perangkat bergabung
                 </p>
               </div>
 
@@ -510,7 +520,9 @@ function waktuSingkat(iso) {
                     {{ kiosk.unit_kerja_kode }}
                   </span>
                 </td>
-                <td class="py-2 font-display tabular-nums text-sekunder">{{ kiosk.ip_address ?? '—' }}</td>
+                <td class="py-2 font-display tabular-nums text-sekunder">
+                  {{ kiosk.ip_address ?? '—' }}
+                </td>
                 <td class="py-2 text-right text-xs text-redup">
                   {{ waktuSingkat(kiosk.terakhir_aktif_pada) }}
                 </td>
@@ -542,7 +554,9 @@ function waktuSingkat(iso) {
             class="mt-1 block w-full rounded-md border-garis bayang focus:border-aksen focus:ring-aksen sm:text-sm"
             placeholder="mis. Apel Pagi Senin"
           />
-          <p v-if="form.errors.nama" class="mt-1 text-xs text-peringatan-teks">{{ form.errors.nama }}</p>
+          <p v-if="form.errors.nama" class="mt-1 text-xs text-peringatan-teks">
+            {{ form.errors.nama }}
+          </p>
         </div>
 
         <div class="grid gap-4 sm:grid-cols-3">
@@ -554,7 +568,9 @@ function waktuSingkat(iso) {
               type="date"
               class="mt-1 block w-full rounded-md border-garis bayang focus:border-aksen focus:ring-aksen sm:text-sm"
             />
-            <p v-if="form.errors.tanggal" class="mt-1 text-xs text-peringatan-teks">{{ form.errors.tanggal }}</p>
+            <p v-if="form.errors.tanggal" class="mt-1 text-xs text-peringatan-teks">
+              {{ form.errors.tanggal }}
+            </p>
           </div>
           <div>
             <label for="jam_mulai" class="block text-sm font-medium text-utama">Jam Mulai</label>
@@ -564,7 +580,9 @@ function waktuSingkat(iso) {
               type="time"
               class="mt-1 block w-full rounded-md border-garis bayang focus:border-aksen focus:ring-aksen sm:text-sm"
             />
-            <p v-if="form.errors.jam_mulai" class="mt-1 text-xs text-peringatan-teks">{{ form.errors.jam_mulai }}</p>
+            <p v-if="form.errors.jam_mulai" class="mt-1 text-xs text-peringatan-teks">
+              {{ form.errors.jam_mulai }}
+            </p>
           </div>
           <div>
             <label for="toleransi" class="block text-sm font-medium text-utama">Toleransi</label>
@@ -589,7 +607,12 @@ function waktuSingkat(iso) {
 
           <div v-if="boleh_semua_unit" class="mt-2 flex gap-4">
             <label class="flex items-center gap-2 text-sm text-utama">
-              <input v-model="form.cakupan" type="radio" value="unit" class="text-aksen focus:ring-aksen" />
+              <input
+                v-model="form.cakupan"
+                type="radio"
+                value="unit"
+                class="text-aksen focus:ring-aksen"
+              />
               Unit terpilih
             </label>
             <label class="flex items-center gap-2 text-sm text-utama">
@@ -645,18 +668,21 @@ function waktuSingkat(iso) {
             </p>
           </div>
 
-          <p v-else-if="semuaUnit" class="mt-2 flex items-start gap-2 rounded-md bg-info-lembut px-3 py-2 text-xs text-utama">
+          <p
+            v-else-if="semuaUnit"
+            class="mt-2 flex items-start gap-2 rounded-md bg-info-lembut px-3 py-2 text-xs text-utama"
+          >
             <Ikon nama="info" ukuran="h-4 w-4" class="mt-px shrink-0" />
-            Event berlaku untuk seluruh unit kerja, termasuk unit yang ditambahkan setelah event ini dibuat.
+            Event berlaku untuk seluruh unit kerja, termasuk unit yang ditambahkan setelah event ini
+            dibuat.
           </p>
 
           <div v-else class="mt-2 rounded-md bg-info-lembut px-3 py-2.5 text-xs text-utama">
             <p class="flex items-start gap-2">
               <Ikon nama="info" ukuran="h-4 w-4" class="mt-px shrink-0" />
               <span>
-                {{ tertananDipilih.label }} mencakup
-                {{ tertananDipilih.unit_kerja.length }} unit kerja berikut. Daftarnya ditentukan
-                sistem dan tidak dapat diubah dari sini.
+                {{ tertananDipilih.label }} mencakup {{ tertananDipilih.unit_kerja.length }} unit
+                kerja berikut. Daftarnya ditentukan sistem dan tidak dapat diubah dari sini.
               </span>
             </p>
 
@@ -668,21 +694,27 @@ function waktuSingkat(iso) {
             </ul>
           </div>
 
-          <p v-if="form.errors.cakupan" class="mt-1 text-xs text-peringatan-teks">{{ form.errors.cakupan }}</p>
+          <p v-if="form.errors.cakupan" class="mt-1 text-xs text-peringatan-teks">
+            {{ form.errors.cakupan }}
+          </p>
           <p v-if="form.errors.unit_kerja_id" class="mt-1 text-xs text-peringatan-teks">
             {{ form.errors.unit_kerja_id }}
           </p>
         </div>
 
         <div>
-          <label for="catatan" class="block text-sm font-medium text-utama">Catatan (opsional)</label>
+          <label for="catatan" class="block text-sm font-medium text-utama"
+            >Catatan (opsional)</label
+          >
           <textarea
             id="catatan"
             v-model="form.catatan"
             rows="2"
             class="mt-1 block w-full rounded-md border-garis bayang focus:border-aksen focus:ring-aksen sm:text-sm"
           ></textarea>
-          <p v-if="form.errors.catatan" class="mt-1 text-xs text-peringatan-teks">{{ form.errors.catatan }}</p>
+          <p v-if="form.errors.catatan" class="mt-1 text-xs text-peringatan-teks">
+            {{ form.errors.catatan }}
+          </p>
         </div>
       </div>
 

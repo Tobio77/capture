@@ -4,7 +4,7 @@ import { router, useForm } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
 import Modal from '@/Components/Modal.vue'
 import Ikon from '@/Components/Ikon.vue'
-import Paginasi from '@/Components/UI/Paginasi.vue'
+import TabelData from '@/Components/UI/TabelData.vue'
 import KolomCari from '@/Components/UI/KolomCari.vue'
 import Lencana from '@/Components/UI/Lencana.vue'
 import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
@@ -95,6 +95,14 @@ const ubahStatus = (unit) => {
     )
   }
 }
+const kolom = [
+  { label: 'Kode', kelas: 'px-6' },
+  { label: 'Nama Unit Kerja', kelas: 'px-6' },
+  { label: 'Pegawai', kelas: 'px-6 text-right' },
+  { label: 'Perangkat', kelas: 'px-6 text-right' },
+  { label: 'Status', kelas: 'px-6' },
+  { label: 'Aksi', kelas: 'px-6 text-right' },
+]
 </script>
 
 <template>
@@ -112,21 +120,14 @@ const ubahStatus = (unit) => {
       </button>
     </template>
 
-    <div class="mb-5 panel p-4">
+    <div class="mb-4 panel p-3">
       <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div class="lg:col-span-2">
-          <span class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup">
-            Cari Unit Kerja
-          </span>
+          <span class="sr-only"> Cari Unit Kerja </span>
           <KolomCari v-model="filter.cari" placeholder="Kode atau nama unit…" @cari="terapkan" />
         </div>
         <div>
-          <label
-            for="status"
-            class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup"
-          >
-            Status
-          </label>
+          <label for="status" class="sr-only"> Status </label>
           <Pilihan
             id="status"
             v-model="filter.status"
@@ -151,88 +152,67 @@ const ubahStatus = (unit) => {
       </div>
     </div>
 
-    <div class="overflow-hidden panel">
-      <div class="tabel-gulir tabel-aksi gulir-halus">
-        <table class="w-full text-left text-sm">
-          <thead
-            class="border-b border-garis bg-permukaan-2 text-xs uppercase tracking-wider text-redup"
+    <TabelData
+      :kolom="kolom"
+      :baris="daftar.data"
+      :paginator="daftar"
+      kelas-gulir="tabel-aksi"
+      :kelas-baris="(unit) => !unit.aktif && 'baris-redup bg-permukaan-2/60'"
+    >
+      <template #baris="{ isi: unit }">
+        <td class="px-6 py-3 font-display font-medium text-utama">{{ unit.kode }}</td>
+        <td class="px-6 py-3 text-utama">
+          {{ unit.nama }}
+          <span
+            v-if="unit.jumlah_unit_turunan > 0"
+            class="ml-2 whitespace-nowrap text-xs text-redup"
           >
-            <tr>
-              <th scope="col" class="px-6 py-3 font-medium">Kode</th>
-              <th scope="col" class="px-6 py-3 font-medium">Nama Unit Kerja</th>
-              <th scope="col" class="px-6 py-3 text-right font-medium">Pegawai</th>
-              <th scope="col" class="px-6 py-3 text-right font-medium">Perangkat</th>
-              <th scope="col" class="px-6 py-3 font-medium">Status</th>
-              <th v-if="dapat_mengubah" scope="col" class="px-6 py-3 text-right font-medium">
-                Aksi
-              </th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-garis">
-            <tr
-              v-for="unit in daftar.data"
-              :key="unit.id"
-              class="transition-colors hover:bg-permukaan-hover"
-              :class="{ 'baris-redup bg-permukaan-2/60': !unit.aktif }"
-            >
-              <td class="px-6 py-3 font-display font-medium text-utama">{{ unit.kode }}</td>
-              <td class="px-6 py-3 text-utama">
-                {{ unit.nama }}
-                <span
-                  v-if="unit.jumlah_unit_turunan > 0"
-                  class="ml-2 whitespace-nowrap text-xs text-redup"
-                >
-                  membawahi {{ unit.jumlah_unit_turunan }} unit
-                </span>
-              </td>
-              <td class="px-6 py-3 text-right font-display tabular-nums text-sekunder">
-                {{ unit.jumlah_pegawai }}
-              </td>
-              <td class="px-6 py-3 text-right font-display tabular-nums text-sekunder">
-                {{ unit.jumlah_kiosk }}
-              </td>
-              <td class="px-6 py-3">
-                <Lencana :warna="unit.aktif ? 'emerald' : 'slate'">
-                  {{ unit.aktif ? 'Aktif' : 'Nonaktif' }}
-                </Lencana>
-              </td>
-              <td v-if="dapat_mengubah" class="whitespace-nowrap px-6 py-3 text-right">
-                <TombolAksi ikon="ubah" warna="teal" @click="bukaUbah(unit)">Ubah</TombolAksi>
-                <TombolAksi
-                  :ikon="unit.aktif ? 'cabut' : 'cek'"
-                  :warna="unit.aktif ? 'amber' : 'emerald'"
-                  @click="ubahStatus(unit)"
-                >
-                  {{ unit.aktif ? 'Nonaktifkan' : 'Aktifkan' }}
-                </TombolAksi>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+            membawahi {{ unit.jumlah_unit_turunan }} unit
+          </span>
+        </td>
+        <td class="px-6 py-3 text-right font-display tabular-nums text-sekunder">
+          {{ unit.jumlah_pegawai }}
+        </td>
+        <td class="px-6 py-3 text-right font-display tabular-nums text-sekunder">
+          {{ unit.jumlah_kiosk }}
+        </td>
+        <td class="px-6 py-3">
+          <Lencana :warna="unit.aktif ? 'emerald' : 'slate'">
+            {{ unit.aktif ? 'Aktif' : 'Nonaktif' }}
+          </Lencana>
+        </td>
+        <td v-if="dapat_mengubah" class="whitespace-nowrap px-6 py-3 text-right">
+          <TombolAksi ikon="ubah" warna="teal" @click="bukaUbah(unit)">Ubah</TombolAksi>
+          <TombolAksi
+            :ikon="unit.aktif ? 'cabut' : 'cek'"
+            :warna="unit.aktif ? 'amber' : 'emerald'"
+            @click="ubahStatus(unit)"
+          >
+            {{ unit.aktif ? 'Nonaktifkan' : 'Aktifkan' }}
+          </TombolAksi>
+        </td>
+      </template>
 
-      <KeadaanKosong
-        v-if="daftar.data.length === 0"
-        ikon="pegawai"
-        :judul="adaPenyaring ? 'Tidak ada unit yang cocok' : 'Belum ada unit kerja terdaftar'"
-        :keterangan="
-          adaPenyaring
-            ? 'Ubah kata kunci atau status pada penyaring di atas.'
-            : 'Unit kerja terisi otomatis saat sinkronisasi pegawai dari WORKA.'
-        "
-      >
-        <button
-          v-if="adaPenyaring"
-          type="button"
-          class="inline-flex items-center gap-1.5 rounded-md border border-garis px-3 py-1.5 text-xs font-medium text-sekunder transition hover:bg-permukaan-hover"
-          @click="bersihkan"
+      <template #kosong>
+        <KeadaanKosong
+          ikon="pegawai"
+          :judul="adaPenyaring ? 'Tidak ada unit yang cocok' : 'Belum ada unit kerja terdaftar'"
+          :keterangan="
+            adaPenyaring
+              ? 'Ubah kata kunci atau status pada penyaring di atas.'
+              : 'Unit kerja terisi otomatis saat sinkronisasi pegawai dari WORKA.'
+          "
         >
-          <Ikon nama="tutup" ukuran="h-3.5 w-3.5" /> Bersihkan filter
-        </button>
-      </KeadaanKosong>
-
-      <Paginasi :data="daftar" />
-    </div>
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 rounded-md border border-garis px-3 py-1.5 text-xs font-medium text-sekunder transition hover:bg-permukaan-hover"
+            @click="bersihkan"
+          >
+            <Ikon nama="tutup" ukuran="h-3.5 w-3.5" /> Bersihkan filter
+          </button>
+        </KeadaanKosong>
+      </template>
+    </TabelData>
 
     <p v-if="!dapat_mengubah" class="mt-4 flex items-center gap-1.5 text-sm text-redup">
       <Ikon nama="info" ukuran="h-4 w-4" />
@@ -257,7 +237,9 @@ const ubahStatus = (unit) => {
             placeholder="BLK-SBY"
             class="kolom-isian mt-1 uppercase"
           />
-          <p v-if="form.errors.kode" class="mt-1.5 text-sm text-peringatan-teks">{{ form.errors.kode }}</p>
+          <p v-if="form.errors.kode" class="mt-1.5 text-sm text-peringatan-teks">
+            {{ form.errors.kode }}
+          </p>
           <p v-else class="mt-1.5 text-xs text-redup">
             Huruf, angka, dan tanda hubung. Contoh: BLK-SBY.
           </p>
@@ -274,7 +256,9 @@ const ubahStatus = (unit) => {
             placeholder="UPT Balai Latihan Kerja Surabaya"
             class="kolom-isian mt-1"
           />
-          <p v-if="form.errors.nama" class="mt-1.5 text-sm text-peringatan-teks">{{ form.errors.nama }}</p>
+          <p v-if="form.errors.nama" class="mt-1.5 text-sm text-peringatan-teks">
+            {{ form.errors.nama }}
+          </p>
         </div>
       </form>
 

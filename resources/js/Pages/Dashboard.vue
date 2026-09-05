@@ -6,7 +6,7 @@ import Ikon from '@/Components/Ikon.vue'
 import Lencana from '@/Components/UI/Lencana.vue'
 import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
 import KartuStatistik from '@/Components/UI/KartuStatistik.vue'
-import { useAngkaBerjalan } from '@/Composables/useAngkaBerjalan'
+import KartuKehadiran from '@/Components/UI/KartuKehadiran.vue'
 
 /**
  * Dashboard ringkasan kehadiran (FR-DASH-01 s.d. FR-DASH-03).
@@ -63,15 +63,20 @@ async function segarkanAktivitas() {
 }
 
 /*
- * Empat kartu, empat nada berbeda. Sebelumnya dua di antaranya memakai teal
- * yang sama, sehingga deretannya terbaca sebagai satu blok — padahal keempat
- * angka itu menjawab pertanyaan yang berlainan.
+ * Tiga kartu ringkas. Yang keempat — kehadiran hari ini — naik menjadi kartu
+ * utama tersendiri, karena ia satu-satunya yang layak menjadi pusat perhatian
+ * halaman ini.
+ *
+ * Indikator visual hanya dipasang pada yang punya PENYEBUT NYATA. "Perangkat
+ * aktif 0 dari 5" punya penyebut, jadi ia memperoleh lima pip. "666 pegawai"
+ * dan "7 event" tidak — keduanya bukan bagian dari apa pun, dan bar di
+ * bawahnya hanya akan menjadi jalur kosong yang menyesatkan.
  */
 const kartu = computed(() => [
   {
     label: 'Total Pegawai',
     nilai: props.statistik.total_pegawai,
-    keterangan: 'pegawai aktif dalam cakupan Anda',
+    keterangan: `${props.kesiapan.wajah_terdaftar} wajah · ${props.kesiapan.kartu_terdaftar} kartu RFID terdaftar`,
     ikon: 'pegawai',
     nada: 'biru',
   },
@@ -81,51 +86,16 @@ const kartu = computed(() => [
     keterangan: `dari ${props.kesiapan.perangkat} perangkat terdaftar`,
     ikon: 'perangkat',
     nada: 'langit',
-    persen: props.kesiapan.perangkat === 0
-      ? 0
-      : (props.statistik.kiosk_aktif / props.kesiapan.perangkat) * 100,
+    pip: { terisi: props.statistik.kiosk_aktif, total: props.kesiapan.perangkat },
   },
   {
     label: 'Event Berlangsung',
     nilai: props.statistik.event_berlangsung,
-    keterangan: 'entry masih dibuka',
+    keterangan: 'entry masih dibuka untuk menerima tap',
     ikon: 'absen',
     nada: 'teal',
   },
-  {
-    label: 'Kehadiran Hari Ini',
-    nilai: props.statistik.persentase_kehadiran,
-    satuan: '%',
-    desimal: 1,
-    keterangan: `${props.statistik.hadir_hari_ini} dari ${props.statistik.total_pegawai} pegawai`,
-    ikon: props.statistik.persentase_kehadiran >= 75 ? 'naik' : 'turun',
-    nada: props.statistik.persentase_kehadiran >= 75 ? 'emerald' : 'amber',
-    persen: props.statistik.persentase_kehadiran,
-  },
 ])
-
-const totalKetepatan = computed(() => props.ketepatan.tepat + props.ketepatan.terlambat)
-
-const bagianTepat = computed(() =>
-  totalKetepatan.value === 0 ? 0 : Math.round((props.ketepatan.tepat / totalKetepatan.value) * 100),
-)
-
-/* Keliling cincin ketepatan: 2πr dengan r = 46 pada viewBox 120×120. */
-const KELILING = 2 * Math.PI * 46
-
-const panjangTepat = computed(() => (bagianTepat.value / 100) * KELILING)
-
-const tepatBerjalan = useAngkaBerjalan(
-  computed(() => props.ketepatan.tepat),
-  { tunda: 260 },
-)
-
-const terlambatBerjalan = useAngkaBerjalan(
-  computed(() => props.ketepatan.terlambat),
-  { tunda: 340 },
-)
-
-const persenTepatBerjalan = useAngkaBerjalan(bagianTepat, { tunda: 260 })
 
 /* Geometri grafik area. */
 const LEBAR = 720
@@ -191,24 +161,52 @@ function waktuRelatif(iso) {
 
 <template>
   <AdminLayout judul="Dashboard" :deskripsi="`Ringkasan kehadiran untuk ${cakupan}.`">
-    <!-- FR-DASH-01 -->
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <KartuStatistik
-        v-for="(item, urutan) in kartu"
-        :key="item.label"
-        v-bind="item"
-        :tunda="urutan * 70"
+    <!--
+      FR-DASH-01. Satu kartu utama dan tiga kartu ringkas, bukan empat kartu
+      sejajar: empat hal berukuran sama berarti tidak ada satu pun yang menjadi
+      pusat perhatian, dan mata akhirnya memilih yang paling kiri.
+    -->
+    <div class="flex flex-col gap-4">
+      <KartuKehadiran
+        :hadir="statistik.hadir_hari_ini"
+        :total="statistik.total_pegawai"
+        :tepat="ketepatan.tepat"
+        :terlambat="ketepatan.terlambat"
       />
+
+      <!--
+        Tiga kartu ringkas mendapat lebar penuh masing-masing sepertiga. Ketika
+        keempatnya dijejer sebaris bersama kartu utama, labelnya terpaksa
+        membungkus dua baris dan tinggi kartunya berbeda-beda.
+      -->
+      <div class="grid gap-4 sm:grid-cols-3">
+        <KartuStatistik
+          v-for="(item, urutan) in kartu"
+          :key="item.label"
+          v-bind="item"
+          :tunda="urutan * 70"
+        />
+      </div>
     </div>
 
     <!-- Event berjalan -->
-    <div
-      v-if="event_berjalan.length > 0"
-      class="mt-6 rounded-lg border border-berhasil bg-berhasil-lembut/50 p-5"
-    >
+    <!--
+      Sesi yang sedang menerima tap. Sebelumnya berlatar hijau selebar halaman,
+      dan bidang berwarna sebesar itu menyaingi kartu kehadiran di atasnya —
+      padahal isinya daftar rutin yang dibaca sekilas, bukan angka yang perlu
+      direnungkan. Kini panel biasa; yang menandai "hidup" cukup titik berdenyut
+      pada judulnya.
+    -->
+    <div v-if="event_berjalan.length > 0" class="panel mt-4 p-5">
       <div class="flex items-center gap-2">
-        <span class="h-2 w-2 animate-pulse rounded-full bg-emerald-600"></span>
+        <span class="relative flex h-2 w-2">
+          <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-berhasil opacity-60"></span>
+          <span class="relative inline-flex h-2 w-2 rounded-full bg-berhasil"></span>
+        </span>
         <h2 class="font-display text-sm font-semibold text-utama">Sedang Berlangsung</h2>
+        <span class="keping nada-emerald ml-1 px-2 py-0 text-[0.6875rem]">
+          {{ event_berjalan.length }}
+        </span>
       </div>
 
       <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -216,7 +214,7 @@ function waktuRelatif(iso) {
           v-for="event in event_berjalan"
           :key="event.id"
           :href="`/admin/kelola-absen/rekap?event_absen_id=${event.id}`"
-          class="rounded-lg border border-berhasil bg-permukaan px-4 py-3 transition hover:border-emerald-400 hover:bayang"
+          class="rounded-xl border border-garis bg-permukaan-2 px-4 py-3 transition-colors duration-150 hover:border-aksen hover:bg-permukaan"
         >
           <p class="truncate font-medium text-utama">{{ event.nama }}</p>
           <p class="mt-0.5 truncate text-xs text-redup">
@@ -320,82 +318,9 @@ function waktuRelatif(iso) {
           </svg>
         </div>
 
-        <!-- Ketepatan & kesiapan -->
-        <div class="grid gap-6 md:grid-cols-2">
-          <div class="panel p-6">
-            <h2 class="font-display text-base font-semibold text-utama">Ketepatan Hari Ini</h2>
-
-            <p v-if="totalKetepatan === 0" class="mt-4 text-sm text-redup">
-              Belum ada absen masuk hari ini.
-            </p>
-
-            <!--
-              Cincin, bukan bar. Perbandingan tepat/terlambat adalah satu bagian
-              dari satu keseluruhan, dan bentuk lingkaran menyatakan "bagian
-              dari" jauh lebih langsung daripada batang mendatar — yang lebih
-              cocok membandingkan beberapa hal sejajar.
-            -->
-            <template v-else>
-              <div class="mt-5 flex items-center gap-6">
-                <div class="relative h-[7.5rem] w-[7.5rem] shrink-0">
-                  <svg viewBox="0 0 120 120" class="h-full w-full -rotate-90">
-                    <circle
-                      cx="60"
-                      cy="60"
-                      r="46"
-                      fill="none"
-                      stroke="var(--tema-peringatan-lembut)"
-                      stroke-width="14"
-                    />
-                    <circle
-                      cx="60"
-                      cy="60"
-                      r="46"
-                      fill="none"
-                      stroke="var(--tema-berhasil)"
-                      stroke-width="14"
-                      stroke-linecap="round"
-                      class="cincin-terisi"
-                      :stroke-dasharray="`${panjangTepat} ${KELILING}`"
-                      :style="{ '--panjang-garis': panjangTepat }"
-                    />
-                  </svg>
-
-                  <div class="absolute inset-0 flex flex-col items-center justify-center">
-                    <span class="font-display text-2xl font-semibold tabular-nums text-berhasil-teks">
-                      {{ persenTepatBerjalan }}%
-                    </span>
-                    <span class="text-[0.625rem] uppercase tracking-wider text-redup">tepat</span>
-                  </div>
-                </div>
-
-                <dl class="min-w-0 flex-1 space-y-3">
-                  <div class="nada-emerald flex items-center gap-3">
-                    <span class="h-8 w-1.5 shrink-0 rounded-full" :style="{ background: 'var(--nada-kuat)' }"></span>
-                    <div class="min-w-0">
-                      <dd class="font-display text-xl font-semibold tabular-nums text-berhasil-teks">
-                        {{ tepatBerjalan }}
-                      </dd>
-                      <dt class="text-xs text-redup">tepat waktu</dt>
-                    </div>
-                  </div>
-
-                  <div class="nada-amber flex items-center gap-3">
-                    <span class="h-8 w-1.5 shrink-0 rounded-full" :style="{ background: 'var(--nada-kuat)' }"></span>
-                    <div class="min-w-0">
-                      <dd class="font-display text-xl font-semibold tabular-nums text-peringatan-teks">
-                        {{ terlambatBerjalan }}
-                      </dd>
-                      <dt class="text-xs text-redup">terlambat</dt>
-                    </div>
-                  </div>
-                </dl>
-              </div>
-            </template>
-          </div>
-
-          <div class="panel p-6">
-            <h2 class="font-display text-base font-semibold text-utama">Kesiapan Sistem</h2>
+        <!-- Kesiapan sistem -->
+        <div class="panel p-6">
+          <h2 class="font-display text-base font-semibold text-utama">Kesiapan Sistem</h2>
             <p class="mt-1 text-xs text-redup">
               Yang biasanya menjelaskan kegagalan absen di lapangan.
             </p>
@@ -434,7 +359,6 @@ function waktuRelatif(iso) {
                 </Lencana>
               </div>
             </div>
-          </div>
         </div>
 
         <!-- Peringkat unit -->

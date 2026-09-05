@@ -7,10 +7,12 @@ use App\Models\Absensi;
 use App\Models\EventAbsen;
 use App\Models\UnitKerja;
 use App\Services\AbsensiService;
+use App\Services\AbsenUmumService;
 use App\Services\EksporService;
 use App\Services\EventAbsenService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -27,9 +29,78 @@ class RekapController extends Controller
         protected EventAbsenService $event,
         protected AbsensiService $absensi,
         protected EksporService $ekspor,
+        protected AbsenUmumService $absenUmum,
     ) {}
 
+    /**
+     * Rekap Absen, dua tab: kegiatan dan harian.
+     *
+     * Absen umum sudah punya menunya sendiri untuk memantau sesi yang sedang
+     * berjalan, tetapi orang yang hendak MEMBACA rekap mencarinya di menu
+     * Rekap Absen — dan sebelumnya hanya menemukan kegiatan di sana, seolah
+     * kehadiran harian tidak pernah direkap.
+     *
+     * Tab harian tidak menyalin apa pun: barisnya diminta ke
+     * {@see AbsenUmumService::rekapHarian()}, sumber yang sama yang dipakai
+     * halaman Absen Umum, dan digambar oleh komponen tabel yang sama pula.
+     */
     public function index(Request $request): Response
+    {
+        return $request->string('tab')->toString() === 'umum'
+            ? $this->umum($request)
+            : $this->kegiatan($request);
+    }
+
+    /**
+     * Tab Rekap Umum — kehadiran harian per unit kerja dan tanggal.
+     */
+    protected function umum(Request $request): Response
+    {
+        $pengguna = $request->user();
+        $unitTersedia = $this->absenUmum->unitTersedia($pengguna);
+
+        $unitId = $this->absenUmum->unitTerpilih(
+            $pengguna,
+            $request->integer('unit_kerja_id') ?: $unitTersedia->first()['id'] ?? null,
+        );
+
+        $tanggal = $request->string('tanggal')->toString() === ''
+            ? Carbon::today()
+            : Carbon::parse($request->string('tanggal')->toString())->startOfDay();
+
+        $cari = $request->string('cari')->toString();
+        $rekap = $this->absenUmum->rekapHarian($pengguna, $unitId, $tanggal, $cari);
+        $sesi = $rekap['sesi'];
+
+        return Inertia::render('Rekap/Index', [
+            'tab' => 'umum',
+            'daftar_event' => [],
+            'event' => null,
+            'rekap' => [],
+            'ringkasan' => $rekap['ringkasan'],
+            'umum' => [
+                'unit_kerja' => $unitTersedia->values(),
+                'filter' => [
+                    'unit_kerja_id' => $unitId,
+                    'tanggal' => $tanggal->toDateString(),
+                    'cari' => $cari,
+                ],
+                'sesi' => $sesi === null ? null : [
+                    'nama' => $sesi->nama,
+                    'tanggal' => $sesi->tanggal->toDateString(),
+                    'jam_mulai' => substr((string) $sesi->jam_mulai, 0, 5),
+                    'toleransi_menit' => $sesi->toleransi_menit,
+                    'aktif' => $sesi->aktif(),
+                ],
+                'baris' => $rekap['baris']->values(),
+            ],
+        ]);
+    }
+
+    /**
+     * Tab Rekap Event — kehadiran satu kegiatan.
+     */
+    protected function kegiatan(Request $request): Response
     {
         $pengguna = $request->user();
         $daftarEvent = $this->event->opsiEvent($pengguna);
@@ -46,6 +117,8 @@ class RekapController extends Controller
             : $this->absensi->rekap($terpilih, $this->cakupan($request));
 
         return Inertia::render('Rekap/Index', [
+            'tab' => 'event',
+            'umum' => null,
             'daftar_event' => $daftarEvent,
             'event' => $terpilih === null ? null : [
                 'id' => $terpilih->id,

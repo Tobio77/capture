@@ -25,6 +25,7 @@ const props = defineProps({
   daftar_presensi: { type: Array, required: true },
   waktu_server: { type: String, default: null },
   daftar_wajah_otomatis: { type: Boolean, default: false },
+  status_jendela: { type: Object, default: null },
 })
 
 const page = usePage()
@@ -70,6 +71,7 @@ function keluarDariEvent() {
     :daftar_presensi="daftar_presensi"
     :waktu_server="waktu_server"
     :daftar_wajah_otomatis="daftar_wajah_otomatis"
+    :status_jendela="status_jendela"
     :endpoint="endpoint"
     :titik="`${kiosk.nama_titik} · ${kiosk.unit_kerja?.nama ?? ''}`"
     :judul_kosong="judulKosong"

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\CakupanEvent;
 use App\Enums\JenisEvent;
+use App\Enums\OverrideAbsenUmum;
 use App\Enums\StatusEvent;
 use Database\Factories\EventAbsenFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -23,6 +24,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'nama',
     'jenis',
     'kunci_sesi',
+    'override_absen',
+    'override_oleh',
+    'override_pada',
+
     'tanggal',
     'jam_mulai',
     'toleransi_menit',
@@ -51,6 +56,8 @@ class EventAbsen extends Model
             'cakupan' => CakupanEvent::class,
             'status' => StatusEvent::class,
             'ditutup_pada' => 'datetime',
+            'override_absen' => OverrideAbsenUmum::class,
+            'override_pada' => 'datetime',
         ];
     }
 
@@ -105,6 +112,16 @@ class EventAbsen extends Model
     public function pembuat(): BelongsTo
     {
         return $this->belongsTo(User::class, 'dibuat_oleh');
+    }
+
+    /**
+     * Admin yang memasang override buka/tutup pada sesi absen umum ini.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function pemasangOverride(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'override_oleh');
     }
 
     public function aktif(): bool

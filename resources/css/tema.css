@@ -146,17 +146,31 @@
 :root {
     color-scheme: light;
 
-    --tema-kertas: #f1f7fa;
-    --tema-permukaan: #ffffff;
-    --tema-permukaan-2: #eff5f9;
-    --tema-permukaan-hover: #e7f0f6;
+    /*
+     * Latar SAGE, bukan biru-pucat (S31).
+     *
+     * Biru-pucat di atas kartu putih murni adalah bawaan yang dipakai hampir
+     * setiap aplikasi web, dan aplikasi ini bukan aplikasi web mana pun: ia
+     * menempel di pintu masuk kantor dinas dan ruang praktik BLK. Sage pucat
+     * adalah warna dinding tempat itu — hangat, sedikit kehijauan, tidak
+     * berkilau. Ia tetap satu keluarga dengan emerald dan teal, sehingga
+     * palet proyek tidak bertambah.
+     *
+     * Kartunya putih HANGAT, bukan putih murni: putih murni di atas sage
+     * terbaca sebagai kertas yang salah cetak.
+     */
+    --tema-kertas: #e9eee7;
+    --tema-permukaan: #fbfcf9;
+    --tema-permukaan-2: #eff2ec;
+    --tema-permukaan-hover: #e7ece4;
 
-    --tema-garis: #e0ebf2;
-    --tema-garis-kuat: #c3d7e4;
+    --tema-garis: #dce3d8;
+    --tema-garis-kuat: #bfcbb9;
 
-    --tema-utama: #102c46;
-    --tema-sekunder: #48627a;
-    --tema-redup: #7b93a6;
+    /* Tinta tetap navy: identitas struktural proyek tidak ikut bergeser. */
+    --tema-utama: #0f2a43;
+    --tema-sekunder: #445f76;
+    --tema-redup: #77899a;
 
     --tema-aksen: #0d9488;
     --tema-aksen-kuat: #0f766e;
@@ -194,8 +208,8 @@
     /* Sorotan setipis piksel di tepi atas kartu; lihat .panel. */
     --tema-sorot: rgb(255 255 255 / 0.6);
 
-    --tema-bayang: 0 1px 2px rgb(16 44 70 / 0.04), 0 2px 8px rgb(16 44 70 / 0.05);
-    --tema-bayang-naik: 0 8px 24px rgb(16 44 70 / 0.08), 0 2px 6px rgb(16 44 70 / 0.04);
+    --tema-bayang: 0 1px 2px rgb(31 48 38 / 0.05), 0 2px 8px rgb(31 48 38 / 0.06);
+    --tema-bayang-naik: 0 8px 24px rgb(31 48 38 / 0.09), 0 2px 6px rgb(31 48 38 / 0.05);
 }
 
 /* ==========================================================================
@@ -758,15 +772,20 @@ button:focus-visible {
         --nada-cincin: 14 116 144;
     }
 
-    /* Bawaan bila tidak ada nada yang dipasang induknya. */
-    .ubin-ikon,
-    .keping {
-        --nada-lembut: var(--tema-aksen-lembut);
-        --nada-teks: var(--tema-aksen-teks);
-        --nada-kuat: var(--tema-aksen);
-        --nada-cincin: 13 148 136;
-    }
-
+    /*
+     * Nilai bawaan diberikan sebagai FALLBACK di dalam `var()`, bukan sebagai
+     * blok aturan tersendiri.
+     *
+     * Versi pertama menulisnya sebagai `.ubin-ikon, .keping { --nada-…: … }`
+     * yang ditempatkan sesudah kelas `.nada-*`. Spesifisitas keduanya sama,
+     * sehingga blok bawaan itu selalu menang dan SELURUH nada tergambar teal —
+     * kartu dashboard, ubin halaman depan, blok hasil tap, bar peringkat.
+     * Bug yang tidak terlihat sama sekali dari kode: kelasnya terpasang benar,
+     * warnanya saja yang tidak pernah sampai.
+     *
+     * Sebagai fallback, urutan tidak lagi menentukan: nada dari induk mana pun
+     * menang, dan bawaannya hanya dipakai ketika benar-benar tidak ada.
+     */
     /*
      * Ubin ikon mengambil warnanya dari nada terdekat. Gradien tipis di
      * dalamnya membuat ubin terbaca sebagai bidang, bukan kotak berwarna rata
@@ -777,9 +796,9 @@ button:focus-visible {
         align-items: center;
         justify-content: center;
         border-radius: var(--radius-xl);
-        background-image: linear-gradient(140deg, var(--nada-lembut), transparent 150%);
-        color: var(--nada-teks);
-        box-shadow: inset 0 0 0 1px rgb(var(--nada-cincin) / 0.14);
+        background-image: linear-gradient(140deg, var(--nada-lembut, var(--tema-aksen-lembut)), transparent 150%);
+        color: var(--nada-teks, var(--tema-aksen-teks));
+        box-shadow: inset 0 0 0 1px rgb(var(--nada-cincin, 13 148 136) / 0.14);
     }
 
     /* Keping kecil: label berwarna untuk kategori, peringkat, atau satuan. */
@@ -789,8 +808,8 @@ button:focus-visible {
         gap: 0.375rem;
         border-radius: 999px;
         padding: 0.1875rem 0.625rem;
-        background-color: var(--nada-lembut);
-        color: var(--nada-teks);
+        background-color: var(--nada-lembut, var(--tema-aksen-lembut));
+        color: var(--nada-teks, var(--tema-aksen-teks));
         font-size: 0.75rem;
         font-weight: 600;
         white-space: nowrap;
@@ -811,7 +830,7 @@ button:focus-visible {
         display: block;
         height: 100%;
         border-radius: 999px;
-        background-image: linear-gradient(90deg, var(--nada-kuat), color-mix(in srgb, var(--nada-kuat) 62%, white));
+        background-image: linear-gradient(90deg, var(--nada-kuat, var(--tema-aksen)), color-mix(in srgb, var(--nada-kuat, var(--tema-aksen)) 62%, white));
         transform-origin: left center;
         animation: tumbuh-bar 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
         animation-delay: var(--tunda, 120ms);

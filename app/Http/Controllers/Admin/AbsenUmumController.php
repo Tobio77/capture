@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\OverrideAbsenUmum;
 use App\Http\Controllers\Controller;
-use App\Models\Pegawai;
 use App\Models\UnitKerja;
 use App\Services\AbsensiService;
 use App\Services\AbsenUmumService;
@@ -13,7 +13,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
@@ -53,8 +52,17 @@ class AbsenUmumController extends Controller
         );
 
         $tanggal = $this->tanggal($request);
-        $sesi = $unitId === null ? null : $this->absenUmum->sesi($unitId, $tanggal);
-        $baris = $sesi === null ? collect() : $this->barisRekap($sesi, $pengguna, $request);
+
+        // Satu-satunya sumber baris absen umum; tab Rekap Umum memanggil yang
+        // sama persis (FR-REK-01).
+        $rekap = $this->absenUmum->rekapHarian(
+            $pengguna,
+            $unitId,
+            $tanggal,
+            $request->string('cari')->toString(),
+        );
+
+        $sesi = $rekap['sesi'];
 
         return Inertia::render('AbsenUmum/Index', [
             'unit_kerja' => $unitTersedia->values(),
@@ -65,6 +73,15 @@ class AbsenUmumController extends Controller
             ],
             'absen_umum_aktif' => $this->absenUmum->aktif(),
             'jam_masuk' => $this->setting->ambil()['jam_masuk_umum'],
+
+            /*
+             * Status efektif kedua jenis absen, beserta SUMBERNYA. Admin harus
+             * dapat membedakan "tertutup karena di luar jam" dari "tertutup
+             * karena seseorang menutupnya dan lupa mencabutnya" — keduanya
+             * terlihat sama di layar tetapi menuntut tindakan berbeda.
+             */
+            'status_jendela' => collect($this->absenUmum->statusSemua($sesi))
+                ->map(fn ($status) => $status->untukLayar()),
             'sesi' => $sesi === null ? null : [
                 'id' => $sesi->id,
                 'nama' => $sesi->nama,
@@ -73,8 +90,8 @@ class AbsenUmumController extends Controller
                 'toleransi_menit' => $sesi->toleransi_menit,
                 'aktif' => $sesi->aktif(),
             ],
-            'baris' => $baris->values(),
-            'ringkasan' => $this->ringkasan($baris, $unitId),
+            'baris' => $rekap['baris']->values(),
+            'ringkasan' => $rekap['ringkasan'],
             'riwayat' => $unitId === null ? [] : $this->absenUmum->riwayat($unitId)->values(),
         ]);
     }
@@ -117,6 +134,10 @@ class AbsenUmumController extends Controller
             // FR-PEG-05 (revisi S29); lihat catatan pada LayarKioskController.
             'daftar_wajah_otomatis' => ! $setting['metode_wajah_aktif'],
 
+            // FR-SET-07; lihat catatan pada LayarKioskController.
+            'status_jendela' => collect($this->absenUmum->statusSemua($sesi))
+                ->map(fn ($status) => $status->untukLayar()),
+
             // Jam server, dipakai layar untuk menyetel jam berjalannya sendiri.
             'waktu_server' => Carbon::now()->toIso8601String(),
 
@@ -156,6 +177,35 @@ class AbsenUmumController extends Controller
     }
 
     /**
+     * Pasang atau cabut override buka/tutup Absen Umum hari ini (FR-SET-07).
+     *
+     * Override selalu menang atas jadwal, tetapi hanya untuk hari itu: ia
+     * menempel pada sesi harian, sehingga besok lahir tanpa membawanya.
+     */
+    public function override(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'aksi' => ['required', 'in:buka,tutup,cabut'],
+        ]);
+
+        $unitId = $this->absenUmum->unitTerpilih($request->user(), $request->integer('unit_kerja_id') ?: null);
+
+        abort_if($unitId === null, 404, 'Unit kerja tidak dikenali.');
+
+        $override = $data['aksi'] === 'cabut'
+            ? null
+            : OverrideAbsenUmum::from($data['aksi']);
+
+        $sesi = $this->absenUmum->aturOverride($unitId, $override, $request->user());
+
+        abort_if($sesi === null, 403, 'Absen umum sedang dimatikan pada Setting Absen.');
+
+        return back()->with('sukses', $override === null
+            ? 'Override dicabut. Absen umum kembali mengikuti jadwal.'
+            : "{$override->label()} untuk hari ini. Jadwal kembali berlaku besok.");
+    }
+
+    /**
      * Rekap sesi berjalan dalam JSON, untuk penyegaran berkala tanpa memuat
      * ulang seluruh halaman.
      */
@@ -163,17 +213,17 @@ class AbsenUmumController extends Controller
     {
         $pengguna = $request->user();
         $unitId = $this->absenUmum->unitTerpilih($pengguna, $request->integer('unit_kerja_id') ?: null);
-        $sesi = $unitId === null ? null : $this->absenUmum->sesi($unitId, $this->tanggal($request));
 
-        if ($sesi === null) {
-            return response()->json(['baris' => [], 'ringkasan' => $this->ringkasan(collect(), $unitId)]);
-        }
-
-        $baris = $this->barisRekap($sesi, $pengguna, $request);
+        $rekap = $this->absenUmum->rekapHarian(
+            $pengguna,
+            $unitId,
+            $this->tanggal($request),
+            $request->string('cari')->toString(),
+        );
 
         return response()->json([
-            'baris' => $baris->values(),
-            'ringkasan' => $this->ringkasan($baris, $unitId),
+            'baris' => $rekap['baris']->values(),
+            'ringkasan' => $rekap['ringkasan'],
         ]);
     }
 
@@ -185,11 +235,19 @@ class AbsenUmumController extends Controller
         $pengguna = $request->user();
         $unitId = $this->absenUmum->unitTerpilih($pengguna, $request->integer('unit_kerja_id') ?: null);
         $tanggal = $this->tanggal($request);
-        $sesi = $unitId === null ? null : $this->absenUmum->sesi($unitId, $tanggal);
+
+        $rekap = $this->absenUmum->rekapHarian(
+            $pengguna,
+            $unitId,
+            $tanggal,
+            $request->string('cari')->toString(),
+        );
+
+        $sesi = $rekap['sesi'];
 
         abort_if($sesi === null, 404, 'Belum ada sesi absen umum pada tanggal ini.');
 
-        $baris = $this->barisRekap($sesi, $pengguna, $request);
+        $baris = $rekap['baris'];
         $nama = 'absen-umum-'.$tanggal->format('Ymd');
 
         $cakupan = $pengguna->lintasUnit()
@@ -226,49 +284,6 @@ class AbsenUmumController extends Controller
             ),
             "{$nama}.csv",
         );
-    }
-
-    /**
-     * Baris rekap sesi, sudah dipagari cakupan peran dan pencarian.
-     *
-     * @return Collection<int, array<string, mixed>>
-     */
-    protected function barisRekap($sesi, $pengguna, Request $request): Collection
-    {
-        // FR-REK-02: Admin UPT hanya melihat pegawainya sendiri, walaupun
-        // sesinya milik unit yang menaunginya.
-        $cakupan = $pengguna->lintasUnit()
-            ? null
-            : UnitKerja::idsDenganTurunan($pengguna->unit_kerja_id);
-
-        $cari = mb_strtolower($request->string('cari')->toString());
-
-        return $this->absensi->rekap($sesi, $cakupan)
-            ->when($cari !== '', fn (Collection $baris) => $baris->filter(
-                fn (array $isi) => str_contains(mb_strtolower($isi['nama']), $cari)
-                    || str_contains((string) $isi['nip'], $cari),
-            ));
-    }
-
-    /**
-     * Ringkasan sesi, ditambah jumlah pegawai yang belum mencatat kehadiran.
-     *
-     * @param  Collection<int, array<string, mixed>>  $baris
-     * @return array<string, mixed>
-     */
-    protected function ringkasan(Collection $baris, ?int $unitId): array
-    {
-        $ringkasan = $this->absensi->ringkasanRekap($baris);
-
-        $jumlahPegawai = $unitId === null ? 0 : Pegawai::query()
-            ->where('aktif', true)
-            ->whereIn('unit_kerja_id', UnitKerja::idsDenganTurunan($unitId))
-            ->count();
-
-        $ringkasan['pegawai'] = $jumlahPegawai;
-        $ringkasan['belum_absen'] = max(0, $jumlahPegawai - $ringkasan['hadir']);
-
-        return $ringkasan;
     }
 
     protected function tanggal(Request $request): Carbon

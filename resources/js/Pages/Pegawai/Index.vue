@@ -5,7 +5,7 @@ import AdminLayout from '@/Layouts/AdminLayout.vue'
 import PendaftaranWajah from '@/Components/PendaftaranWajah.vue'
 import PendaftaranKartu from '@/Components/PendaftaranKartu.vue'
 import Ikon from '@/Components/Ikon.vue'
-import Paginasi from '@/Components/UI/Paginasi.vue'
+import TabelData from '@/Components/UI/TabelData.vue'
 import KolomCari from '@/Components/UI/KolomCari.vue'
 import Lencana from '@/Components/UI/Lencana.vue'
 import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
@@ -110,6 +110,16 @@ const tanggalSingkat = (iso) =>
   iso
     ? new Date(iso).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
     : '—'
+const kolom = [
+  { label: 'NIP' },
+  { label: 'Nama' },
+  { label: 'Unit Kerja' },
+  { label: 'Jabatan', kelas: 'hidden 2xl:table-cell' },
+  { label: 'Foto Wajah' },
+  { label: 'Kartu' },
+  { label: 'Sinkron', kelas: 'hidden whitespace-nowrap 2xl:table-cell' },
+  { label: 'Aksi', kelas: 'text-right' },
+]
 </script>
 
 <template>
@@ -117,91 +127,82 @@ const tanggalSingkat = (iso) =>
     judul="Kelola Pegawai"
     deskripsi="Data pegawai hasil sinkronisasi dari WORKA. Perubahan data induk dilakukan di WORKA, bukan di sini."
   >
-    <!-- Kartu status sinkronisasi -->
-    <div class="panel p-6">
-      <div class="flex flex-wrap items-start justify-between gap-6">
-        <div>
-          <h2 class="flex items-center gap-2 font-display text-base font-semibold text-utama">
-            <span class="rounded-md bg-aksen-lembut p-1.5 text-aksen">
-              <Ikon nama="segarkan" ukuran="h-4 w-4" />
-            </span>
-            Sinkronisasi Data Pegawai dari WORKA
-          </h2>
+    <!--
+      Status sinkronisasi sebagai SATU BARIS, bukan kartu setinggi 210px.
+      Panel lamanya mendorong tabel pegawai sampai ke luar lipatan pada laptop
+      1366×768 — hanya dua baris yang terlihat — padahal yang dibuka orang di
+      halaman ini adalah daftar pegawainya, bukan status integrasinya. Angkanya
+      tetap lengkap; yang hilang hanya ruang kosong di antaranya.
+    -->
+    <div class="panel flex flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3">
+      <div class="flex min-w-0 items-center gap-2.5">
+        <span class="ubin-ikon h-8 w-8 shrink-0">
+          <Ikon nama="segarkan" ukuran="h-4 w-4" :class="sedangSinkron && 'animate-spin'" />
+        </span>
 
-          <dl class="mt-4 grid gap-x-10 gap-y-2 text-sm sm:grid-cols-2">
-            <div class="flex gap-2">
-              <dt class="text-redup">Terakhir sinkron:</dt>
-              <dd class="font-medium text-utama">
-                {{ waktu(status_sinkron.sinkron_terakhir_at) }}
-              </dd>
-            </div>
-            <div class="flex gap-2">
-              <dt class="text-redup">Pegawai aktif tersimpan:</dt>
-              <dd class="font-display font-medium tabular-nums text-utama">
-                {{ status_sinkron.total_pegawai_lokal }}
-              </dd>
-            </div>
-            <div class="flex gap-2">
-              <dt class="text-redup">Pegawai aktif di WORKA:</dt>
-              <dd class="font-display font-medium tabular-nums text-utama">
-                {{ status_sinkron.total_pegawai_worka || '—' }}
-              </dd>
-            </div>
-            <div class="flex items-center gap-2">
-              <dt class="text-redup">Status:</dt>
-              <dd>
-                <Lencana :warna="statusKoneksi.warna" :denyut="statusKoneksi.denyut">
-                  {{ statusKoneksi.label }}
-                </Lencana>
-              </dd>
-            </div>
-          </dl>
+        <div class="min-w-0 leading-tight">
+          <p class="truncate text-sm font-medium text-utama">Sinkronisasi WORKA</p>
+          <p class="truncate text-xs text-redup">
+            Terakhir {{ waktu(status_sinkron.sinkron_terakhir_at) }}
+          </p>
+        </div>
+      </div>
+
+      <dl class="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
+        <div class="flex items-baseline gap-1.5">
+          <dd class="font-display font-semibold tabular-nums text-utama">
+            {{ status_sinkron.total_pegawai_lokal }}
+          </dd>
+          <dt class="text-xs text-redup">tersimpan</dt>
         </div>
 
-        <div v-if="dapat_sinkron" class="flex flex-wrap gap-2">
-          <button
-            type="button"
-            :disabled="sedangSinkron"
-            class="inline-flex items-center gap-1.5 rounded-md bg-aksen px-4 py-2 text-sm font-semibold text-white bayang transition hover:bg-aksen-kuat active:scale-95 disabled:opacity-60"
-            @click="sinkron(false)"
-          >
-            <Ikon nama="segarkan" ukuran="h-4 w-4" :class="sedangSinkron && 'animate-spin'" />
-            {{ sedangSinkron ? 'Menyinkronkan…' : 'Sinkron Inkremental' }}
-          </button>
-          <button
-            type="button"
-            :disabled="sedangSinkron"
-            class="inline-flex items-center gap-1.5 rounded-md border border-garis px-4 py-2 text-sm font-medium text-utama transition hover:bg-permukaan-hover active:scale-95 disabled:opacity-60"
-            @click="sinkron(true)"
-          >
-            <Ikon nama="unduh" ukuran="h-4 w-4" /> Sinkron Penuh
-          </button>
-          <Link
-            href="/admin/setting/worka"
-            class="inline-flex items-center gap-1.5 rounded-md border border-garis px-4 py-2 text-sm font-medium text-utama transition hover:bg-permukaan-hover active:scale-95"
-          >
-            <Ikon nama="filter" ukuran="h-4 w-4" /> Setting
-          </Link>
+        <div class="flex items-baseline gap-1.5">
+          <dd class="font-display font-semibold tabular-nums text-utama">
+            {{ status_sinkron.total_pegawai_worka || '—' }}
+          </dd>
+          <dt class="text-xs text-redup">di WORKA</dt>
         </div>
+
+        <Lencana :warna="statusKoneksi.warna" :denyut="statusKoneksi.denyut">
+          {{ statusKoneksi.label }}
+        </Lencana>
+      </dl>
+
+      <div v-if="dapat_sinkron" class="ml-auto flex flex-wrap gap-2">
+        <button
+          type="button"
+          :disabled="sedangSinkron"
+          class="tombol tombol-utama px-3 py-2 text-xs"
+          @click="sinkron(false)"
+        >
+          <Ikon nama="segarkan" ukuran="h-3.5 w-3.5" :class="sedangSinkron && 'animate-spin'" />
+          {{ sedangSinkron ? 'Menyinkronkan…' : 'Inkremental' }}
+        </button>
+
+        <button
+          type="button"
+          :disabled="sedangSinkron"
+          class="tombol tombol-garis px-3 py-2 text-xs"
+          @click="sinkron(true)"
+        >
+          <Ikon nama="unduh" ukuran="h-3.5 w-3.5" /> Penuh
+        </button>
+
+        <Link href="/admin/setting/worka" class="tautan-aksi tombol tombol-garis px-3 py-2 text-xs">
+          <Ikon nama="filter" ukuran="h-3.5 w-3.5" /> Setting
+        </Link>
       </div>
     </div>
 
     <!-- Filter -->
-    <div class="mt-6 panel p-4">
+    <div class="mt-4 panel p-3">
       <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <div class="lg:col-span-2">
-          <span class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup">
-            Cari Pegawai
-          </span>
+          <span class="sr-only"> Cari Pegawai </span>
           <KolomCari v-model="filter.cari" placeholder="Nama atau NIP…" @cari="terapkanFilter" />
         </div>
         <div>
-          <label
-            for="unit"
-            class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup"
-          >
-            Unit Kerja
-          </label>
+          <label for="unit" class="sr-only"> Unit Kerja </label>
           <Pilihan
             id="unit"
             v-model="filter.unit_kerja_id"
@@ -210,12 +211,7 @@ const tanggalSingkat = (iso) =>
           />
         </div>
         <div>
-          <label
-            for="status_foto"
-            class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup"
-          >
-            Foto Wajah
-          </label>
+          <label for="status_foto" class="sr-only"> Foto Wajah </label>
           <Pilihan
             id="status_foto"
             v-model="filter.status_foto"
@@ -228,12 +224,7 @@ const tanggalSingkat = (iso) =>
           />
         </div>
         <div>
-          <label
-            for="status"
-            class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup"
-          >
-            Status
-          </label>
+          <label for="status" class="sr-only"> Status </label>
           <Pilihan
             id="status"
             v-model="filter.status"
@@ -258,126 +249,107 @@ const tanggalSingkat = (iso) =>
       </div>
     </div>
 
-    <!-- Tabel pegawai -->
-    <div class="mt-4 overflow-hidden panel">
-      <div class="tabel-gulir tabel-aksi gulir-halus">
-        <table class="w-full text-left text-sm">
-          <thead
-            class="border-b border-garis bg-permukaan-2 text-xs uppercase tracking-wider text-redup"
-          >
-            <tr>
-              <th scope="col" class="px-4 py-3 font-medium">NIP</th>
-              <th scope="col" class="px-4 py-3 font-medium">Nama</th>
-              <th scope="col" class="px-4 py-3 font-medium">Unit Kerja</th>
-              <th scope="col" class="hidden px-4 py-3 font-medium 2xl:table-cell">Jabatan</th>
-              <th scope="col" class="px-4 py-3 font-medium">Foto Wajah</th>
-              <th scope="col" class="px-4 py-3 font-medium">Kartu</th>
-              <th scope="col" class="px-4 py-3 font-medium">Status</th>
-              <th scope="col" class="hidden whitespace-nowrap px-4 py-3 font-medium 2xl:table-cell">
-                Sinkron
-              </th>
-              <th scope="col" class="px-4 py-3 text-right font-medium">Aksi</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-garis">
-            <tr
-              v-for="orang in pegawai.data"
-              :key="orang.id"
-              class="transition-colors hover:bg-permukaan-hover"
-              :class="{ 'baris-redup bg-permukaan-2/60': !orang.aktif }"
-            >
-              <td class="whitespace-nowrap px-4 py-3 font-display text-xs tabular-nums text-sekunder">
-                {{ orang.nip }}
-              </td>
-              <td class="whitespace-nowrap px-4 py-3 font-medium text-utama">{{ orang.nama }}</td>
-              <td
-                class="max-w-[11rem] truncate px-4 py-3 text-sekunder"
-                :title="orang.unit_kerja?.nama"
-              >
-                {{ orang.unit_kerja?.nama ?? '—' }}
-              </td>
-              <td
-                class="hidden max-w-[11rem] truncate px-4 py-3 text-sekunder 2xl:table-cell"
-                :title="orang.jabatan"
-              >
-                {{ orang.jabatan ?? '—' }}
-              </td>
-              <td class="px-4 py-3">
-                <Lencana :warna="orang.wajah_terdaftar ? 'emerald' : 'amber'">
-                  {{ orang.wajah_terdaftar ? 'Terdaftar' : 'Belum ada' }}
-                </Lencana>
-              </td>
-              <td class="px-4 py-3">
-                <span
-                  v-if="orang.uid_kartu"
-                  class="inline-flex items-center gap-1.5 font-display text-xs tabular-nums text-sekunder"
-                  title="UID kartu terdaftar"
-                >
-                  <Ikon nama="kartu" ukuran="h-3.5 w-3.5 text-redup" />
-                  {{ orang.uid_kartu }}
-                </span>
-                <span v-else class="text-xs text-redup">Belum ada</span>
-              </td>
-              <td class="px-4 py-3">
-                <span
-                  class="text-xs font-medium"
-                  :class="orang.aktif ? 'text-sekunder' : 'text-redup'"
-                >
-                  {{ orang.aktif ? 'Aktif' : 'Nonaktif' }}
-                </span>
-              </td>
-              <td class="hidden whitespace-nowrap px-4 py-3 text-xs text-redup 2xl:table-cell">
-                {{ tanggalSingkat(orang.sumber_sinkron_terakhir) }}
-              </td>
-              <td class="whitespace-nowrap px-4 py-3 text-right">
-                <TombolAksi
-                  ikon="wajah"
-                  warna="teal"
-                  :title="orang.wajah_terdaftar ? 'Perbarui foto wajah' : 'Daftarkan foto wajah'"
-                  @click="wajahDikelola = orang"
-                >
-                  Wajah
-                </TombolAksi>
-                <TombolAksi
-                  ikon="kartu"
-                  warna="navy"
-                  :title="orang.uid_kartu ? 'Ganti kartu RFID' : 'Daftarkan kartu RFID'"
-                  @click="kartuDikelola = orang"
-                >
-                  Kartu
-                </TombolAksi>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <KeadaanKosong
-        v-if="pegawai.data.length === 0"
-        ikon="pegawai"
-        :judul="
-          status_sinkron.total_pegawai_lokal === 0
-            ? 'Data pegawai belum ditarik'
-            : 'Tidak ada pegawai yang cocok'
-        "
-        :keterangan="
-          status_sinkron.total_pegawai_lokal === 0
-            ? 'Jalankan sinkronisasi dari WORKA untuk menarik data pegawai.'
-            : 'Ubah kata kunci, unit kerja, atau status pada penyaring di atas.'
-        "
-      >
-        <button
-          v-if="adaPenyaring && status_sinkron.total_pegawai_lokal > 0"
-          type="button"
-          class="inline-flex items-center gap-1.5 rounded-md border border-garis px-3 py-1.5 text-xs font-medium text-sekunder transition hover:bg-permukaan-hover"
-          @click="bersihkanFilter"
+    <TabelData
+      class="mt-4"
+      :kolom="kolom"
+      :baris="pegawai.data"
+      :paginator="pegawai"
+      kelas-gulir="tabel-aksi"
+      :kelas-baris="(orang) => !orang.aktif && 'baris-redup bg-permukaan-2/60'"
+    >
+      <template #baris="{ isi: orang }">
+        <td class="whitespace-nowrap px-4 py-3 font-display text-xs tabular-nums text-sekunder">
+          {{ orang.nip }}
+        </td>
+        <!--
+          Status pindah ke sini dan hanya muncul ketika NONAKTIF. Kolom Status
+          sebelumnya terdorong ke balik kolom Aksi yang lengket pada 1366px,
+          sehingga justru tidak terbaca — dan menuliskan "Aktif" pada ratusan
+          baris yang memang aktif hanya menambah kolom tanpa menambah
+          keterangan. Yang perlu terlihat adalah pengecualiannya.
+        -->
+        <td class="whitespace-nowrap px-4 py-3 font-medium text-utama">
+          {{ orang.nama }}
+          <Lencana v-if="!orang.aktif" warna="slate" class="ml-1.5">Nonaktif</Lencana>
+        </td>
+        <td class="max-w-[11rem] truncate px-4 py-3 text-sekunder" :title="orang.unit_kerja?.nama">
+          {{ orang.unit_kerja?.nama ?? '—' }}
+        </td>
+        <td
+          class="hidden max-w-[11rem] truncate px-4 py-3 text-sekunder 2xl:table-cell"
+          :title="orang.jabatan"
         >
-          <Ikon nama="tutup" ukuran="h-3.5 w-3.5" /> Bersihkan filter
-        </button>
-      </KeadaanKosong>
+          {{ orang.jabatan ?? '—' }}
+        </td>
+        <!--
+          Lencana hanya untuk yang SUDAH terdaftar. Dari 666 pegawai baru
+          segelintir yang punya foto referensi, sehingga menandai yang belum
+          berarti menaburkan ratusan lencana amber di sepanjang tabel — dan
+          yang sebenarnya perlu ditemukan justru yang sudah.
+        -->
+        <td class="px-4 py-3">
+          <Lencana v-if="orang.wajah_terdaftar" warna="emerald">Terdaftar</Lencana>
+          <span v-else class="text-xs text-redup">Belum ada</span>
+        </td>
+        <td class="px-4 py-3">
+          <span
+            v-if="orang.uid_kartu"
+            class="inline-flex items-center gap-1.5 font-display text-xs tabular-nums text-sekunder"
+            title="UID kartu terdaftar"
+          >
+            <Ikon nama="kartu" ukuran="h-3.5 w-3.5 text-redup" />
+            {{ orang.uid_kartu }}
+          </span>
+          <span v-else class="text-xs text-redup">Belum ada</span>
+        </td>
+        <td class="hidden whitespace-nowrap px-4 py-3 text-xs text-redup 2xl:table-cell">
+          {{ tanggalSingkat(orang.sumber_sinkron_terakhir) }}
+        </td>
+        <td class="whitespace-nowrap px-4 py-3 text-right">
+          <TombolAksi
+            ikon="wajah"
+            warna="teal"
+            :title="orang.wajah_terdaftar ? 'Perbarui foto wajah' : 'Daftarkan foto wajah'"
+            @click="wajahDikelola = orang"
+          >
+            Wajah
+          </TombolAksi>
+          <TombolAksi
+            ikon="kartu"
+            warna="navy"
+            :title="orang.uid_kartu ? 'Ganti kartu RFID' : 'Daftarkan kartu RFID'"
+            @click="kartuDikelola = orang"
+          >
+            Kartu
+          </TombolAksi>
+        </td>
+      </template>
 
-      <Paginasi :data="pegawai" />
-    </div>
+      <template #kosong>
+        <KeadaanKosong
+          ikon="pegawai"
+          :judul="
+            status_sinkron.total_pegawai_lokal === 0
+              ? 'Data pegawai belum ditarik'
+              : 'Tidak ada pegawai yang cocok'
+          "
+          :keterangan="
+            status_sinkron.total_pegawai_lokal === 0
+              ? 'Jalankan sinkronisasi dari WORKA untuk menarik data pegawai.'
+              : 'Ubah kata kunci, unit kerja, atau status pada penyaring di atas.'
+          "
+        >
+          <button
+            v-if="adaPenyaring && status_sinkron.total_pegawai_lokal > 0"
+            type="button"
+            class="inline-flex items-center gap-1.5 rounded-md border border-garis px-3 py-1.5 text-xs font-medium text-sekunder transition hover:bg-permukaan-hover"
+            @click="bersihkanFilter"
+          >
+            <Ikon nama="tutup" ukuran="h-3.5 w-3.5" /> Bersihkan filter
+          </button>
+        </KeadaanKosong>
+      </template>
+    </TabelData>
 
     <PendaftaranWajah :pegawai="wajahDikelola" @tutup="wajahDikelola = null" />
     <PendaftaranKartu :pegawai="kartuDikelola" @tutup="kartuDikelola = null" />

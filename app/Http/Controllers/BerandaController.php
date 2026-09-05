@@ -8,6 +8,7 @@ use App\Services\KioskService;
 use App\Services\KodeUnitEventService;
 use App\Services\SettingAbsenService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -49,6 +50,7 @@ class BerandaController extends Controller
     {
         $perangkat = $this->kiosk->kioskDariToken($request->cookie(KioskService::NAMA_COOKIE));
         $event = $perangkat === null ? null : $this->kode->eventYangDiikuti($perangkat);
+        $setting = $this->setting->ambil();
 
         return Inertia::render('Beranda', [
             /*
@@ -67,6 +69,10 @@ class BerandaController extends Controller
                 'id' => $event->id,
                 'nama' => $event->nama,
                 'jam_mulai' => substr((string) $event->jam_mulai, 0, 5),
+
+                // Dipakai layar depan menghitung batas tepat waktu kegiatan,
+                // yang menggantikan batas harian selama perangkat melayaninya.
+                'toleransi_menit' => $event->toleransi_menit,
             ],
 
             'event_aktif' => $perangkat === null ? [] : $this->eventAktif(),
@@ -76,7 +82,7 @@ class BerandaController extends Controller
              * yang menerangkan keadaan itu. Menyembunyikan pintasannya justru
              * membuat petugas mengira perangkatnya rusak.
              */
-            'absen_umum_aktif' => $this->absenUmum->aktif(),
+            'absen_umum_aktif' => (bool) $setting['absen_umum_aktif'],
 
             /*
              * FR-SET-06. Menentukan bunyi ajakan pada perangkat yang belum
@@ -88,9 +94,25 @@ class BerandaController extends Controller
              * Panel Admin, yang hanya berlaku bagi sesi admin. Dua arti pada
              * satu nama akan menyesatkan pembaca berikutnya.
              */
-            'aktivasi_tanpa_kode' => $this->setting->modeTerbuka(),
+            'aktivasi_tanpa_kode' => ! $setting['wajib_kode_aktivasi'],
 
             'panjang_kode' => KodeUnitEventService::PANJANG_KODE,
+
+            /*
+             * Jam server saat halaman dirakit. Jam raksasa di layar depan
+             * menyetel dirinya dari sini, bukan dari jam perangkat — lihat
+             * catatan pada useJamServer.
+             */
+            'waktu_server' => Carbon::now()->toIso8601String(),
+
+            /*
+             * Jam masuk dan toleransi yang berlaku hari ini (FR-SET-02).
+             * Ditampilkan satu baris di bawah tanggal supaya angka jam
+             * raksasa itu punya konsekuensi — orang yang membacanya langsung
+             * tahu ia masih tepat waktu atau sudah lewat.
+             */
+            'jam_masuk' => $setting['jam_masuk_umum'],
+            'toleransi_menit' => $setting['toleransi_default_menit'],
         ]);
     }
 

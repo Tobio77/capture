@@ -26,7 +26,7 @@ defineProps({
     seolah rusak. Warnanya tetap pucat supaya tidak bersaing dengan isi
     sungguhan ketika datanya kelak terisi.
   -->
-  <div class="masuk flex flex-col items-center px-6 py-14 text-center">
+  <div class="masuk flex flex-col items-center px-6 py-12 text-center">
     <span class="ubin-ikon h-14 w-14" :class="`nada-${nada}`">
       <Ikon :nama="ikon" ukuran="h-7 w-7" />
     </span>

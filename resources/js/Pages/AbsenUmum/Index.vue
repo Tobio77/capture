@@ -5,9 +5,10 @@ import AdminLayout from '@/Layouts/AdminLayout.vue'
 import Ikon from '@/Components/Ikon.vue'
 import Lencana from '@/Components/UI/Lencana.vue'
 import KolomCari from '@/Components/UI/KolomCari.vue'
-import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
 import Pilihan from '@/Components/UI/Pilihan.vue'
 import Tanggal from '@/Components/UI/Tanggal.vue'
+import RingkasanRekap from '@/Components/Rekap/RingkasanRekap.vue'
+import TabelRekap from '@/Components/Rekap/TabelRekap.vue'
 
 /**
  * Absen Umum — pemantauan sesi absensi harian tanpa event kegiatan.
@@ -22,7 +23,31 @@ const props = defineProps({
   filter: { type: Object, required: true },
   absen_umum_aktif: { type: Boolean, required: true },
   jam_masuk: { type: String, required: true },
+
+  /** Status efektif per jenis absen beserta sumbernya (FR-SET-07). */
+  status_jendela: { type: Object, default: () => ({}) },
 })
+
+/** Salah satu jenis sedang dipaksa buka/tutup admin. */
+const adaOverride = computed(() =>
+  Object.values(props.status_jendela).some((status) => status.sumber === 'override'),
+)
+
+function aturOverride(aksi) {
+  const tanya = {
+    buka: 'Buka paksa absen umum hari ini, mengabaikan jadwal? Berlaku sampai hari berganti.',
+    tutup: 'Tutup paksa absen umum hari ini? Perangkat akan menolak tap sampai hari berganti.',
+    cabut: 'Kembalikan ke jadwal bawaan?',
+  }
+
+  if (!window.confirm(tanya[aksi])) return
+
+  router.post(
+    '/admin/kelola-absen/absen-umum/override',
+    { aksi, unit_kerja_id: filter.unit_kerja_id },
+    { preserveScroll: true },
+  )
+}
 
 const filter = reactive({ ...props.filter })
 
@@ -146,11 +171,7 @@ const tanggalPanjang = (iso) =>
   >
     <template #aksi>
       <div class="flex flex-wrap items-center gap-2 print:hidden">
-        <button
-          type="button"
-          class="tombol tombol-garis"
-          @click="cetak"
-        >
+        <button type="button" class="tombol tombol-garis" @click="cetak">
           <Ikon nama="cetak" ukuran="h-4 w-4" /> Cetak
         </button>
         <button
@@ -202,12 +223,7 @@ const tanggalPanjang = (iso) =>
     <div class="mb-5 panel p-4 print:hidden">
       <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <label
-            for="unit"
-            class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup"
-          >
-            Unit Kerja
-          </label>
+          <label for="unit" class="sr-only"> Unit Kerja </label>
           <Pilihan
             id="unit"
             v-model="filter.unit_kerja_id"
@@ -216,27 +232,18 @@ const tanggalPanjang = (iso) =>
           />
         </div>
         <div>
-          <label
-            for="tanggal"
-            class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup"
-          >
-            Tanggal
-          </label>
+          <label for="tanggal" class="sr-only"> Tanggal </label>
           <Tanggal v-model="filter.tanggal" @ubah="terapkan" />
         </div>
         <div class="lg:col-span-2">
-          <span class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup">
-            Cari Pegawai
-          </span>
+          <span class="sr-only"> Cari Pegawai </span>
           <KolomCari v-model="filter.cari" placeholder="Nama atau NIP…" @cari="terapkan" />
         </div>
       </div>
     </div>
 
     <!-- Kepala sesi; ikut tercetak -->
-    <div
-      class="panel p-6 print:border-0 print:p-0 print:shadow-none"
-    >
+    <div class="panel p-6 print:border-0 print:p-0 print:shadow-none">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 class="font-display text-lg font-semibold text-utama">
@@ -266,91 +273,93 @@ const tanggalPanjang = (iso) =>
         </div>
       </div>
 
-      <dl class="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div v-for="item in kartu" :key="item.label" class="rounded-md border border-garis px-4 py-3">
-          <div class="flex items-start justify-between gap-2">
-            <div>
-              <dt class="text-xs uppercase tracking-wider text-redup">{{ item.label }}</dt>
-              <dd class="mt-1 font-display text-2xl font-semibold tabular-nums" :class="item.warna">
-                {{ item.nilai }}
-              </dd>
-            </div>
-            <span class="rounded-md p-1.5 print:hidden" :class="item.latar">
-              <Ikon :nama="item.ikon" ukuran="h-4 w-4" />
-            </span>
+      <!--
+        Status jendela buka/tutup (FR-SET-07).
+
+        Menyebut SUMBER statusnya, bukan hanya keadaannya: "Tertutup" saja
+        membuat admin memeriksa jam kantor, padahal penyebabnya bisa saja
+        override yang tertinggal dari kemarin. Karena override menempel pada
+        sesi harian, ia memang tidak mungkin terbawa — tetapi admin yang
+        memasangnya pagi ini tetap perlu tahu bahwa yang berlaku sekarang
+        keputusannya, bukan jadwal.
+      -->
+      <div v-if="hariIni" class="mt-5 flex flex-wrap items-center gap-3 border-t border-garis pt-5">
+        <div
+          v-for="status in status_jendela"
+          :key="status.jenis"
+          class="flex min-w-0 items-center gap-2.5 rounded-xl px-3 py-2"
+          :class="status.terbuka ? 'nada-emerald' : 'nada-amber'"
+          :style="{ backgroundColor: 'var(--nada-lembut)' }"
+        >
+          <span
+            class="h-2 w-2 shrink-0 rounded-full"
+            :style="{ backgroundColor: 'var(--nada-kuat)' }"
+          ></span>
+
+          <div class="min-w-0 leading-tight">
+            <p class="text-sm font-semibold" :style="{ color: 'var(--nada-teks)' }">
+              {{ status.jenis === 'datang' ? 'Datang' : 'Pulang' }} ·
+              {{ status.terbuka ? 'terbuka' : 'tertutup' }}
+            </p>
+            <p class="truncate text-xs text-sekunder">{{ status.keterangan }}</p>
           </div>
         </div>
-      </dl>
+
+        <div class="ml-auto flex flex-wrap items-center gap-2 print:hidden">
+          <span v-if="adaOverride" class="keping nada-biru">
+            <Ikon nama="peringatan" ukuran="h-3.5 w-3.5" /> Override manual aktif
+          </span>
+
+          <button
+            v-if="adaOverride"
+            type="button"
+            class="tombol tombol-garis px-3 py-2 text-xs"
+            @click="aturOverride('cabut')"
+          >
+            Kembalikan ke jadwal
+          </button>
+
+          <template v-else>
+            <button
+              type="button"
+              class="tombol tombol-garis px-3 py-2 text-xs"
+              @click="aturOverride('buka')"
+            >
+              <Ikon nama="kunci" ukuran="h-3.5 w-3.5" /> Buka paksa
+            </button>
+            <button
+              type="button"
+              class="tombol tombol-garis px-3 py-2 text-xs"
+              @click="aturOverride('tutup')"
+            >
+              <Ikon nama="tutup" ukuran="h-3.5 w-3.5" /> Tutup paksa
+            </button>
+          </template>
+        </div>
+      </div>
+
+      <RingkasanRekap :kartu="kartu" class="mt-5" />
 
       <p class="mt-3 text-xs text-redup">
         {{ ringkasan.pegawai }} pegawai aktif dalam cakupan unit ini.
       </p>
     </div>
 
-    <!-- Daftar kehadiran -->
-    <div
-      class="mt-6 overflow-hidden panel print:border-0 print:shadow-none"
-    >
-      <div class="tabel-gulir gulir-halus">
-        <table class="min-w-full divide-y divide-garis text-sm">
-          <thead
-            class="border-b border-garis bg-permukaan-2 text-xs uppercase tracking-wider text-redup"
-          >
-            <tr>
-              <th scope="col" class="px-4 py-3 text-left font-medium">No</th>
-              <th scope="col" class="px-4 py-3 text-left font-medium">NIP</th>
-              <th scope="col" class="px-4 py-3 text-left font-medium">Nama</th>
-              <th scope="col" class="px-4 py-3 text-left font-medium">Unit Kerja</th>
-              <th scope="col" class="px-4 py-3 text-left font-medium">Masuk</th>
-              <th scope="col" class="px-4 py-3 text-left font-medium">Pulang</th>
-              <th scope="col" class="px-4 py-3 text-left font-medium">Metode</th>
-              <th scope="col" class="px-4 py-3 text-left font-medium">Status</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-garis">
-            <tr
-              v-for="(isi, urutan) in baris"
-              :key="isi.pegawai_id ?? isi.nip"
-              class="transition-colors hover:bg-permukaan-hover"
-            >
-              <td class="px-4 py-2.5 font-display tabular-nums text-redup">{{ urutan + 1 }}</td>
-              <td class="px-4 py-2.5 font-display tabular-nums text-sekunder">{{ isi.nip }}</td>
-              <td class="whitespace-nowrap px-4 py-2.5 font-medium text-utama">{{ isi.nama }}</td>
-              <td class="max-w-[14rem] truncate px-4 py-2.5 text-sekunder" :title="isi.unit_kerja">
-                {{ isi.unit_kerja ?? '—' }}
-              </td>
-              <td class="px-4 py-2.5 font-display tabular-nums text-utama">
-                {{ isi.jam_masuk ?? '—' }}
-              </td>
-              <td class="px-4 py-2.5 font-display tabular-nums text-utama">
-                {{ isi.jam_pulang ?? '—' }}
-              </td>
-              <td class="px-4 py-2.5 text-sekunder">{{ isi.metode }}</td>
-              <td class="px-4 py-2.5">
-                <Lencana
-                  v-if="isi.status_ketepatan"
-                  :warna="isi.status_ketepatan === 'tepat' ? 'emerald' : 'amber'"
-                >
-                  {{ isi.status_label }}
-                </Lencana>
-                <span v-else class="text-xs text-redup">—</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <KeadaanKosong
-        v-if="baris.length === 0"
-        ikon="absen"
-        :judul="sesi === null ? 'Belum ada sesi pada tanggal ini' : 'Belum ada yang mengabsen'"
-        :keterangan="
-          sesi === null
-            ? 'Sesi harian dibuka sendiri pada tap pertama, atau lewat tombol Buka Sesi Hari Ini.'
-            : 'Kehadiran akan muncul di sini begitu pegawai pertama men-tap.'
-        "
-      />
-    </div>
+    <!--
+      Daftar kehadiran. Tabelnya milik bersama dengan Rekap Absen — bentuk yang
+      sama untuk baris yang memang sama.
+    -->
+    <TabelRekap
+      class="mt-6"
+      :baris="baris"
+      :cari="filter.cari ?? ''"
+      :judul-kosong="sesi === null ? 'Belum ada sesi pada tanggal ini' : 'Belum ada yang mengabsen'"
+      :keterangan-kosong="
+        sesi === null
+          ? 'Sesi harian dibuka sendiri pada tap pertama, atau lewat tombol Buka Sesi Hari Ini.'
+          : 'Kehadiran akan muncul di sini begitu pegawai pertama men-tap.'
+      "
+    />
 
     <!-- Riwayat sesi -->
     <div v-if="riwayat.length > 0" class="mt-6 print:hidden">

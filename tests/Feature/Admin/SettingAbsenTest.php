@@ -37,6 +37,14 @@ class SettingAbsenTest extends TestCase
             'kompresi_foto' => 'sedang',
             'absen_umum_aktif' => true,
             'jam_masuk_umum' => '07:30',
+
+            // FR-SET-07: jendela operasional wajib ikut, sebab formulirnya
+            // selalu mengirim keempatnya sekaligus.
+            'jam_buka_datang' => '06:00',
+            'jam_tutup_datang' => '09:00',
+            'jam_buka_pulang' => '15:00',
+            'jam_tutup_pulang' => '18:00',
+
             'wajib_kode_aktivasi' => true,
         ], $ubahan);
     }

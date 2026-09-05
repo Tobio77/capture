@@ -4,7 +4,7 @@ import { router, useForm, usePage } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
 import Modal from '@/Components/Modal.vue'
 import Ikon from '@/Components/Ikon.vue'
-import Paginasi from '@/Components/UI/Paginasi.vue'
+import TabelData from '@/Components/UI/TabelData.vue'
 import KolomCari from '@/Components/UI/KolomCari.vue'
 import Lencana from '@/Components/UI/Lencana.vue'
 import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
@@ -167,6 +167,15 @@ const pemasangan = (item) =>
     : item.kode_aktivasi_berlaku
       ? { warna: 'amber', label: 'Menunggu aktivasi' }
       : { warna: 'slate', label: 'Belum diaktifkan' }
+const kolom = [
+  { label: 'Titik Absen' },
+  { label: 'Unit Kerja' },
+  { label: 'Pemasangan' },
+  { label: 'Alamat IP', kelas: 'hidden 2xl:table-cell' },
+  { label: 'Terakhir Aktif', kelas: 'hidden whitespace-nowrap lg:table-cell' },
+  { label: 'Status' },
+  { label: 'Aksi', kelas: 'text-right' },
+]
 </script>
 
 <template>
@@ -190,7 +199,10 @@ const pemasangan = (item) =>
       enter-from-class="-translate-y-2 opacity-0"
       enter-to-class="translate-y-0 opacity-100"
     >
-      <div v-if="kodeAktivasi" class="mb-5 rounded-lg border border-peringatan bg-peringatan-lembut px-5 py-4">
+      <div
+        v-if="kodeAktivasi"
+        class="mb-5 rounded-lg border border-peringatan bg-peringatan-lembut px-5 py-4"
+      >
         <p class="flex items-center gap-1.5 text-sm font-medium text-peringatan-teks">
           <Ikon nama="perangkat" ukuran="h-4 w-4" />
           Kode aktivasi — {{ kodeAktivasi.nama_titik }}
@@ -216,21 +228,14 @@ const pemasangan = (item) =>
       </div>
     </Transition>
 
-    <div class="mb-5 panel p-4">
+    <div class="mb-4 panel p-3">
       <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <span class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup">
-            Cari Perangkat
-          </span>
+          <span class="sr-only"> Cari Perangkat </span>
           <KolomCari v-model="filter.cari" placeholder="Nama titik absen…" @cari="terapkan" />
         </div>
         <div>
-          <label
-            for="unit"
-            class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup"
-          >
-            Unit Kerja
-          </label>
+          <label for="unit" class="sr-only"> Unit Kerja </label>
           <Pilihan
             id="unit"
             v-model="filter.unit_kerja_id"
@@ -239,12 +244,7 @@ const pemasangan = (item) =>
           />
         </div>
         <div>
-          <label
-            for="status"
-            class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup"
-          >
-            Status
-          </label>
+          <label for="status" class="sr-only"> Status </label>
           <Pilihan
             id="status"
             v-model="filter.status"
@@ -270,130 +270,116 @@ const pemasangan = (item) =>
       </div>
     </div>
 
-    <div class="overflow-hidden panel">
-      <div class="tabel-gulir tabel-aksi gulir-halus">
-        <table class="min-w-full divide-y divide-garis text-sm">
-          <thead
-            class="border-b border-garis bg-permukaan-2 text-xs uppercase tracking-wider text-redup"
-          >
-            <tr>
-              <th scope="col" class="px-4 py-3 text-left font-medium">Titik Absen</th>
-              <th scope="col" class="px-4 py-3 text-left font-medium">Unit Kerja</th>
-              <th scope="col" class="px-4 py-3 text-left font-medium">Pemasangan</th>
-              <th scope="col" class="hidden px-4 py-3 text-left font-medium 2xl:table-cell">
-                Alamat IP
-              </th>
-              <th scope="col" class="hidden whitespace-nowrap px-4 py-3 text-left font-medium lg:table-cell">
-                Terakhir Aktif
-              </th>
-              <th scope="col" class="px-4 py-3 text-left font-medium">Status</th>
-              <th scope="col" class="px-4 py-3 text-right font-medium">Aksi</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-garis">
-            <tr
-              v-for="item in daftar.data"
-              :key="item.id"
-              class="transition-colors hover:bg-permukaan-hover"
-              :class="{ 'baris-redup bg-permukaan-2/60': !item.aktif }"
+    <TabelData
+      :kolom="kolom"
+      :baris="daftar.data"
+      :paginator="daftar"
+      kelas-gulir="tabel-aksi"
+      :kelas-baris="(item) => !item.aktif && 'baris-redup bg-permukaan-2/60'"
+    >
+      <template #baris="{ isi: item }">
+        <td class="max-w-[18rem] px-4 py-3">
+          <div class="flex min-w-0 items-center gap-2">
+            <span
+              class="rounded-md p-1.5"
+              :class="
+                item.terpasang ? 'bg-berhasil-lembut text-berhasil' : 'bg-permukaan-2 text-redup'
+              "
             >
-              <td class="px-4 py-3">
-                <div class="flex items-center gap-2">
-                  <span
-                    class="rounded-md p-1.5"
-                    :class="
-                      item.terpasang ? 'bg-berhasil-lembut text-berhasil' : 'bg-permukaan-2 text-redup'
-                    "
-                  >
-                    <Ikon nama="perangkat" ukuran="h-4 w-4" />
-                  </span>
-                  <span class="whitespace-nowrap font-medium text-utama">{{ item.nama_titik }}</span>
-                  <Lencana
-                    v-if="item.sumber === 'ad_hoc'"
-                    warna="amber"
-                    :titik="false"
-                    title="Perangkat masuk sendiri selagi Mode Terbuka menyala, tanpa ditinjau admin"
-                  >
-                    {{ item.sumber_label }}
-                  </Lencana>
-                </div>
-              </td>
-              <td
-                class="max-w-[11rem] truncate px-4 py-3 text-sekunder"
-                :title="item.unit_kerja?.nama"
-              >
-                {{ item.unit_kerja?.nama ?? '—' }}
-              </td>
-              <td class="px-4 py-3">
-                <Lencana :warna="pemasangan(item).warna" :titik="false">
-                  {{ pemasangan(item).label }}
-                </Lencana>
-              </td>
-              <td class="hidden px-4 py-3 font-display tabular-nums text-sekunder 2xl:table-cell">
-                {{ item.ip_terakhir ?? '—' }}
-              </td>
-              <td class="hidden whitespace-nowrap px-4 py-3 text-xs text-redup lg:table-cell">
-                {{ waktu(item.login_terakhir_at) }}
-              </td>
-              <td class="px-4 py-3">
-                <Lencana :warna="item.aktif ? 'emerald' : 'slate'">
-                  {{ item.aktif ? 'Aktif' : 'Nonaktif' }}
-                </Lencana>
-              </td>
-              <td class="whitespace-nowrap px-4 py-3 text-right">
-                <TombolAksi ikon="jam" warna="slate" @click="bukaRiwayat(item)">Riwayat</TombolAksi>
-                <TombolAksi ikon="ubah" warna="teal" @click="bukaUbah(item)">Ubah</TombolAksi>
-                <TombolAksi
-                  v-if="!item.terpasang && item.aktif"
-                  ikon="kunci"
-                  warna="navy"
-                  @click="terbitkanKode(item)"
-                >
-                  Kode Aktivasi
-                </TombolAksi>
-                <TombolAksi
-                  v-if="item.terpasang"
-                  ikon="cabut"
-                  warna="amber"
-                  @click="cabutToken(item)"
-                >
-                  Cabut Akses
-                </TombolAksi>
-                <TombolAksi
-                  :ikon="item.aktif ? 'cabut' : 'cek'"
-                  :warna="item.aktif ? 'amber' : 'emerald'"
-                  @click="ubahStatus(item)"
-                >
-                  {{ item.aktif ? 'Nonaktifkan' : 'Aktifkan' }}
-                </TombolAksi>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+              <Ikon nama="perangkat" ukuran="h-4 w-4" />
+            </span>
+            <!--
+                Dipotong, bukan dibiarkan memanjang. Nama seperti "Perangkat
+                Ad-hoc — Bidang Hubungan Industrial dan Jaminan Sosial"
+                membuat kolom ini melebar sampai 600px dan mendorong seluruh
+                kolom tengah ke luar layar.
+              -->
+            <span class="truncate font-medium text-utama" :title="item.nama_titik">
+              {{ item.nama_titik }}
+            </span>
+            <Lencana
+              v-if="item.sumber === 'ad_hoc'"
+              warna="amber"
+              :titik="false"
+              title="Perangkat masuk sendiri selagi Mode Terbuka menyala, tanpa ditinjau admin"
+            >
+              {{ item.sumber_label }}
+            </Lencana>
+          </div>
+        </td>
+        <td class="max-w-[11rem] truncate px-4 py-3 text-sekunder" :title="item.unit_kerja?.nama">
+          {{ item.unit_kerja?.nama ?? '—' }}
+        </td>
+        <td class="px-4 py-3">
+          <Lencana :warna="pemasangan(item).warna" :titik="false">
+            {{ pemasangan(item).label }}
+          </Lencana>
+        </td>
+        <td class="hidden px-4 py-3 font-display tabular-nums text-sekunder 2xl:table-cell">
+          {{ item.ip_terakhir ?? '—' }}
+        </td>
+        <td class="hidden whitespace-nowrap px-4 py-3 text-xs text-redup lg:table-cell">
+          {{ waktu(item.login_terakhir_at) }}
+        </td>
+        <td class="px-4 py-3">
+          <Lencana :warna="item.aktif ? 'emerald' : 'slate'">
+            {{ item.aktif ? 'Aktif' : 'Nonaktif' }}
+          </Lencana>
+        </td>
+        <td class="whitespace-nowrap px-4 py-3 text-right">
+          <TombolAksi ringkas ikon="jam" warna="slate" @click="bukaRiwayat(item)"
+            >Riwayat</TombolAksi
+          >
+          <TombolAksi ringkas ikon="ubah" warna="teal" @click="bukaUbah(item)">Ubah</TombolAksi>
+          <TombolAksi
+            ringkas
+            v-if="!item.terpasang && item.aktif"
+            ikon="kunci"
+            warna="navy"
+            @click="terbitkanKode(item)"
+          >
+            Kode Aktivasi
+          </TombolAksi>
+          <TombolAksi
+            ringkas
+            v-if="item.terpasang"
+            ikon="cabut"
+            warna="amber"
+            @click="cabutToken(item)"
+          >
+            Cabut Akses
+          </TombolAksi>
+          <TombolAksi
+            ringkas
+            :ikon="item.aktif ? 'cabut' : 'cek'"
+            :warna="item.aktif ? 'amber' : 'emerald'"
+            @click="ubahStatus(item)"
+          >
+            {{ item.aktif ? 'Nonaktifkan' : 'Aktifkan' }}
+          </TombolAksi>
+        </td>
+      </template>
 
-      <KeadaanKosong
-        v-if="daftar.data.length === 0"
-        ikon="perangkat"
-        :judul="adaPenyaring ? 'Tidak ada perangkat yang cocok' : 'Belum ada perangkat absen'"
-        :keterangan="
-          adaPenyaring
-            ? 'Ubah kata kunci, unit kerja, atau status pada penyaring di atas.'
-            : 'Daftarkan titik absen pertama melalui tombol di kanan atas.'
-        "
-      >
-        <button
-          v-if="adaPenyaring"
-          type="button"
-          class="inline-flex items-center gap-1.5 rounded-md border border-garis px-3 py-1.5 text-xs font-medium text-sekunder transition hover:bg-permukaan-hover"
-          @click="bersihkan"
+      <template #kosong>
+        <KeadaanKosong
+          ikon="perangkat"
+          :judul="adaPenyaring ? 'Tidak ada perangkat yang cocok' : 'Belum ada perangkat absen'"
+          :keterangan="
+            adaPenyaring
+              ? 'Ubah kata kunci, unit kerja, atau status pada penyaring di atas.'
+              : 'Daftarkan titik absen pertama melalui tombol di kanan atas.'
+          "
         >
-          <Ikon nama="tutup" ukuran="h-3.5 w-3.5" /> Bersihkan filter
-        </button>
-      </KeadaanKosong>
-
-      <Paginasi :data="daftar" />
-    </div>
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 rounded-md border border-garis px-3 py-1.5 text-xs font-medium text-sekunder transition hover:bg-permukaan-hover"
+            @click="bersihkan"
+          >
+            <Ikon nama="tutup" ukuran="h-3.5 w-3.5" /> Bersihkan filter
+          </button>
+        </KeadaanKosong>
+      </template>
+    </TabelData>
 
     <!-- Formulir -->
     <Modal :terbuka="modalTerbuka" :judul="judulForm" @tutup="tutup">

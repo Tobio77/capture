@@ -223,7 +223,7 @@ const keluar = () => router.post('/keluar')
         <SaklarTema />
       </div>
 
-      <main class="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+      <main class="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-6">
         <!-- Peringatan Mode Terbuka; terlihat di setiap halaman admin. -->
         <div
           v-if="modeTerbuka"
@@ -245,7 +245,7 @@ const keluar = () => router.post('/keluar')
           </Link>
         </div>
 
-        <div class="flex flex-wrap items-start justify-between gap-4 border-b border-garis pb-5">
+        <div class="flex flex-wrap items-start justify-between gap-4 border-b border-garis pb-4">
           <div class="min-w-0">
             <h1 class="font-display text-2xl font-semibold text-utama sm:text-[1.75rem]">{{ judul }}</h1>
             <p v-if="deskripsi" class="mt-1.5 max-w-2xl text-sm text-sekunder">{{ deskripsi }}</p>
@@ -294,7 +294,7 @@ const keluar = () => router.post('/keluar')
           leave-from-class="opacity-100"
           leave-to-class="opacity-0"
         >
-          <div :key="ruteSaatIni" class="mt-6">
+          <div :key="ruteSaatIni" class="mt-5">
             <slot />
           </div>
         </Transition>

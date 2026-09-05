@@ -16,6 +16,16 @@ const props = defineProps({
 
 const form = useForm({ ...props.setting })
 
+/*
+ * Dua jendela, bukan satu. Jam pulang sengaja dapat berbeda antar unit lewat
+ * setting global yang sama — yang tidak seragam ditangani override harian,
+ * bukan dengan menyimpan jam per unit yang harus dirawat satu per satu.
+ */
+const jendelaHarian = [
+  { jenis: 'datang', label: 'Absen Datang', buka: 'jam_buka_datang', tutup: 'jam_tutup_datang' },
+  { jenis: 'pulang', label: 'Absen Pulang', buka: 'jam_buka_pulang', tutup: 'jam_tutup_pulang' },
+]
+
 const metode = [
   {
     kunci: 'metode_manual_aktif',
@@ -175,6 +185,57 @@ const simpan = () => {
             />
             <p v-if="form.errors.jam_masuk_umum" class="mt-1.5 text-xs text-peringatan-teks">
               {{ form.errors.jam_masuk_umum }}
+            </p>
+          </div>
+
+          <!--
+            FR-SET-07. Dua jendela terpisah, bukan satu jendela besar: satu
+            jendela 06.00–18.00 membuat "Pulang" pukul 07.00 dan "Datang" pukul
+            17.00 sama-sama sah, dan sistem tidak punya dasar menolaknya.
+          -->
+          <div class="mt-6 border-t border-garis pt-5">
+            <p class="text-sm font-medium text-utama">Jendela Operasional Harian</p>
+            <p class="mt-0.5 text-xs text-redup">
+              Di luar jam ini perangkat menolak tap. Berbeda dari Jam Masuk Harian di atas, yang
+              menentukan tepat atau terlambat — datang boleh sejak jam buka, tetapi terhitung
+              terlambat setelah jam masuk.
+            </p>
+
+            <div class="mt-4 grid gap-5 sm:grid-cols-2">
+              <div v-for="jendela in jendelaHarian" :key="jendela.jenis">
+                <p class="text-xs font-semibold uppercase tracking-wider text-redup">
+                  {{ jendela.label }}
+                </p>
+
+                <div class="mt-2 flex items-center gap-2">
+                  <input
+                    v-model="form[jendela.buka]"
+                    type="time"
+                    :aria-label="`Jam buka ${jendela.label}`"
+                    class="kolom-isian w-32 font-display tabular-nums"
+                  />
+                  <span class="text-sm text-redup">sampai</span>
+                  <input
+                    v-model="form[jendela.tutup]"
+                    type="time"
+                    :aria-label="`Jam tutup ${jendela.label}`"
+                    class="kolom-isian w-32 font-display tabular-nums"
+                  />
+                </div>
+
+                <p
+                  v-if="form.errors[jendela.buka] || form.errors[jendela.tutup]"
+                  class="mt-1.5 text-xs text-peringatan-teks"
+                >
+                  {{ form.errors[jendela.buka] ?? form.errors[jendela.tutup] }}
+                </p>
+              </div>
+            </div>
+
+            <p class="mt-4 text-xs text-redup">
+              Kasus khusus — apel dadakan sore hari, atau penutupan lebih awal — ditangani lewat
+              tombol buka/tutup paksa pada halaman Absen Umum. Override itu berlaku sehari saja
+              dan tidak terbawa ke hari berikutnya.
             </p>
           </div>
         </section>

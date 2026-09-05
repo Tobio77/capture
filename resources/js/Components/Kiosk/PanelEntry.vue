@@ -23,7 +23,23 @@ const props = defineProps({
   hasil: { type: Object, default: null },
   metode: { type: Object, required: true },
   aktif: { type: Boolean, default: true },
+
+  /**
+   * Status jendela per jenis absen (FR-SET-07); null pada Absen Event, yang
+   * tidak mengenal jendela jam.
+   */
+  status_jendela: { type: Object, default: null },
 })
+
+/** Absen Event selalu terbuka selama entrynya dibuka. */
+const terbuka = (jenisAbsen) => props.status_jendela?.[jenisAbsen]?.terbuka ?? true
+
+const keteranganJendela = (jenisAbsen) => props.status_jendela?.[jenisAbsen]?.keterangan ?? null
+
+/** Keterangan untuk jenis yang sedang dipilih, bila jendelanya tertutup. */
+const jendelaTertutup = computed(() =>
+  terbuka(jenis.value) ? null : keteranganJendela(jenis.value),
+)
 
 const emit = defineEmits(['tap'])
 
@@ -75,8 +91,17 @@ const nadaTahap = computed(() => {
     sudah: 'nada-langit',
   }
 
-  return daftar[props.tahap] ?? 'nada-biru'
+  return daftar[props.tahap] ?? null
 })
+
+/*
+ * Selagi menunggu tap, blok hasil TIDAK berwarna. Isinya masih empat tanda
+ * hubung, dan bidang berwarna di belakang empat tanda hubung terbaca sebagai
+ * kotak yang sudah terisi — persis kebalikan dari maksudnya.
+ */
+const latarHasil = computed(() =>
+  nadaTahap.value === null ? 'var(--tema-permukaan-2)' : 'var(--nada-lembut)',
+)
 
 /** Bingkai pratinjau berubah warna mengikuti hasil verifikasi. */
 const warnaBingkai = computed(() => {
@@ -165,6 +190,24 @@ function rebutFokus() {
   if (props.aktif) kolomId.value?.focus()
 }
 
+/**
+ * Fokus direbut kembali hanya bila tidak ada kolom lain yang dituju.
+ *
+ * Merebutnya tanpa syarat membuat kolom pencarian pada panel Daftar
+ * e-Presensi tidak dapat dipakai sama sekali: satu ketukan padanya langsung
+ * dikembalikan ke sini, dan huruf yang diketik petugas jatuh ke kolom tap.
+ * Yang sebenarnya dijaga NFR-08 adalah keadaan diam — reader RFID mengirim
+ * angka tanpa lebih dulu mengeklik apa pun — bukan hak veto atas setiap
+ * elemen lain di layar.
+ */
+function jagaFokus(peristiwa) {
+  const tujuan = peristiwa.relatedTarget
+
+  if (tujuan?.matches?.('input, textarea, select, button, a[href], [tabindex]')) return
+
+  rebutFokus()
+}
+
 watch(() => props.tahap, rebutFokus)
 
 onMounted(() => {
@@ -203,7 +246,7 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
 </script>
 
 <template>
-  <section class="panel p-5">
+  <section class="panel p-4">
     <h2 class="font-display text-sm font-semibold uppercase tracking-wider text-redup">
       Capture Foto &amp; Entry Absen
     </h2>
@@ -228,7 +271,7 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
       diambil dan disimpan sebagai bukti kehadiran (revisi FR-SET-01, S28a).
     -->
     <div
-      class="relative mx-auto mt-4 aspect-[4/3] w-full max-w-[17rem] overflow-hidden rounded-2xl border-2 bg-navy-900 transition-colors duration-300"
+      class="relative mx-auto mt-3 aspect-[4/3] h-[clamp(6.5rem,17vh,10.5rem)] w-auto max-w-full overflow-hidden rounded-2xl border-2 bg-navy-900 transition-colors duration-300"
       :class="warnaBingkai"
     >
       <video ref="video" class="h-full w-full object-cover" autoplay muted playsinline></video>
@@ -289,36 +332,54 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
     -->
     <p
       v-if="!kameraGagal && !metode.wajah"
-      class="mt-2 text-center text-xs text-redup"
+      class="mt-1.5 text-center text-xs text-redup"
     >
       Foto bukti kehadiran · tanpa pencocokan wajah
     </p>
 
     <!-- Jenis absen -->
-    <div class="mt-5">
+    <div class="mt-3.5">
       <span class="text-xs font-medium uppercase tracking-wider text-redup">Jenis Absen</span>
-      <div class="mt-2 grid grid-cols-2 gap-2">
+      <div class="mt-1.5 grid grid-cols-2 gap-2">
+        <!--
+          Jenis yang jendelanya tertutup dikunci (FR-SET-07). Servernya tetap
+          memeriksa ulang; ini hanya mencegah orang mengantre untuk sesuatu
+          yang sudah pasti ditolak.
+        -->
         <label
           v-for="pilihan in [
             { nilai: 'datang', label: 'Datang' },
             { nilai: 'pulang', label: 'Pulang' },
           ]"
           :key="pilihan.nilai"
-          class="cursor-pointer rounded-lg border px-4 py-3 text-center text-sm font-medium transition-colors duration-150"
-          :class="
-            jenis === pilihan.nilai
+          class="rounded-lg border px-4 py-3 text-center text-sm font-medium transition-colors duration-150"
+          :class="[
+            terbuka(pilihan.nilai) ? 'cursor-pointer' : 'cursor-not-allowed opacity-50',
+            jenis === pilihan.nilai && terbuka(pilihan.nilai)
               ? 'border-aksen bg-aksen-lembut text-aksen-teks'
-              : 'border-garis text-sekunder hover:bg-permukaan-hover'
-          "
+              : 'border-garis text-sekunder',
+            terbuka(pilihan.nilai) && jenis !== pilihan.nilai && 'hover:bg-permukaan-hover',
+          ]"
+          :title="terbuka(pilihan.nilai) ? null : keteranganJendela(pilihan.nilai)"
         >
-          <input v-model="jenis" type="radio" :value="pilihan.nilai" class="sr-only" />
+          <input
+            v-model="jenis"
+            type="radio"
+            :value="pilihan.nilai"
+            :disabled="!terbuka(pilihan.nilai)"
+            class="sr-only"
+          />
           {{ pilihan.label }}
         </label>
       </div>
+
+      <p v-if="jendelaTertutup" class="mt-2 text-xs text-peringatan-teks">
+        {{ jendelaTertutup }}
+      </p>
     </div>
 
     <!-- Kolom scan / ketik -->
-    <div class="mt-4">
+    <div class="mt-3">
       <label for="id-card" class="text-xs font-medium uppercase tracking-wider text-redup">
         Scan / Ketik ID Card
       </label>
@@ -331,10 +392,10 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
         autocomplete="off"
         :disabled="!aktif"
         :placeholder="aktif ? 'Tap kartu atau ketik NIP lalu tekan Enter' : 'Menunggu event dibuka'"
-        class="mt-2 block w-full panel-2 px-4 py-3.5 font-display text-xl tabular-nums text-utama transition-colors duration-150 placeholder:text-sm placeholder:font-sans placeholder:text-redup focus:border-aksen focus:bg-permukaan focus:outline-none focus:ring-1 focus:ring-aksen disabled:opacity-50"
+        class="kolom-isian mt-1.5 px-4 py-3 font-display text-lg tabular-nums placeholder:font-sans placeholder:text-sm disabled:opacity-50"
         @keydown="tandaiKetukan"
         @keyup.enter="kirim"
-        @blur="rebutFokus"
+        @blur="jagaFokus"
       />
 
       <!--
@@ -344,7 +405,7 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
       <button
         type="button"
         :disabled="!aktif || idCard.trim() === ''"
-        class="mt-3 w-full rounded-lg bg-aksen px-4 py-3 text-sm font-semibold text-white transition-colors duration-150 hover:bg-aksen-kuat active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40"
+        class="tombol tombol-utama mt-2.5 w-full py-2.5 text-sm text-white transition-colors duration-150 hover:bg-aksen-kuat active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40"
         @click="kirim"
       >
         Absen {{ jenis === 'datang' ? 'Datang' : 'Pulang' }}
@@ -357,9 +418,9 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
       lebih cepat daripada satu kata berwarna.
     -->
     <dl
-      class="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl p-4 transition-colors duration-300"
+      class="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 rounded-xl p-3 transition-colors duration-300"
       :class="nadaTahap"
-      :style="{ backgroundColor: 'var(--nada-lembut)' }"
+      :style="{ backgroundColor: latarHasil }"
     >
       <div
         v-for="medan in [
@@ -370,7 +431,10 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
         ]"
         :key="medan.kunci"
       >
-        <dt class="text-[0.6875rem] font-medium uppercase tracking-wider opacity-70" :style="{ color: 'var(--nada-teks)' }">
+        <dt
+          class="text-[0.6875rem] font-medium uppercase tracking-wider opacity-70"
+          :style="{ color: nadaTahap ? 'var(--nada-teks)' : 'var(--tema-redup)' }"
+        >
           {{ medan.label }}
         </dt>
         <dd class="mt-0.5 truncate font-display text-sm font-semibold text-utama">
@@ -386,14 +450,14 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
     -->
     <p
       v-if="hasil?.wajah_didaftarkan"
-      class="mt-4 rounded-lg bg-berhasil-lembut px-3 py-2 text-xs text-berhasil-teks"
+      class="mt-3 rounded-lg bg-berhasil-lembut px-3 py-2 text-xs text-berhasil-teks"
     >
       Foto ini sekaligus terdaftar sebagai foto referensi wajah Anda.
     </p>
 
     <!-- Status -->
     <p
-      class="mt-4 flex items-center gap-2.5 border-t border-garis pt-4 text-sm font-medium"
+      class="mt-3 flex items-center gap-2.5 border-t border-garis pt-3 text-sm font-medium"
       :class="status.warna"
     >
       <span class="relative flex h-2.5 w-2.5 shrink-0" :class="nadaTahap">

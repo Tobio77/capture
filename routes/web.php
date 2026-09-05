@@ -201,6 +201,10 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
         Route::get('absen-umum', [AbsenUmumController::class, 'index'])->name('absen-umum.index');
         Route::get('absen-umum/layar', [AbsenUmumController::class, 'layar'])->name('absen-umum.layar');
         Route::post('absen-umum/buka', [AbsenUmumController::class, 'buka'])->name('absen-umum.buka');
+
+        // Override buka/tutup harian (FR-SET-07); berlaku sampai hari berganti.
+        Route::post('absen-umum/override', [AbsenUmumController::class, 'override'])
+            ->name('absen-umum.override');
         Route::get('absen-umum/ekspor', [AbsenUmumController::class, 'ekspor'])->name('absen-umum.ekspor');
         Route::get('absen-umum/data', [AbsenUmumController::class, 'data'])
             ->middleware('throttle:60,1')

@@ -5,6 +5,7 @@ import PanelPresensi from '@/Components/Kiosk/PanelPresensi.vue'
 import { useVerifikasiWajah } from '@/Composables/useVerifikasiWajah'
 import { useAntrianAbsen } from '@/Composables/useAntrianAbsen'
 import { useFaceApi } from '@/Composables/useFaceApi'
+import { useJamServer } from '@/Composables/useJamServer'
 
 /**
  * Layar Utama Kiosk (UIUX §4.2) — header status event dan dua panel yang
@@ -37,7 +38,7 @@ const props = defineProps({
 
   /*
    * Jam server saat halaman dirakit, ISO-8601 lengkap dengan offset. Layar
-   * memakainya untuk menyetel jam berjalannya sendiri; lihat `selisihJam`.
+   * memakainya untuk menyetel jam berjalannya sendiri; lihat useJamServer.
    */
   waktu_server: { type: String, default: null },
 
@@ -48,6 +49,9 @@ const props = defineProps({
    * mengikuti.
    */
   daftar_wajah_otomatis: { type: Boolean, default: false },
+
+  /** Status jendela buka/tutup per jenis absen (FR-SET-07); null pada Absen Event. */
+  status_jendela: { type: Object, default: null },
 })
 
 const jenis = ref('datang')
@@ -78,61 +82,12 @@ const JEDA_TARIK_MS = 10000
 let jedaTarik = null
 
 /*
- * Jam berjalan di layar, disetel ke jam SERVER.
- *
- * Jam perangkat titik absen kerap meleset — sebagian tidak pernah disetel
- * sejak dibeli, sebagian lagi kehilangan setelannya setiap kali listrik padam
- * — sementara jam yang tercatat pada absensi selalu jam server. Menampilkan
- * jam perangkat apa adanya membuat petugas membaca angka yang berbeda dari
- * yang tersimpan, dan pertengkaran soal "saya absen jam berapa" tidak pernah
- * ada ujungnya.
- *
- * Yang disimpan adalah SELISIHNYA, bukan jamnya: dengan begitu jam tetap
- * berdetak sendiri antar penarikan, tidak melompat-lompat mengikuti jaringan,
- * dan tetap menempel pada jam server setiap kali daftar presensi ditarik.
+ * Jam berjalan disetel ke jam SERVER; logikanya di useJamServer, dipakai
+ * bersama halaman depan supaya keduanya tidak pernah berbeda perlakuan.
  */
-const selisihJam = ref(0)
-const jamSekarang = ref('')
-
-const JEDA_JAM_MS = 1000
-
-let jedaJam = null
-
-function setelJam(waktuServer) {
-  if (!waktuServer) return
-
-  const server = Date.parse(waktuServer)
-
-  if (Number.isNaN(server)) return
-
-  selisihJam.value = Date.now() - server
-}
-
-function detakJam() {
-  jamSekarang.value = new Date(Date.now() - selisihJam.value).toLocaleTimeString('id-ID', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
-}
-
-/** Jam server saat ini dalam bentuk ISO, dikirim bersama tap. */
-function waktuServerSekarang() {
-  return new Date(Date.now() - selisihJam.value).toISOString()
-}
-
-/** Jam server saat ini sebagai HH.MM, untuk kartu hasil tap. */
-function jamSingkat() {
-  return new Date(Date.now() - selisihJam.value).toLocaleTimeString('id-ID', {
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
+const { jam, detik, setel: setelJam, waktuIso, jamSingkat } = useJamServer(props.waktu_server)
 
 onMounted(() => {
-  setelJam(props.waktu_server)
-  detakJam()
-  jedaJam = setInterval(detakJam, JEDA_JAM_MS)
 
   /*
    * Model face-api berukuran ~6,8 MB dan butuh beberapa detik untuk dimuat.
@@ -157,7 +112,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   clearInterval(jedaTarik)
-  clearInterval(jedaJam)
+
   clearTimeout(jedaPulih)
 })
 
@@ -358,7 +313,7 @@ async function simpanAbsen(data, foto, skor, embedding = null) {
      * SERVER menurut layar ini, bukan jam perangkat: perangkat yang jamnya
      * meleset tidak boleh menggeser kehadiran orang.
      */
-    waktu_tap: waktuServerSekarang(),
+    waktu_tap: waktuIso(),
   }
 
   try {
@@ -533,12 +488,19 @@ function pulihkan() {
             Jam berjalan menurut SERVER, bukan menurut perangkat. Petugas yang
             membacanya harus melihat angka yang sama dengan yang kelak tercatat
             pada absensi.
+
+            Menit dan detik dipisah, sebentuk dengan jam raksasa di halaman
+            depan. Versi sebelumnya menampilkan "14.06.28" sebagai satu rangkai
+            angka bertitik, yang pada pandangan pertama terbaca seperti tanggal.
           -->
           <p
-            class="font-display text-xl font-semibold tabular-nums text-sidebar-teks"
+            class="flex items-baseline gap-1 text-sidebar-teks"
             title="Jam server — sama dengan jam yang tercatat pada absensi"
           >
-            {{ jamSekarang }}
+            <span class="font-display text-2xl font-semibold tabular-nums">{{ jam }}</span>
+            <span class="font-display text-sm font-medium tabular-nums text-sidebar-redup">
+              {{ detik }}
+            </span>
           </p>
 
           <!-- Aksi khas tiap titik absen: lepas perangkat, pilih unit, kembali. -->
@@ -553,7 +515,7 @@ function pulihkan() {
       berlangsung.
     -->
     <main
-      class="mx-auto grid w-full max-w-[1600px] flex-1 gap-5 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,480px)_minmax(0,1fr)]"
+      class="mx-auto grid w-full max-w-[1600px] flex-1 gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]"
     >
       <PanelEntry
         ref="panel"
@@ -562,6 +524,7 @@ function pulihkan() {
         :pesan="pesan"
         :hasil="hasil"
         :metode="metode"
+        :status_jendela="status_jendela"
         :aktif="entryDibuka"
         @tap="tangkapTap"
       />

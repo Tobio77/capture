@@ -76,6 +76,18 @@ class LayarKioskController extends Controller
             'absen_umum_aktif' => $this->absenUmum->aktif(),
 
             /*
+             * FR-SET-07: jenis absen yang jendelanya sedang tertutup dikunci di
+             * layar. Servernya tetap memeriksa ulang — layar dapat dimuat pukul
+             * 08.55 lalu di-tap pukul 09.05 — tetapi mengunci tombolnya
+             * mencegah orang mengantre untuk sesuatu yang pasti ditolak.
+             *
+             * Hanya untuk mode umum: kegiatan tidak mengenal jendela jam.
+             */
+            'status_jendela' => $mode === TitikAbsenService::MODE_UMUM
+                ? collect($this->absenUmum->statusSemua($event))->map(fn ($s) => $s->untukLayar())
+                : null,
+
+            /*
              * FR-SET-01: metode yang dimatikan admin tidak muncul di layar
              * perangkat — kamera disembunyikan bila verifikasi wajah nonaktif,
              * dan kolom ketik disembunyikan bila input manual nonaktif.

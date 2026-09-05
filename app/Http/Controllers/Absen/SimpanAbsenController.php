@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Absen;
 
+use App\Enums\JenisAbsen;
 use App\Exceptions\AbsenGandaException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SimpanAbsenRequest;
 use App\Services\AbsensiService;
+use App\Services\AbsenUmumService;
 use App\Services\EventAbsenService;
 use App\Services\FotoReferensiWajahService;
 use App\Services\KartuRfidService;
@@ -31,6 +33,7 @@ class SimpanAbsenController extends Controller
         protected SettingAbsenService $setting,
         protected TitikAbsenService $titik,
         protected FotoReferensiWajahService $wajah,
+        protected AbsenUmumService $absenUmum,
     ) {}
 
     public function __invoke(SimpanAbsenRequest $request): JsonResponse
@@ -40,6 +43,26 @@ class SimpanAbsenController extends Controller
         // FR-EVT-04: entry yang sudah ditutup menolak tap baru.
         if ($event === null) {
             return $this->gagal('EVENT_TIDAK_AKTIF', 'Entry event sudah ditutup. Absen tidak dicatat.', 409);
+        }
+
+        /*
+         * FR-SET-07: sesi absen umum punya jendela jam per jenis. Diperiksa di
+         * sini, bukan hanya disembunyikan di layar — layar dapat dimuat pukul
+         * 08.55 lalu di-tap pukul 09.05, dan perangkat yang menyala semalaman
+         * memegang layar dari jendela kemarin.
+         *
+         * Kegiatan tidak mengenal jendela: yang membuka dan menutupnya adalah
+         * status entry (FR-EVT-04).
+         */
+        if ($event->absenUmum()) {
+            $status = $this->absenUmum->status(
+                JenisAbsen::from($request->string('jenis')->toString()),
+                $event,
+            );
+
+            if (! $status->terbuka) {
+                return $this->gagal('DI_LUAR_JAM', $status->keterangan(), 409);
+            }
         }
 
         $pegawai = $this->kartu->kenali($request->string('id_card')->toString());

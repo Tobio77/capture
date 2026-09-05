@@ -6,13 +6,19 @@ import { useAngkaBerjalan } from '@/Composables/useAngkaBerjalan'
 /**
  * Kartu angka ringkas untuk dashboard (FR-DASH-01).
  *
- * Dijadikan komponen sendiri, bukan disusun di dalam `v-for` pada halaman,
- * karena tiap kartu memerlukan pencacah angkanya sendiri — dan composable
- * hanya boleh dipanggil di `setup`, bukan di dalam perulangan template.
+ * **Indikator visual hanya bila ada penyebut nyata** (revisi S31). Versi
+ * sebelumnya memasang bar kemajuan di kartu "Perangkat Aktif 0 dari 5" dan
+ * "Kehadiran 0,0%", dan keduanya tergambar sebagai jalur abu-abu kosong yang
+ * terbaca seperti komponen rusak. Yang lebih buruk: kartu "Total Pegawai 666"
+ * nyaris ikut diberi bar juga — padahal 666 bukan bagian dari apa pun, jadi
+ * bar itu tidak akan pernah punya arti.
  *
- * Susunannya membaca dari kiri-atas ke kanan-bawah: label kecil, angka besar,
- * lalu keterangan. Ubin ikon duduk di sudut sebagai penanda kategori, bukan
- * sebagai kolom kedua yang bersaing dengan angkanya.
+ * Aturannya sekarang: angka tanpa penyebut tampil sebagai angka saja, dan
+ * ruang yang tersisa diisi keterangan yang benar-benar menerangkan.
+ *
+ * Untuk penyebut kecil (≤ 12) dipakai PIP DISKRET, bukan bar. Lima titik
+ * dengan nol terisi menyatakan "nol dari lima" dengan jujur; bar 0% hanya
+ * menyatakan "kosong", dan pembacanya tidak pernah tahu kosong dari berapa.
  */
 
 const props = defineProps({
@@ -26,12 +32,13 @@ const props = defineProps({
   nada: { type: String, default: 'teal' },
 
   desimal: { type: Number, default: 0 },
-
-  // Jeda kemunculan, supaya deretan kartu masuk satu per satu.
   tunda: { type: Number, default: 0 },
 
-  // Bar tipis di kaki kartu; null berarti tidak ada.
-  persen: { type: Number, default: null },
+  /**
+   * Pip diskret, hanya bila angkanya memang bagian dari sebuah penyebut.
+   * Bentuknya `{ terisi, total }`; null berarti tidak ada penyebut.
+   */
+  pip: { type: Object, default: null },
 })
 
 const angka = useAngkaBerjalan(
@@ -45,26 +52,16 @@ const terformat = computed(() =>
     maximumFractionDigits: props.desimal,
   }),
 )
+
+/* Lebih dari selusin titik berhenti terbaca sebagai hitungan. */
+const pipTampil = computed(() =>
+  props.pip !== null && props.pip.total > 0 && props.pip.total <= 12 ? props.pip : null,
+)
 </script>
 
 <template>
-  <div
-    class="panel kartu-naik masuk relative overflow-hidden p-5"
-    :class="`nada-${nada}`"
-    :style="{ '--tunda': `${tunda}ms` }"
-  >
-    <!--
-      Pendar nada di sudut kanan atas. Sangat pucat, dan justru itu gunanya:
-      kartu memperoleh warna kategorinya tanpa satu pun teks kehilangan
-      kontras di atasnya.
-    -->
-    <span
-      class="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full opacity-60"
-      :style="{ background: 'var(--nada-lembut)' }"
-      aria-hidden="true"
-    ></span>
-
-    <div class="relative flex items-start justify-between gap-3">
+  <div class="panel flex flex-col p-5" :class="`nada-${nada}`">
+    <div class="flex items-start justify-between gap-3">
       <p class="text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-redup">
         {{ label }}
       </p>
@@ -74,19 +71,27 @@ const terformat = computed(() =>
       </span>
     </div>
 
-    <p
-      class="relative mt-3 font-display text-[2rem] font-semibold leading-none tabular-nums"
-      :style="{ color: 'var(--nada-teks)' }"
-    >
-      {{ terformat }}<span v-if="satuan" class="text-xl">{{ satuan }}</span>
+    <!--
+      Angkanya bertinta navy, bukan berwarna nada. Empat angka berwarna
+      berjajar membuat tidak ada yang menonjol; warna disimpan untuk ubin ikon
+      dan pip, yang memang menandai kategori.
+    -->
+    <p class="mt-3 font-display text-[2rem] font-semibold leading-none tabular-nums">
+      {{ terformat }}<span v-if="satuan" class="text-xl text-redup">{{ satuan }}</span>
     </p>
 
-    <p v-if="keterangan" class="relative mt-2 text-xs text-redup">{{ keterangan }}</p>
+    <p v-if="keterangan" class="mt-2 text-xs text-redup">{{ keterangan }}</p>
 
-    <div v-if="persen !== null" class="bar-jalur relative mt-3 h-1.5">
+    <!-- Pip: satu titik per satuan, terisi sebanyak yang tercapai. -->
+    <div v-if="pipTampil" class="mt-3 flex flex-wrap items-center gap-1.5">
       <span
-        class="bar-isi"
-        :style="{ width: `${Math.min(100, Math.max(0, persen))}%`, '--tunda': `${tunda + 240}ms` }"
+        v-for="ke in pipTampil.total"
+        :key="ke"
+        class="h-2 w-2 rounded-full transition-colors duration-300"
+        :style="{
+          backgroundColor:
+            ke <= pipTampil.terisi ? 'var(--nada-kuat)' : 'var(--tema-garis-kuat)',
+        }"
       ></span>
     </div>
   </div>
