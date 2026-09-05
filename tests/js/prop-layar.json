@@ -1,0 +1,242 @@
+{
+  "_catatan": [
+    "Prop realistis untuk uji asap layar kiosk. Bentuknya sengaja mengikuti",
+    "apa yang benar-benar dikirim controller, bukan seminimum yang membuat",
+    "komponen mau dirender — prop tiruan yang terlalu kurus akan melewatkan",
+    "justru cacat yang hendak dijaring.",
+    "",
+    "Berkas ini dibaca dua pihak: uji Vitest yang merender komponennya, dan",
+    "PropLayarKioskTest di sisi PHP yang membandingkan kuncinya dengan",
+    "keluaran controller sungguhan. Yang kedua itulah yang menjaga berkas ini",
+    "tidak diam-diam menjadi usang."
+  ],
+  "bersama": {
+    "kiosk_terdaftar": {
+      "id": 1,
+      "nama_titik": "Aula Senam BLK Surabaya",
+      "sumber": "terdaftar",
+      "status": "online",
+      "ip_terakhir": "10.20.30.40",
+      "diaktifkan_pada": "2026-09-01T07:12:00+07:00",
+      "unit_kerja": {
+        "id": 2,
+        "kode": "BLK-SBY",
+        "nama": "UPT BLK Surabaya"
+      }
+    },
+    "kiosk_ad_hoc": {
+      "id": 45,
+      "nama_titik": "Perangkat Ad-hoc — Bidang Hubungan Industrial dan Jaminan Sosial",
+      "sumber": "ad_hoc",
+      "status": "online",
+      "ip_terakhir": "10.20.30.41",
+      "diaktifkan_pada": "2026-09-06T06:55:00+07:00",
+      "unit_kerja": {
+        "id": 7,
+        "kode": "BID-HIJS",
+        "nama": "Bidang Hubungan Industrial dan Jaminan Sosial"
+      }
+    },
+    "pengguna_superadmin": {
+      "id": 1,
+      "nama": "Superadmin Dinas",
+      "peran": "superadmin",
+      "lintas_unit": true,
+      "unit_kerja": {
+        "id": 1,
+        "kode": "DISNAKERTRANS",
+        "nama": "Dinas Tenaga Kerja dan Transmigrasi"
+      }
+    }
+  },
+  "beranda": {
+    "perangkat": {
+      "nama_titik": "Aula Senam BLK Surabaya",
+      "sumber": "terdaftar",
+      "unit_kerja": {
+        "nama": "UPT BLK Surabaya"
+      }
+    },
+    "event_diikuti": null,
+    "event_aktif": [
+      {
+        "id": 12,
+        "nama": "Apel Pagi Senin",
+        "tanggal": "2026-09-07",
+        "jam_mulai": "07:30",
+        "cakupan_label": "UPT BLK Surabaya"
+      }
+    ],
+    "absen_umum_aktif": true,
+    "aktivasi_tanpa_kode": false,
+    "panjang_kode": 8,
+    "waktu_server": "2026-09-07T07:35:00+07:00",
+    "jam_masuk": "07:30",
+    "toleransi_menit": 15
+  },
+  "aktivasi": {
+    "mode_terbuka": true,
+    "unit_kerja": [
+      {
+        "id": 2,
+        "kode": "BLK-SBY",
+        "nama": "UPT BLK Surabaya"
+      },
+      {
+        "id": 7,
+        "kode": "BID-HIJS",
+        "nama": "Bidang Hubungan Industrial dan Jaminan Sosial"
+      }
+    ]
+  },
+  "kiosk_utama": {
+    "mode": "umum",
+    "absen_umum_aktif": true,
+    "status_jendela": {
+      "datang": {
+        "jenis": "datang",
+        "terbuka": true,
+        "sumber": "jadwal",
+        "jam_buka": "06:00",
+        "jam_tutup": "09:00",
+        "override": null,
+        "oleh": null,
+        "keterangan": "Terbuka mengikuti jadwal 06:00–09:00."
+      },
+      "pulang": {
+        "jenis": "pulang",
+        "terbuka": false,
+        "sumber": "jadwal",
+        "jam_buka": "15:00",
+        "jam_tutup": "18:00",
+        "override": null,
+        "oleh": null,
+        "keterangan": "Di luar jadwal 15:00–18:00."
+      }
+    },
+    "metode": {
+      "manual": true,
+      "rfid": true,
+      "wajah": false
+    },
+    "ambang_kecocokan_wajah": 0.5,
+    "kompresi": {
+      "nilai": "sedang",
+      "label": "Sedang",
+      "dimensi_maks": 560,
+      "kualitas": 75,
+      "estimasi": "21–35 KB per foto",
+      "keterangan": "Keseimbangan antara ketajaman dan ukuran berkas."
+    },
+    "daftar_wajah_otomatis": true,
+    "waktu_server": "2026-09-07T07:35:00+07:00",
+    "daftar_presensi": [
+      {
+        "pegawai_id": 3,
+        "nip": "199001012020011001",
+        "nama": "Ahmad Fauzi",
+        "jam_masuk": "07:31",
+        "jam_pulang": null,
+        "status_ketepatan": "tepat",
+        "foto_url": null
+      },
+      {
+        "pegawai_id": 4,
+        "nip": "199203032021012002",
+        "nama": "Siti Rahayu",
+        "jam_masuk": "07:52",
+        "jam_pulang": "16:04",
+        "status_ketepatan": "terlambat",
+        "foto_url": null
+      }
+    ],
+    "event": {
+      "id": 20,
+      "nama": "Absen Umum — UPT BLK Surabaya",
+      "tanggal": "2026-09-07",
+      "jam_mulai": "07:30",
+      "toleransi_menit": 15
+    }
+  },
+  "absen_umum_layar": {
+    "unit_kerja": [
+      {
+        "id": 1,
+        "kode": "DISNAKERTRANS",
+        "nama": "Dinas Tenaga Kerja dan Transmigrasi"
+      },
+      {
+        "id": 2,
+        "kode": "BLK-SBY",
+        "nama": "UPT BLK Surabaya"
+      }
+    ],
+    "unit_kerja_id": 2,
+    "absen_umum_aktif": true,
+    "metode": {
+      "manual": true,
+      "rfid": true,
+      "wajah": false
+    },
+    "ambang_kecocokan_wajah": 0.5,
+    "kompresi": {
+      "nilai": "sedang",
+      "label": "Sedang",
+      "dimensi_maks": 560,
+      "kualitas": 75,
+      "estimasi": "21–35 KB per foto",
+      "keterangan": "Keseimbangan antara ketajaman dan ukuran berkas."
+    },
+    "daftar_wajah_otomatis": true,
+    "status_jendela": {
+      "datang": {
+        "jenis": "datang",
+        "terbuka": true,
+        "sumber": "jadwal",
+        "jam_buka": "06:00",
+        "jam_tutup": "09:00",
+        "override": null,
+        "oleh": null,
+        "keterangan": "Terbuka mengikuti jadwal 06:00–09:00."
+      },
+      "pulang": {
+        "jenis": "pulang",
+        "terbuka": false,
+        "sumber": "jadwal",
+        "jam_buka": "15:00",
+        "jam_tutup": "18:00",
+        "override": null,
+        "oleh": null,
+        "keterangan": "Di luar jadwal 15:00–18:00."
+      }
+    },
+    "waktu_server": "2026-09-07T07:35:00+07:00",
+    "daftar_presensi": [
+      {
+        "pegawai_id": 3,
+        "nip": "199001012020011001",
+        "nama": "Ahmad Fauzi",
+        "jam_masuk": "07:31",
+        "jam_pulang": null,
+        "status_ketepatan": "tepat",
+        "foto_url": null
+      },
+      {
+        "pegawai_id": 4,
+        "nip": "199203032021012002",
+        "nama": "Siti Rahayu",
+        "jam_masuk": "07:52",
+        "jam_pulang": "16:04",
+        "status_ketepatan": "terlambat",
+        "foto_url": null
+      }
+    ],
+    "event": {
+      "id": 20,
+      "nama": "Absen Umum — UPT BLK Surabaya",
+      "tanggal": "2026-09-07",
+      "jam_mulai": "07:30",
+      "toleransi_menit": 15
+    }
+  }
+}

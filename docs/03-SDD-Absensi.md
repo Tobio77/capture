@@ -1418,3 +1418,53 @@ layar. Dua catatan yang tidak terlihat dari kodenya:
   satu ketukan padanya langsung dikembalikan, dan huruf yang diketik petugas
   jatuh ke kolom tap. Yang dijaga NFR-08 adalah keadaan diam, bukan hak veto
   atas setiap elemen lain di layar.
+
+---
+
+## Uji asap sisi klien (revisi S31c)
+
+Uji Inertia di sisi PHP memeriksa **prop yang dikirim**, tidak pernah merender
+Vue-nya. Batas itu terbukti nyata: layar tap perangkat pernah menyentuh
+`props.kiosk` padahal pada halaman itu `kiosk` berasal dari `usePage()` — bukan
+prop halaman — sehingga seluruh 456 uji tetap hijau sementara layarnya putih
+total di peramban. Cacat yang hanya muncul saat perenderan menuntut uji yang
+benar-benar merender.
+
+```
+npm run test:js          # sekali jalan
+npm run test:js:pantau   # mode pantau selama mengerjakan tampilan
+```
+
+| Berkas | Tugas |
+|---|---|
+| `tests/js/layar-kiosk.test.js` | Merender tiap layar titik absen dengan prop realistis; memastikan tidak gagal dan menggambar sesuatu. |
+| `tests/js/prop-layar.json` | Prop tiruan tiap layar. |
+| `tests/js/inertia-palsu.js` | Pengganti `@inertiajs/vue3`; prop bersama dapat disetel per uji. |
+| `tests/js/persiapan.js` | Palsu untuk face-api, kamera, `matchMedia`, dan `fetch`. |
+| `tests/Feature/Kiosk/PropLayarKioskTest.php` | Menjaga prop tiruan tidak menua diam-diam. |
+
+Tiga keputusan yang menentukan nilai uji ini:
+
+- **Yang dipalsukan hanya pustaka pihak ketiga dan kemampuan peramban yang
+  tidak dimiliki jsdom** — face-api, kamera, `matchMedia`, `fetch`. Kode
+  aplikasi tidak pernah dipalsukan; kalau dipalsukan, uji asapnya berhenti
+  menguji apa pun.
+- **Galat konsol diperlakukan sebagai kegagalan.** Vue menangkap galat pada
+  lifecycle hook dan hanya menuliskannya ke konsol; tanpa aturan ini, komponen
+  yang meledak di `onMounted` tetap lulus.
+- **Tampilan tidak diuji.** Menegaskan susunan atau kelas CSS akan membuat
+  setiap perbaikan tata letak memerahkan uji tanpa ada yang rusak. Yang dijaga
+  hanya: layar-layar ini tetap dapat digambar.
+
+`PropLayarKioskTest` membandingkan **kunci** prop tiruan dengan keluaran
+controller sungguhan. Nilainya sengaja tidak dibandingkan — prop tiruan perlu
+bebas memilih keadaan yang hendak digambar (perangkat ad-hoc, jendela
+tertutup, absen umum dimatikan). Daftar prop bersama yang disingkirkan dibaca
+dari `HandleInertiaRequests::share()`, bukan disalin ke dalam uji, dengan satu
+pengecualian: nama yang memang diminta layar itu tidak ikut disingkirkan —
+`mode_terbuka` pada layar aktivasi adalah prop halaman sekaligus prop bersama.
+
+Keduanya sudah diuji dengan menyuntikkan kembali cacatnya: mengembalikan
+`props.kiosk` memerahkan enam uji asap dengan `TypeError` yang sama seperti di
+peramban, dan menambah satu prop di controller tanpa memperbarui berkas tiruan
+memerahkan penjaganya.
