@@ -1635,3 +1635,44 @@ tergambar utuh pada 150 ms, dan `transform` pada `.kartu-angkat` bernilai
 Keadaan kosong (`KeadaanKosong.vue`) sengaja TIDAK ikut bergradasi: ubinnya
 harus tetap pucat supaya tidak bersaing dengan isi sungguhan ketika datanya
 kelak terisi.
+
+### "Sedang Berlangsung" berarti hari ini (S33c)
+
+Ditemukan saat menelusuri dua kartu sesi yang terlihat kembar di Dashboard.
+Dua dugaan awal keliru dan keduanya sudah diperiksa terhadap basis data: kode
+unit **tidak** kembar (kolomnya `unique()` sejak migrasi pertama), dan sesi
+harian **tidak** kembar (nol kasus unit+tanggal ganda). Yang sebenarnya
+terjadi: keduanya sesi untuk unit yang sama dari **tanggal yang berbeda**,
+dan keduanya masih berstatus aktif.
+
+`eventBerlangsung()` dan `eventBerjalan()` menyaring `aktif()` tanpa menyaring
+tanggal, sehingga Dashboard menyebut "Event Berlangsung 8" dan "Sedang
+Berlangsung 5" pada hari yang sebenarnya hanya punya satu. Sebabnya dua, dan
+keduanya wajar:
+
+- Kegiatan yang lupa ditutup tetap aktif berhari-hari.
+- Sesi harian tidak pernah ditutup tangan manusia; ia dibuka sistem dan
+  ditinggalkan begitu saja ketika harinya berganti.
+
+Keduanya kini disaring ke tanggal hari ini. Yang tertinggal terbuka tidak
+hilang dari layar: kegiatan pindah ke panel Perlu Perhatian, tempat ia
+dibingkai sebagai sesuatu yang harus dibereskan alih-alih sebagai kabar bahwa
+semuanya sedang berjalan.
+
+Sesi harian yang tertinggal terbuka sengaja **tidak** dilaporkan sebagai
+kelalaian: `AbsenUmumService::sesi()` mencarinya menurut unit DAN tanggal,
+sehingga sesi lama tidak pernah menerima tap hari ini — ia sisa yang tidak
+berbahaya, hanya tidak rapi. Menutupnya otomatis lewat tugas terjadwal adalah
+pilihan yang terbuka, tetapi belum diambil: ia mengubah data, dan tidak ada
+yang rusak selama tidak diambil.
+
+Berbeda dengan kegiatan. `KodeUnitEventService::eventYangDiikuti()` memilih
+kegiatan menurut `aktif()` saja, diurutkan tanggal menurun, **tanpa saringan
+tanggal** — sehingga perangkat yang bergabung ke kegiatan kemarin yang masih
+terbuka memang akan terus menyetorkan tap hari ini ke sana. Itulah yang
+membuat sinyal "kegiatan lupa ditutup" pada panel Perlu Perhatian bukan
+sekadar kerapian.
+
+Satu uji lama ikut diperbaiki: ia membuat event dengan tanggal ACAK dari
+factory lalu menuntut `event_berlangsung === 1`. Ia lulus selama ini hanya
+karena tanggalnya memang tidak pernah disaring.

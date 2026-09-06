@@ -43,7 +43,11 @@ class DashboardTest extends TestCase
         ['upt' => $upt] = $this->hirarki();
 
         $pegawai = Pegawai::factory()->count(4)->create(['unit_kerja_id' => $upt->id]);
-        $event = EventAbsen::factory()->create();
+
+        // Tanggalnya dipatok hari ini: "berlangsung" kini berarti berlangsung
+        // HARI INI, sementara bawaan factory memilih tanggal acak dalam
+        // rentang enam puluh hari.
+        $event = EventAbsen::factory()->create(['tanggal' => now()->toDateString()]);
         $event->unitKerja()->attach($upt);
 
         // Dua dari empat pegawai hadir hari ini.
@@ -324,5 +328,45 @@ class DashboardTest extends TestCase
 
         $this->assertSame(0, $statistik['total_pegawai']);
         $this->assertSame(0.0, $statistik['persentase_kehadiran']);
+    }
+
+    #[Test]
+    public function sedang_berlangsung_hanya_menghitung_hari_ini(): void
+    {
+        /*
+         * Kegiatan yang lupa ditutup tetap berstatus aktif berhari-hari, dan
+         * sesi harian yang lewat pun tidak pernah ditutup tangan manusia.
+         * Tanpa saringan tanggal, kartu "Event Berlangsung" pernah menyebut
+         * delapan pada hari yang sebenarnya hanya punya dua.
+         *
+         * Yang tertinggal terbuka tidak hilang dari layar — ia pindah ke panel
+         * Perlu Perhatian, tempat ia dibingkai sebagai sesuatu yang harus
+         * dibereskan, bukan sebagai kabar bahwa semuanya sedang berjalan.
+         */
+        $this->travelTo('2026-09-07 10:00:00');
+
+        $unit = UnitKerja::factory()->create(['kode' => 'BLK-TEST']);
+
+        EventAbsen::factory()->create(['nama' => 'Apel Hari Ini', 'tanggal' => '2026-09-07'])
+            ->unitKerja()->attach($unit);
+
+        EventAbsen::factory()->create(['nama' => 'Apel Tiga Hari Lalu', 'tanggal' => '2026-09-04'])
+            ->unitKerja()->attach($unit);
+
+        EventAbsen::factory()->umum()->create(['tanggal' => '2026-09-03'])
+            ->unitKerja()->attach($unit);
+
+        $pengguna = User::factory()->superadmin()->create();
+
+        $this->assertSame(
+            1,
+            app(DashboardService::class)->statistik($pengguna)['event_berlangsung'],
+            'Hanya entry bertanggal hari ini yang sedang berlangsung.',
+        );
+
+        $berjalan = app(DashboardService::class)->eventBerjalan($pengguna);
+
+        $this->assertCount(1, $berjalan);
+        $this->assertSame('Apel Hari Ini', $berjalan[0]['nama']);
     }
 }

@@ -228,6 +228,10 @@ class DashboardService
     {
         $event = EventAbsen::query()
             ->aktif()
+
+            // Lihat catatan pada self::eventBerlangsung(): "Sedang
+            // Berlangsung" harus berarti hari ini, bukan "berstatus aktif".
+            ->whereDate('tanggal', Carbon::today())
             ->with('unitKerja:id,kode,nama')
             ->when(
                 ! $pelaku->lintasUnit(),
@@ -387,10 +391,25 @@ class DashboardService
     /**
      * Event yang entry-nya masih dibuka dan menyentuh cakupan pengguna.
      */
+    /**
+     * Jumlah entry yang benar-benar berlangsung HARI INI.
+     *
+     * Tanggalnya ikut disaring, dan itu bukan kerapian. Sebuah kegiatan yang
+     * lupa ditutup tetap berstatus aktif berhari-hari, dan sesi harian yang
+     * lewat pun tidak pernah ditutup tangan manusia; tanpa saringan tanggal,
+     * kartu ini pernah menyebut "Event Berlangsung 8" pada hari yang
+     * sebenarnya hanya punya dua — enam sisanya bertanggal beberapa hari
+     * sebelumnya.
+     *
+     * Yang tertinggal terbuka tidak hilang dari layar: ia pindah ke panel
+     * Perlu Perhatian, tempat ia dibingkai sebagai sesuatu yang harus
+     * dibereskan alih-alih sebagai kabar bahwa semuanya sedang berjalan.
+     */
     protected function eventBerlangsung(User $pelaku): int
     {
         return EventAbsen::query()
             ->aktif()
+            ->whereDate('tanggal', Carbon::today())
             ->when(
                 ! $pelaku->lintasUnit(),
                 fn ($q) => $q->menyentuhUnit(UnitKerja::idsDenganTurunan($pelaku->unit_kerja_id)),
