@@ -1313,3 +1313,95 @@ button:focus-visible {
         border: 1px solid var(--tema-garis);
     }
 }
+
+/* ==========================================================================
+ * Selaras dengan WORKA (S33).
+ *
+ * Dibaca langsung dari kodenya, bukan ditebak — `ui/AppCard.vue`,
+ * `ui/StatCard.vue`, dan `Public/Components/PortalCard.vue`:
+ *
+ *   sudut      rounded-xl (kartu) / rounded-2xl (kartu portal)
+ *   tepi       border 1px SELALU ada, bukan hanya bayangan
+ *   bayangan   shadow-sm saat diam
+ *   hover      -translate-y-[3px] + shadow-lg, transisi 200ms pada
+ *              [transform, box-shadow] — inilah tanda tangan visualnya
+ *   ubin ikon  h-11 w-11 rounded-lg bg-gradient-to-br + SVG putih goresan 1,5
+ *   angka      tabular-nums, hitung naik easeOutCubic 900ms, dengan `delay`
+ *              per kartu dan menghormati prefers-reduced-motion
+ *
+ * Yang DIAMBIL: angkatan hover 3px pada 200ms, dan gradasi pada ubin ikon.
+ * Keduanya tanda tangan yang membuat dua aplikasi terasa satu keluarga.
+ *
+ * Yang TIDAK diambil, beserta alasannya:
+ *
+ *   - Warna slate-200/slate-900 dan brand biru langit `#0EA5E9`. Palet di
+ *     sini navy/teal/emerald/amber di atas sage, dan menyalinnya justru akan
+ *     membuat dua aplikasi terlihat setengah jalan, bukan sekeluarga.
+ *   - Angkatan hover pada kartu statistik yang TIDAK dapat diklik. WORKA
+ *     memberinya juga; di sini itu berbohong tentang keterjangkauan — kartu
+ *     yang terangkat menjanjikan tujuan yang tidak ada. Kartu diam cukup
+ *     dengan tepinya menguat.
+ *   - Bar/tren pada setiap angka. Aturan penyebut jujur (S31) lebih ketat
+ *     daripada WORKA dan tidak diturunkan demi keseragaman.
+ * ======================================================================== */
+@layer components {
+    /*
+     * Angkatan hover khas WORKA, untuk kartu yang BENAR-BENAR dapat diklik.
+     * `transform` dan `box-shadow` saja yang beralih, bukan `all`: mengalihkan
+     * `all` ikut menganimasikan warna tepi dan menjadikannya lamban.
+     */
+    .kartu-angkat {
+        transition:
+            transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+            box-shadow 200ms cubic-bezier(0.22, 1, 0.36, 1),
+            border-color 150ms ease-out,
+            background-color 150ms ease-out;
+    }
+
+    .kartu-angkat:hover {
+        transform: translateY(-3px);
+        box-shadow: var(--tema-bayang-naik);
+    }
+
+    .kartu-angkat:active {
+        transform: translateY(-1px);
+        transition-duration: 80ms;
+    }
+
+    /*
+     * Ubin ikon bergradasi, mengikuti `bg-gradient-to-br` WORKA tetapi memakai
+     * sistem nada di sini: satu kelas `.nada-*` menentukan seluruh
+     * gradasinya, sehingga teal/emerald/amber/biru/langit tetap satu keluarga.
+     *
+     * Fallback `var(--nada-kuat, ...)` dipertahankan: nilai bawaan yang
+     * ditulis sebagai aturan terpisah pernah mengalahkan seluruh `.nada-*`
+     * karena spesifisitasnya sama dan urutannya belakangan, dan seluruh ubin
+     * di aplikasi ini berubah teal tanpa ada yang menyadarinya (S30c).
+     */
+    .ubin-gradasi {
+        background-image: linear-gradient(
+            135deg,
+            var(--nada-kuat, var(--tema-aksen)),
+            color-mix(in srgb, var(--nada-kuat, var(--tema-aksen)) 76%, #000)
+        );
+        color: #fff;
+        box-shadow: 0 1px 2px rgb(15 42 67 / 0.14);
+    }
+}
+
+/*
+ * Angkatan hover ditiadakan bagi yang meminta gerak minimal.
+ *
+ * Aturan global di atas memang memangkas DURASI transisinya menjadi 0,01 ms,
+ * tetapi hasilnya bukan "tanpa gerak" melainkan "gerak yang seketika": kartu
+ * tetap melompat 3px setiap kali kursor melewatinya, hanya tanpa peralihan
+ * yang halus. Bagi orang yang meminta gerak minimal justru itu yang lebih
+ * mengganggu. Yang tersisa sebagai penanda hover adalah bayangannya, dan itu
+ * memang bukan gerak.
+ */
+@media (prefers-reduced-motion: reduce) {
+    .kartu-angkat:hover,
+    .kartu-angkat:active {
+        transform: none !important;
+    }
+}

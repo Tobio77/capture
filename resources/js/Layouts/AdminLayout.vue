@@ -51,10 +51,10 @@ const keluar = () => router.post('/keluar')
 <template>
   <Head :title="judul" />
 
-  <div class="min-h-screen bg-kertas md:flex">
+  <div class="min-h-screen bg-kertas lg:flex">
     <!-- Bilah atas; hanya di layar sempit. -->
     <header
-      class="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-sidebar-garis bg-sidebar lapis-sidebar px-4 py-3 text-sidebar-teks md:hidden print:hidden"
+      class="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-sidebar-garis bg-sidebar lapis-sidebar px-4 py-3 text-sidebar-teks lg:hidden print:hidden"
     >
       <button
         type="button"
@@ -80,7 +80,7 @@ const keluar = () => router.post('/keluar')
     >
       <div
         v-if="laciTerbuka"
-        class="fixed inset-0 z-40 bg-navy-900/60 backdrop-blur-[2px] md:hidden"
+        class="fixed inset-0 z-40 bg-navy-900/60 backdrop-blur-[2px] lg:hidden"
         @click="laciTerbuka = false"
       ></div>
     </Transition>
@@ -91,7 +91,7 @@ const keluar = () => router.post('/keluar')
       lembar cetak hanya memuat isinya (FR-REK-03).
     -->
     <aside
-      class="fixed inset-y-0 left-0 z-40 flex w-72 flex-col bg-sidebar lapis-sidebar text-sidebar-teks transition-transform duration-200 ease-out md:sticky md:top-0 md:z-auto md:h-screen md:shrink-0 md:translate-x-0 md:shadow-none print:hidden"
+      class="fixed inset-y-0 left-0 z-40 flex w-72 flex-col bg-sidebar lapis-sidebar text-sidebar-teks transition-transform duration-200 ease-out lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:shrink-0 lg:translate-x-0 lg:shadow-none print:hidden"
       :class="laciTerbuka ? 'translate-x-0 shadow-2xl' : '-translate-x-full'"
     >
       <div class="flex items-start justify-between border-b border-sidebar-garis px-5 py-5">
@@ -107,7 +107,7 @@ const keluar = () => router.post('/keluar')
 
         <button
           type="button"
-          class="-mr-2 rounded-lg p-2 text-sidebar-redup transition-colors duration-150 hover:bg-white/10 hover:text-sidebar-teks md:hidden"
+          class="-mr-2 rounded-lg p-2 text-sidebar-redup transition-colors duration-150 hover:bg-white/10 hover:text-sidebar-teks lg:hidden"
           aria-label="Tutup menu navigasi"
           @click="laciTerbuka = false"
         >
@@ -208,7 +208,7 @@ const keluar = () => router.post('/keluar')
         dalam menu samping.
       -->
       <div
-        class="sticky top-0 z-20 hidden items-center justify-between gap-3 border-b border-garis bg-permukaan/80 px-6 py-2.5 backdrop-blur-sm md:flex print:hidden"
+        class="sticky top-0 z-20 hidden items-center justify-between gap-3 border-b border-garis bg-permukaan/80 px-6 py-2.5 backdrop-blur-sm lg:flex print:hidden"
       >
         <!--
           Jejak lokasi. Sidebar sudah menandai halaman yang aktif, tetapi pada

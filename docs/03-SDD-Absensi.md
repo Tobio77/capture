@@ -1507,3 +1507,98 @@ Tiga hal yang hanya ketahuan karena diperiksa di peramban:
 - Gradasi teal yang benar di atas sage menjadi tombol paling pudar ketika
   latarnya navy. Aksi utama di dalam `.pelat-kepala` karena itu memakai ujung
   gradasi yang lebih terang.
+
+---
+
+## Selaras dengan WORKA, layar sempit, dan sinyal Dashboard (S33)
+
+### Bahasa kartu, dibaca dari kode WORKA
+
+Diambil langsung dari `worka/resources/js/Components/ui/AppCard.vue`,
+`ui/StatCard.vue`, dan `Pages/Public/Components/PortalCard.vue`:
+
+| Aspek | WORKA | Di sini |
+|---|---|---|
+| Sudut | `rounded-xl` / `rounded-2xl` | radius token (`--radius-2xl`), sudah setara |
+| Tepi | `border-slate-200` 1px, selalu ada | `border-garis`, sudah setara |
+| Bayangan diam | `shadow-sm` | `--tema-bayang`, sudah setara |
+| **Hover** | `-translate-y-[3px]` + `shadow-lg`, 200 ms | **diambil** menjadi `.kartu-angkat` |
+| **Ubin ikon** | `h-11 w-11 rounded-lg bg-gradient-to-br` | **diambil** menjadi `.ubin-gradasi` |
+| Angka | hitung naik easeOutCubic 900 ms | sudah ada (`useAngkaBerjalan`, easeOutExpo) |
+
+Dua hal sengaja **tidak** diambil. Warna `slate` dan brand biru langit
+`#0EA5E9` tidak dipakai — palet di sini navy/teal/emerald/amber di atas sage,
+dan menyalinnya justru membuat dua aplikasi terlihat setengah jalan alih-alih
+sekeluarga. Angkatan hover juga tidak dipasang pada kartu statistik yang tidak
+dapat diklik: kartu yang terangkat menjanjikan tujuan yang tidak ada.
+
+### Layar sempit — dua cacat nyata yang ditemukan, bukan diasumsikan
+
+Diukur di 768px dan 375px, dengan tangkapan layar sebagai bukti.
+
+1. **Sidebar berlabuh di `md` (768px).** Pada 768px ia memakan 288px dan
+   menyisakan 480px, sementara kelas `sm:` di dalamnya tetap menyala — Tailwind
+   mengukur lebar VIEWPORT, bukan lebar wadah. Dashboard meluber sampai 907px
+   di viewport 768px. Titik labuhnya digeser ke `lg` (1024px). Ini cacat yang
+   sama jenisnya dengan `xl` yang dulu tidak berpengaruh pada tabel admin.
+2. **Butir grid tidak dapat menyusut.** `min-width: auto` bawaan membuat isi
+   yang punya lebar sendiri — grafik SVG, nama unit panjang — MELEBARKAN
+   jalurnya alih-alih menyusut, sehingga `truncate` tidak pernah berlaku.
+   Diperbaiki dengan `min-w-0` pada kolomnya dan `grid-cols-1` sebagai dasar
+   setiap kisi: `grid` tanpa kolom eksplisit memakai jalur `auto`, yang boleh
+   melampaui wadahnya.
+
+Tabel memang tetap lebih lebar dari layar, dan itu memang rancangannya: ia
+bergulir di dalam `.tabel-gulir` sendiri, tidak pernah meluber ke halaman.
+
+### Panel "Perlu Perhatian" (FR-DASH-04)
+
+Dashboard sebelumnya hanya menjawab "berapa". Semuanya benar dan semuanya
+pasif: tidak satu pun memberi tahu admin ada yang perlu ia KERJAKAN. Tiga
+sinyal dipilih karena masing-masing punya tindakan yang jelas dan tidak
+terlihat dari angka mana pun yang sudah ada:
+
+| Sinyal | Menyala ketika | Mengapa berarti |
+|---|---|---|
+| Kegiatan lupa ditutup | kegiatan berstatus aktif, tanggalnya sudah lewat | selama terbuka, tap hari ini tercatat pada kegiatan kemarin — dua rekap jadi salah tanpa ada yang tahu |
+| Perangkat sunyi | aktif, diaktifkan lebih dari 3 hari lalu, tap terakhir lebih dari 3 hari | "aktif" dan "sudah dicabut orang dari stopkontak" terlihat sama di Daftar Perangkat |
+| Kehadiran anjlok | hari ini di bawah 50% rata-rata unit itu sendiri | dibanding DIRINYA sendiri, bukan unit lain: seksi 8 orang dan UPT 200 orang tidak pernah sebanding |
+
+Empat pengaman yang membuatnya tetap sinyal, bukan derau — tiga di antaranya
+baru ketahuan setelah panelnya dilihat berisi tujuh butir yang enam di
+antaranya tidak menuntut tindakan apa pun:
+
+- Perangkat yang **baru** didaftarkan tidak dilaporkan; kalau tidak, setiap
+  pendaftaran menyalakan peringatan pada hari yang sama.
+- Unit di bawah 5 pegawai tidak dibandingkan; satu orang cuti sudah 20%.
+- Unit yang rata-ratanya di bawah 3 tidak dibandingkan; "baru 0 hadir hari
+  ini, biasanya sekitar 1" benar secara hitungan dan tidak berguna.
+- Kehadiran tidak dinilai sebelum batas tepat waktu terlewat; pada pukul tujuh
+  pagi setiap unit "anjlok".
+
+Tidak ada bar kemajuan di panel ini, dan itu disengaja: ketiga sinyal tidak
+punya penyebut. Yang menggantikannya adalah angka yang membuat masing-masing
+menyala. Panelnya hilang sepenuhnya ketika lariknya kosong — panel berisi
+"semua aman" adalah ruang yang dibayar setiap hari untuk kabar yang hanya
+berguna sesekali.
+
+### Pertahanan login (FR-AUTH-03)
+
+Pembatasan laju **sudah ada sejak S03** (`AutentikasiService`, kunci per
+surel+IP, 5 percobaan). Yang tidak ada adalah **peningkatannya**: penguncian
+tetap 60 detik selamanya masih menyisakan 7.200 percobaan per hari bagi skrip
+yang dibiarkan berjalan semalaman. Sekarang bertingkat 1, 5, 15, lalu 30
+menit, dengan penghitung kedua per alamat IP saja — tanpa itu, penyerang cukup
+berganti surel setiap lima percobaan, dan daftar surel dinas mudah ditebak
+dari pola namanya.
+
+CAPTCHA-nya lapis kedua, bukan pengganti: `CaptchaHitungService`, sepenuhnya di
+server sendiri, tanpa kunci API dan tanpa panggilan keluar — jaringan dinas
+kerap berada di belakang proxy yang menyaring keluar, dan CAPTCHA yang gagal
+diam-diam akan mengunci admin di luar sistemnya sendiri. Soalnya **teks
+hitungan, bukan gambar**: gambar menuntut `alt` yang menjelaskan isinya bagi
+pembaca layar, dan begitu `alt`-nya benar ia berhenti menjadi penghalang; yang
+tersisa hanyalah admin tunanetra yang terkunci. Ia **tidak pernah muncul pada
+percobaan pertama** (ambang 3 kegagalan berturut-turut), dan soalnya hangus
+sekali pakai — satu jawaban benar yang dapat dipakai berulang untuk seluruh
+daftar kata sandi membatalkan gunanya.

@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Enums\CakupanEvent;
+use App\Enums\JenisEvent;
 use App\Enums\StatusEvent;
 use App\Models\EventAbsen;
 use App\Models\User;
@@ -35,6 +36,23 @@ class EventAbsenFactory extends Factory
     public function semuaUnit(): static
     {
         return $this->state(fn (array $attributes) => ['cakupan' => CakupanEvent::SemuaUnit]);
+    }
+
+    /**
+     * Sesi absen harian yang dibuka sistem, bukan kegiatan buatan admin.
+     *
+     * Bawaan factory adalah kegiatan, karena itulah yang dibuat manusia dan
+     * karena itu pula yang paling sering diuji. Sesi harian punya perlakuan
+     * yang berbeda di beberapa tempat — antara lain ia TIDAK dihitung sebagai
+     * kegiatan yang lupa ditutup — sehingga uji yang membedakannya perlu cara
+     * untuk membuatnya.
+     */
+    public function umum(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'jenis' => JenisEvent::Umum,
+            'nama' => 'Absen Umum',
+        ]);
     }
 
     public function ditutup(): static

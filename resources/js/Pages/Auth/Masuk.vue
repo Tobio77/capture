@@ -15,6 +15,12 @@ import Ikon from '@/Components/Ikon.vue'
  * bukan sebagai seluruh layar.
  */
 
+defineProps({
+  /** Ditentukan server dari jumlah kegagalan berturut-turut, bukan oleh layar. */
+  perlu_captcha: { type: Boolean, default: false },
+  soal_captcha: { type: String, default: null },
+})
+
 const page = usePage()
 const flash = computed(() => page.props.flash)
 
@@ -22,11 +28,12 @@ const form = useForm({
   email: '',
   password: '',
   ingat_saya: false,
+  jawaban_captcha: '',
 })
 
 const kirim = () => {
   form.post('/masuk', {
-    onFinish: () => form.reset('password'),
+    onFinish: () => form.reset('password', 'jawaban_captcha'),
   })
 }
 </script>
@@ -121,6 +128,52 @@ const kirim = () => {
 
             <p v-if="form.errors.password" class="mt-1.5 text-sm text-peringatan-teks">
               {{ form.errors.password }}
+            </p>
+          </div>
+
+          <!--
+            CAPTCHA hitungan (FR-AUTH-03). Muncul hanya setelah beberapa kali
+            gagal berturut-turut — admin yang masuk setiap pagi bukan bot, dan
+            menuntut mereka mengerjakan soal setiap hari adalah biaya harian
+            tanpa manfaat keamanan apa pun.
+
+            Soalnya berupa TEKS, bukan gambar berhuruf-miring. Gambar menuntut
+            `alt` yang menjelaskan isinya bagi pembaca layar, dan begitu
+            `alt`-nya benar ia berhenti menjadi penghalang; yang tersisa
+            hanyalah admin tunanetra yang terkunci di luar sistemnya sendiri.
+          -->
+          <div v-if="perlu_captcha">
+            <label for="jawaban-captcha" class="mb-1.5 block text-sm font-medium">
+              Verifikasi
+            </label>
+
+            <div class="flex items-center gap-3">
+              <p
+                class="kolom-isian flex w-28 shrink-0 items-center justify-center bg-permukaan-2 font-display text-lg font-semibold tabular-nums"
+                aria-hidden="true"
+              >
+                {{ soal_captcha }} =
+              </p>
+
+              <input
+                id="jawaban-captcha"
+                v-model="form.jawaban_captcha"
+                type="text"
+                inputmode="numeric"
+                autocomplete="off"
+                required
+                :aria-label="`Berapa hasil ${soal_captcha}?`"
+                placeholder="Jawaban"
+                class="kolom-isian"
+              />
+            </div>
+
+            <p class="mt-1.5 text-xs text-redup">
+              Verifikasi ini muncul karena ada beberapa percobaan masuk yang gagal.
+            </p>
+
+            <p v-if="form.errors.jawaban_captcha" class="mt-1.5 text-sm text-peringatan-teks">
+              {{ form.errors.jawaban_captcha }}
             </p>
           </div>
 

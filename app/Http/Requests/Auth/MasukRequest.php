@@ -15,6 +15,14 @@ class MasukRequest extends FormRequest
             'email' => ['required', 'string', 'email', 'max:150'],
             'password' => ['required', 'string'],
             'ingat_saya' => ['boolean'],
+
+            /*
+             * Tidak pernah `required` di sini. Wajib atau tidaknya ditentukan
+             * jumlah kegagalan berturut-turut, dan itu diketahui
+             * AutentikasiService — bukan aturan validasi yang berlaku sama bagi
+             * semua orang, termasuk admin yang baru pertama kali mencoba.
+             */
+            'jawaban_captcha' => ['nullable', 'string', 'max:8'],
         ];
     }
 
@@ -26,6 +34,7 @@ class MasukRequest extends FormRequest
         return [
             'email' => 'alamat surel',
             'password' => 'kata sandi',
+            'jawaban_captcha' => 'jawaban hitungan',
         ];
     }
 }

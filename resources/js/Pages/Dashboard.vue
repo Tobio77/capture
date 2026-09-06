@@ -24,6 +24,9 @@ const props = defineProps({
   kesiapan: { type: Object, required: true },
   peringkat_unit: { type: Array, required: true },
   event_berjalan: { type: Array, required: true },
+
+  /** Sinyal yang menuntut tindakan; kosong berarti panelnya tidak digambar. */
+  perhatian: { type: Array, default: () => [] },
 })
 
 const page = usePage()
@@ -162,6 +165,57 @@ function waktuRelatif(iso) {
 <template>
   <AdminLayout judul="Dashboard" :deskripsi="`Ringkasan kehadiran untuk ${cakupan}.`">
     <!--
+      PERLU PERHATIAN (FR-DASH-04).
+
+      Bagian pertama halaman ini yang meminta admin MENGERJAKAN sesuatu, bukan
+      melaporkan angka. Diletakkan sebelum deretan kartu karena urutannya
+      memang begitu: yang rusak lebih dulu daripada yang berjalan normal.
+
+      Tidak ada bar kemajuan di sini, dan itu disengaja — tiga sinyal ini tidak
+      punya penyebut. Yang menggantikannya adalah ANGKA yang membuat masing-
+      masing menyala, ditulis pada keterangannya.
+
+      Seluruh panel hilang ketika lariknya kosong.
+    -->
+    <section v-if="perhatian.length > 0" class="mb-4">
+      <div class="flex items-center gap-2">
+        <h2 class="font-display text-sm font-semibold text-utama">Perlu Perhatian</h2>
+        <span class="keping nada-amber px-2 py-0 text-[0.6875rem]">{{ perhatian.length }}</span>
+      </div>
+
+      <div class="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <Link
+          v-for="(butir, urutan) in perhatian"
+          :key="`${butir.jenis}-${urutan}`"
+          :href="butir.url"
+          class="kartu-angkat tahap tahap-kartu group flex min-w-0 items-start gap-3 rounded-xl border border-garis bg-permukaan p-4"
+          :class="`nada-${butir.nada}`"
+          :style="{ '--tunda': `${urutan * 60}ms` }"
+        >
+          <span class="ubin-ikon ubin-gradasi h-9 w-9 shrink-0">
+            <Ikon :nama="butir.ikon" ukuran="h-4 w-4" />
+          </span>
+
+          <span class="min-w-0 flex-1">
+            <span class="block truncate font-medium text-utama">{{ butir.judul }}</span>
+            <span class="mt-0.5 block text-sm text-sekunder">{{ butir.keterangan }}</span>
+            <span
+              class="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold"
+              :style="{ color: 'var(--nada-teks)' }"
+            >
+              {{ butir.aksi }}
+              <Ikon
+                nama="kanan"
+                ukuran="h-3.5 w-3.5"
+                class="transition-transform duration-200 group-hover:translate-x-0.5"
+              />
+            </span>
+          </span>
+        </Link>
+      </div>
+    </section>
+
+    <!--
       FR-DASH-01. Satu kartu utama dan tiga kartu ringkas, bukan empat kartu
       sejajar: empat hal berukuran sama berarti tidak ada satu pun yang menjadi
       pusat perhatian, dan mata akhirnya memilih yang paling kiri.
@@ -179,7 +233,7 @@ function waktuRelatif(iso) {
         keempatnya dijejer sebaris bersama kartu utama, labelnya terpaksa
         membungkus dua baris dan tinggi kartunya berbeda-beda.
       -->
-      <div class="grid gap-4 sm:grid-cols-3">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <KartuStatistik
           v-for="(item, urutan) in kartu"
           :key="item.label"
@@ -209,12 +263,12 @@ function waktuRelatif(iso) {
         </span>
       </div>
 
-      <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Link
           v-for="event in event_berjalan"
           :key="event.id"
           :href="`/admin/kelola-absen/rekap?event_absen_id=${event.id}`"
-          class="rounded-xl border border-garis bg-permukaan-2 px-4 py-3 transition-colors duration-150 hover:border-aksen hover:bg-permukaan"
+          class="kartu-angkat min-w-0 rounded-xl border border-garis bg-permukaan-2 px-4 py-3 hover:border-aksen hover:bg-permukaan"
         >
           <p
             v-if="event.harian"
@@ -235,8 +289,19 @@ function waktuRelatif(iso) {
       </div>
     </div>
 
-    <div class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
-      <div class="space-y-6">
+    <!--
+      `min-w-0` pada kolomnya, bukan hiasan.
+
+      Butir grid berukuran `min-width: auto` secara bawaan, sehingga isi yang
+      punya lebar bawaan sendiri — di sini grafik SVG — MELEBARKAN jalurnya
+      alih-alih menyusut mengikutinya. Akibatnya halaman Dashboard meluber
+      595px di dalam kolom 343px pada layar 375px, dan seluruh halaman ikut
+      dapat digulir mendatar. `minmax(0,1fr)` sudah menjaga hal yang sama pada
+      lebar `xl`; di bawah itu jalurnya tidak lagi berlaku dan penjagaannya
+      hilang.
+    -->
+    <div class="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
+      <div class="min-w-0 space-y-6">
         <!-- FR-DASH-02 -->
         <div class="panel p-6">
           <div class="flex items-baseline justify-between">

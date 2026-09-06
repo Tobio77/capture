@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Services\DashboardService;
+use App\Services\PerhatianDashboardService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -14,7 +15,10 @@ use Inertia\Response;
  */
 class DashboardController extends Controller
 {
-    public function __construct(protected DashboardService $dashboard) {}
+    public function __construct(
+        protected DashboardService $dashboard,
+        protected PerhatianDashboardService $perhatian,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -28,6 +32,14 @@ class DashboardController extends Controller
             'kesiapan' => $this->dashboard->kesiapan($pengguna),
             'peringkat_unit' => $this->dashboard->peringkatUnit($pengguna),
             'event_berjalan' => $this->dashboard->eventBerjalan($pengguna),
+
+            /*
+             * Sinyal yang menuntut TINDAKAN, bukan angka lagi. Larik kosong
+             * berarti panelnya tidak digambar sama sekali — panel berisi
+             * "semua aman" adalah ruang yang dibayar setiap hari untuk kabar
+             * yang hanya berguna sesekali.
+             */
+            'perhatian' => $this->perhatian->untuk($pengguna),
         ]);
     }
 

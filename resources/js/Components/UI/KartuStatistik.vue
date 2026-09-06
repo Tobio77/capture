@@ -66,7 +66,13 @@ const pipTampil = computed(() =>
         {{ label }}
       </p>
 
-      <span class="ubin-ikon h-9 w-9 shrink-0">
+      <!--
+        Ubin bergradasi, mengikuti tanda tangan kartu WORKA (`ui/StatCard.vue`)
+        yang memakai `bg-gradient-to-br` pada ubin ikonnya — diterjemahkan ke
+        sistem nada di sini, sehingga teal/emerald/amber/biru/langit tetap satu
+        keluarga alih-alih menyalin biru langit WORKA.
+      -->
+      <span class="ubin-ikon ubin-gradasi h-9 w-9 shrink-0">
         <Ikon :nama="ikon" ukuran="h-[1.125rem] w-[1.125rem]" />
       </span>
     </div>

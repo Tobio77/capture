@@ -369,7 +369,7 @@ const tanggalPanjang = (iso) =>
           v-for="item in riwayat"
           :key="item.id"
           type="button"
-          class="rounded-md border px-3 py-2 text-left text-xs transition hover:bg-permukaan-hover active:scale-95"
+          class="kartu-angkat rounded-md border px-3 py-2 text-left text-xs hover:bg-permukaan-hover"
           :class="
             item.tanggal === filter.tanggal
               ? 'border-aksen bg-aksen-lembut text-aksen-teks'
