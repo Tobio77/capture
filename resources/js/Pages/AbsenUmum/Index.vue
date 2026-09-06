@@ -192,7 +192,7 @@ const tanggalPanjang = (iso) =>
         </button>
         <Link
           :href="`/admin/kelola-absen/absen-umum/layar${filter.unit_kerja_id ? `?unit_kerja_id=${filter.unit_kerja_id}` : ''}`"
-          class="inline-flex items-center gap-1.5 rounded-md bg-aksen px-4 py-2 text-sm font-semibold text-white bayang transition hover:bg-aksen-kuat active:scale-95"
+          class="tombol tombol-utama"
         >
           <Ikon nama="wajah" ukuran="h-4 w-4" /> Buka Layar Absen
         </Link>

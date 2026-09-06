@@ -10,6 +10,7 @@ import Lencana from '@/Components/UI/Lencana.vue'
 import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
 import TombolAksi from '@/Components/UI/TombolAksi.vue'
 import Pilihan from '@/Components/UI/Pilihan.vue'
+import TombolProses from '@/Components/UI/TombolProses.vue'
 
 const props = defineProps({
   daftar: { type: Object, required: true },
@@ -113,7 +114,7 @@ const kolom = [
     <template v-if="dapat_mengubah" #aksi>
       <button
         type="button"
-        class="inline-flex items-center gap-1.5 rounded-md bg-aksen px-4 py-2 text-sm font-semibold text-white bayang transition hover:bg-aksen-kuat active:scale-95"
+        class="tombol tombol-utama"
         @click="bukaTambah"
       >
         <Ikon nama="tambah" ukuran="h-4 w-4" /> Tambah Unit Kerja
@@ -270,15 +271,7 @@ const kolom = [
         >
           Batal
         </button>
-        <button
-          type="submit"
-          form="form-unit-kerja"
-          :disabled="form.processing"
-          class="inline-flex items-center gap-1.5 rounded-md bg-aksen px-4 py-2 text-sm font-semibold text-white bayang transition hover:bg-aksen-kuat active:scale-95 disabled:opacity-60"
-        >
-          <Ikon v-if="form.processing" nama="segarkan" ukuran="h-4 w-4 animate-spin" />
-          {{ form.processing ? 'Menyimpan…' : 'Simpan' }}
-        </button>
+        <TombolProses form="form-unit-kerja" :proses="form.processing">Simpan</TombolProses>
       </template>
     </Modal>
   </AdminLayout>

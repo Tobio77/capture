@@ -72,7 +72,7 @@ function gantiUnit() {
       </p>
       <Link
         href="/admin/kelola-absen/setting"
-        class="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-aksen px-4 py-2 text-sm font-semibold text-white transition-colors duration-150 hover:bg-aksen-kuat active:scale-95"
+        class="tombol tombol-utama mt-5"
       >
         <Ikon nama="filter" ukuran="h-4 w-4" /> Buka Setting Absen
       </Link>

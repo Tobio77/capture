@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useForm } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
 import Ikon from '@/Components/Ikon.vue'
+import TombolProses from '@/Components/UI/TombolProses.vue'
 
 /**
  * Setting Absen — pengaturan global sistem (FR-SET-01 s.d. FR-SET-06).
@@ -318,13 +319,13 @@ const simpan = () => {
             Pengaturan ini berlaku global dan langsung dipakai kiosk pada sesi berikutnya.
           </p>
 
-          <button
-            type="submit"
-            class="mt-4 w-full rounded-md bg-aksen px-4 py-2 text-sm font-semibold text-white bayang transition hover:bg-aksen-kuat disabled:opacity-60"
-            :disabled="form.processing || !adaMetodeAktif"
+          <TombolProses
+            class="mt-4 w-full"
+            :proses="form.processing"
+            :nonaktif="!adaMetodeAktif"
           >
-            {{ form.processing ? 'Menyimpan…' : 'Simpan Setting' }}
-          </button>
+            Simpan Setting
+          </TombolProses>
 
           <p v-if="form.recentlySuccessful" class="mt-3 rounded-md bg-berhasil-lembut px-3 py-2 text-xs text-berhasil-teks">
             Setting Absen tersimpan.

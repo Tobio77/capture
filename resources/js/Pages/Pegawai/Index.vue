@@ -136,7 +136,7 @@ const kolom = [
     -->
     <div class="panel flex flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3">
       <div class="flex min-w-0 items-center gap-2.5">
-        <span class="ubin-ikon h-8 w-8 shrink-0">
+        <span class="ubin-ikon ubin-gradasi h-8 w-8 shrink-0">
           <Ikon nama="segarkan" ukuran="h-4 w-4" :class="sedangSinkron && 'animate-spin'" />
         </span>
 

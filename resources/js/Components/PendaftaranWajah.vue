@@ -365,7 +365,7 @@ function cabut() {
       </button>
       <button
         type="button"
-        class="rounded-lg bg-aksen px-4 py-2 text-sm font-medium text-white hover:bg-aksen-kuat disabled:cursor-not-allowed disabled:opacity-50"
+        class="tombol tombol-utama"
         :disabled="!embedding || mengirim"
         @click="simpan"
       >

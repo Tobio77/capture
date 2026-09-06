@@ -117,7 +117,7 @@ const kolom = [
         </button>
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 rounded-md bg-aksen px-4 py-2 text-sm font-semibold text-white bayang transition hover:bg-aksen-kuat active:scale-95"
+          class="tombol tombol-utama"
           @click="unduh('pdf')"
         >
           <Ikon nama="unduh" ukuran="h-4 w-4" /> Unduh PDF

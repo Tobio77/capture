@@ -118,7 +118,7 @@ const waktuWorka = (iso) =>
             <button
               type="submit"
               :disabled="form.processing"
-              class="rounded-md bg-aksen px-4 py-2 text-sm font-semibold text-white bayang transition hover:bg-aksen-kuat disabled:opacity-60"
+              class="tombol tombol-utama"
             >
               {{ form.processing ? 'Menyimpan…' : 'Simpan' }}
             </button>

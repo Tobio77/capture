@@ -1602,3 +1602,36 @@ tersisa hanyalah admin tunanetra yang terkunci. Ia **tidak pernah muncul pada
 percobaan pertama** (ambang 3 kegagalan berturut-turut), dan soalnya hangus
 sekali pakai — satu jawaban benar yang dapat dipakai berulang untuk seluruh
 daftar kata sandi membatalkan gunanya.
+
+### Aksi utama dan umpan balik proses, disatukan (S33b)
+
+Audit menemukan dua ketaksamaan yang tidak pernah dilaporkan siapa pun — ia
+hanya membuat panel admin terasa dirakit beberapa orang yang tidak saling
+bicara.
+
+**Sepuluh tombol aksi utama memakai `bg-aksen` mentah**, bukan
+`.tombol-utama`, sehingga gradasi yang dipasang pada S32b tidak pernah sampai
+ke sana — termasuk tiga tombol yang kini berdiri di atas pelat navy, tempat
+varian terangnya justru paling dibutuhkan. Seluruhnya disamakan ke
+`.tombol tombol-utama`.
+
+**Lima tombol simpan menulis sendiri umpan balik prosesnya**, dan kelimanya
+berbeda tipis: dua memakai pemintal, satu menukar ikon centang, dua hanya
+mengganti teks. Kini satu komponen, `UI/TombolProses.vue`, dengan umpan balik
+tiga lapis sekaligus:
+
+| Lapis | Menyatakan |
+|---|---|
+| tombol dimatikan | mencegah kiriman ganda |
+| teks berganti | apa yang sedang terjadi |
+| pemintal berputar | sistemnya masih hidup |
+
+Ketika pengguna meminta gerak minimal, pemintalnya membeku — tetapi dua lapis
+lainnya tetap bekerja, sehingga tidak ada keterangan yang hilang. Diperiksa di
+peramban dengan `prefers-reduced-motion` menyala: seluruh 14 kartu Dashboard
+tergambar utuh pada 150 ms, dan `transform` pada `.kartu-angkat` bernilai
+`none` — angkatan hover memang ditiadakan, bukan sekadar dipercepat.
+
+Keadaan kosong (`KeadaanKosong.vue`) sengaja TIDAK ikut bergradasi: ubinnya
+harus tetap pucat supaya tidak bersaing dengan isi sungguhan ketika datanya
+kelak terisi.

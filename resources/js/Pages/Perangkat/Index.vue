@@ -10,6 +10,7 @@ import Lencana from '@/Components/UI/Lencana.vue'
 import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
 import TombolAksi from '@/Components/UI/TombolAksi.vue'
 import Pilihan from '@/Components/UI/Pilihan.vue'
+import TombolProses from '@/Components/UI/TombolProses.vue'
 
 /**
  * Kelola perangkat absen (FR-USR-02, FR-USR-03).
@@ -186,7 +187,7 @@ const kolom = [
     <template #aksi>
       <button
         type="button"
-        class="inline-flex items-center gap-1.5 rounded-md bg-aksen px-4 py-2 text-sm font-semibold text-white bayang transition hover:bg-aksen-kuat active:scale-95"
+        class="tombol tombol-utama"
         @click="bukaTambah"
       >
         <Ikon nama="tambah" ukuran="h-4 w-4" /> Daftarkan Perangkat
@@ -431,15 +432,9 @@ const kolom = [
         >
           Batal
         </button>
-        <button
-          type="button"
-          class="inline-flex items-center gap-1.5 rounded-lg bg-aksen px-4 py-2 text-sm font-medium text-white transition hover:bg-aksen-kuat active:scale-95 disabled:opacity-50"
-          :disabled="form.processing"
-          @click="simpan"
-        >
-          <Ikon v-if="form.processing" nama="segarkan" ukuran="h-4 w-4 animate-spin" />
-          {{ form.processing ? 'Menyimpan…' : 'Simpan Perangkat' }}
-        </button>
+        <TombolProses tipe="button" :proses="form.processing" @click="simpan">
+          Simpan Perangkat
+        </TombolProses>
       </template>
     </Modal>
 

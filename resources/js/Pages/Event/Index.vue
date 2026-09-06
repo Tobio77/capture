@@ -11,6 +11,7 @@ import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
 import TombolAksi from '@/Components/UI/TombolAksi.vue'
 import Pilihan from '@/Components/UI/Pilihan.vue'
 import RentangTanggal from '@/Components/UI/RentangTanggal.vue'
+import TombolProses from '@/Components/UI/TombolProses.vue'
 
 /**
  * Daftar Event (FR-EVT-01 s.d. FR-EVT-05).
@@ -255,7 +256,7 @@ const kolom = [
         </button>
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 rounded-md bg-aksen px-4 py-2 text-sm font-semibold text-white bayang transition hover:bg-aksen-kuat active:scale-95"
+          class="tombol tombol-utama"
           @click="bukaBuat"
         >
           <Ikon nama="tambah" ukuran="h-4 w-4" /> Buat Event
@@ -726,15 +727,9 @@ const kolom = [
         >
           Batal
         </button>
-        <button
-          type="button"
-          class="inline-flex items-center gap-1.5 rounded-lg bg-aksen px-4 py-2 text-sm font-medium text-white transition hover:bg-aksen-kuat active:scale-95 disabled:opacity-50"
-          :disabled="form.processing"
-          @click="simpan"
-        >
-          <Ikon v-if="!form.processing" nama="cek" ukuran="h-4 w-4" />
-          {{ form.processing ? 'Menyimpan…' : 'Simpan Event' }}
-        </button>
+        <TombolProses tipe="button" :proses="form.processing" @click="simpan">
+          Simpan Event
+        </TombolProses>
       </template>
     </Modal>
   </AdminLayout>
