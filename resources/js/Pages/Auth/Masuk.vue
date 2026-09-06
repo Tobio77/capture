@@ -79,7 +79,7 @@ const kirim = () => {
 
         <form class="mt-6 flex flex-col gap-5" @submit.prevent="kirim">
           <div>
-            <label for="email" class="mb-1.5 block text-sm font-medium">Alamat Surel</label>
+            <label for="email" class="mb-1.5 block text-sm font-medium">Alamat Surel<span class="ml-0.5 text-galat-teks" aria-hidden="true">*</span></label>
 
             <!--
               Ikon di dalam kolom, bukan label bergambar di sebelahnya: pada
@@ -108,7 +108,7 @@ const kirim = () => {
           </div>
 
           <div>
-            <label for="password" class="mb-1.5 block text-sm font-medium">Kata Sandi</label>
+            <label for="password" class="mb-1.5 block text-sm font-medium">Kata Sandi<span class="ml-0.5 text-galat-teks" aria-hidden="true">*</span></label>
 
             <div class="relative">
               <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-redup">
@@ -145,7 +145,7 @@ const kirim = () => {
           -->
           <div>
             <label for="jawaban-captcha" class="mb-1.5 block text-sm font-medium">
-              Verifikasi
+              Verifikasi<span class="ml-0.5 text-galat-teks" aria-hidden="true">*</span>
             </label>
 
             <div class="flex items-center gap-3">

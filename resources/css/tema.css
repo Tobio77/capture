@@ -87,6 +87,28 @@
     --color-emerald-800: #065f46;
     --color-emerald-900: #064e3b;
 
+    /*
+     * Rose — GAGAL, bukan sekadar terlambat (S34b).
+     *
+     * Ditambahkan mengikuti pola WORKA, yang juga memisahkan rose untuk error
+     * dari amber untuk peringatan. Sebelumnya "gagal verifikasi wajah",
+     * "absen ditolak", dan "hapus event" menumpang pada amber — warna yang
+     * sama dengan "terlambat 3 menit". Dua tingkat keseriusan yang jauh
+     * berbeda memakai satu warna berarti keduanya berhenti berarti apa-apa.
+     *
+     * Tetap tanpa ungu/indigo/violet.
+     */
+    --color-rose-50: #fff1f2;
+    --color-rose-100: #ffe4e6;
+    --color-rose-200: #fecdd3;
+    --color-rose-300: #fda4af;
+    --color-rose-400: #fb7185;
+    --color-rose-500: #f43f5e;
+    --color-rose-600: #e11d48;
+    --color-rose-700: #be123c;
+    --color-rose-800: #9f1239;
+    --color-rose-900: #881337;
+
     /* Amber — status terlambat / peringatan */
     --color-amber-50: #fffbeb;
     --color-amber-100: #fef3c7;
@@ -121,6 +143,9 @@
     --color-berhasil: var(--tema-berhasil);
     --color-berhasil-lembut: var(--tema-berhasil-lembut);
     --color-berhasil-teks: var(--tema-berhasil-teks);
+    --color-galat: var(--tema-galat);
+    --color-galat-lembut: var(--tema-galat-lembut);
+    --color-galat-teks: var(--tema-galat-teks);
     --color-peringatan: var(--tema-peringatan);
     --color-peringatan-lembut: var(--tema-peringatan-lembut);
     --color-peringatan-teks: var(--tema-peringatan-teks);
@@ -182,7 +207,7 @@
     /* Tinta tetap navy: identitas struktural proyek tidak ikut bergeser. */
     --tema-utama: #0f2a43;
     --tema-sekunder: #445f76;
-    --tema-redup: #77899a;
+    --tema-redup: #556978;
 
     --tema-aksen: #0d9488;
     --tema-aksen-kuat: #0f766e;
@@ -196,6 +221,22 @@
     --tema-peringatan: #b45309;
     --tema-peringatan-lembut: #fdf1de;
     --tema-peringatan-teks: #92400e;
+
+    /*
+     * GALAT — kegagalan dan tindakan merusak, bukan peringatan.
+     *
+     * Bedanya dengan amber bukan selera: amber berarti "berlanjut, tetapi
+     * catat" (terlambat, Mode Terbuka menyala), rose berarti "tidak jadi"
+     * (wajah tidak cocok, absen ditolak, event dihapus). Keduanya menuntut
+     * tindakan yang berbeda dari orang yang membacanya.
+     *
+     * Teksnya #9f1239, bukan #f43f5e: di atas latar terang, rose-500 hanya
+     * mencapai 3,8:1 — di bawah 4,5:1 yang dituntut WCAG 2.1 AA untuk teks
+     * biasa. Yang #f43f5e dipakai adalah titik dan garisnya, bukan hurufnya.
+     */
+    --tema-galat: #e11d48;
+    --tema-galat-lembut: #ffe9ec;
+    --tema-galat-teks: #9f1239;
 
     --tema-info-lembut: #e5eff8;
     --tema-info-teks: #24507b;
@@ -268,6 +309,10 @@
         --tema-berhasil-lembut: rgb(52 211 153 / 0.16);
         --tema-berhasil-teks: #6ee7b7;
 
+        --tema-galat: #fb7185;
+        --tema-galat-lembut: rgb(251 113 133 / 0.16);
+        --tema-galat-teks: #fda4af;
+
         --tema-peringatan: #f59e0b;
         --tema-peringatan-lembut: rgb(251 191 36 / 0.16);
         --tema-peringatan-teks: #fcd34d;
@@ -320,6 +365,10 @@
     --tema-berhasil: #10b981;
     --tema-berhasil-lembut: rgb(52 211 153 / 0.16);
     --tema-berhasil-teks: #6ee7b7;
+
+    --tema-galat: #fb7185;
+    --tema-galat-lembut: rgb(251 113 133 / 0.16);
+    --tema-galat-teks: #fda4af;
 
     --tema-peringatan: #f59e0b;
     --tema-peringatan-lembut: rgb(251 191 36 / 0.16);
@@ -1120,13 +1169,13 @@ button:focus-visible {
      * justru pola yang dibuang.
      */
     .pita-utama {
-        background-image: linear-gradient(112deg, #0d9488 0%, #0f766e 58%, #0b6157 100%);
+        background-image: linear-gradient(112deg, #0f766e 0%, #0d635c 58%, #0b5750 100%);
         color: #fff;
         border-radius: 1.25rem;
     }
 
     .pita-utama:hover {
-        background-image: linear-gradient(112deg, #0f766e 0%, #0b6157 58%, #095049 100%);
+        background-image: linear-gradient(112deg, #0d635c 0%, #0b5750 58%, #094a44 100%);
     }
 
     .pita-kedua {
@@ -1169,14 +1218,14 @@ button:focus-visible {
 @keyframes kartu-mendarat {
     from {
         opacity: 0;
-        transform: translateY(1.5rem) scale(0.985);
+        transform: translateY(24px) scale(0.985);
     }
 }
 
 @keyframes pita-naik {
     from {
         opacity: 0;
-        transform: translateY(0.875rem);
+        transform: translateY(24px);
     }
 }
 
@@ -1188,8 +1237,8 @@ button:focus-visible {
 
 .tahap {
     animation-delay: var(--tunda, 0ms);
-    animation-duration: var(--lama, 420ms);
-    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    animation-duration: var(--lama, 550ms);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
     animation-fill-mode: both;
 }
 
@@ -1277,22 +1326,25 @@ button:focus-visible {
      * tombol bergradasi, tidak ada yang ditunjuk.
      */
     .tombol-utama {
-        background-image: linear-gradient(112deg, #0d9488 0%, #0f766e 62%, #0b6157 100%);
+        background-image: linear-gradient(112deg, #0f766e 0%, #0d635c 62%, #0b5750 100%);
     }
 
     .tombol-utama:hover:not(:disabled) {
-        background-image: linear-gradient(112deg, #0f766e 0%, #0b6157 62%, #095049 100%);
+        background-image: linear-gradient(112deg, #0d635c 0%, #0b5750 62%, #094a44 100%);
     }
 
     .pelat-kepala .tombol-utama {
-        background-image: linear-gradient(112deg, #14b8a6 0%, #0d9488 62%, #0f766e 100%);
         box-shadow:
-            inset 0 1px 0 rgb(255 255 255 / 0.24),
-            0 2px 10px rgb(13 148 136 / 0.4);
+            inset 0 0 0 1px rgb(255 255 255 / 0.28),
+            inset 0 1px 0 rgb(255 255 255 / 0.22),
+            0 2px 12px rgb(13 148 136 / 0.45);
     }
 
     .pelat-kepala .tombol-utama:hover:not(:disabled) {
-        background-image: linear-gradient(112deg, #2dd4bf 0%, #14b8a6 62%, #0d9488 100%);
+        box-shadow:
+            inset 0 0 0 1px rgb(255 255 255 / 0.4),
+            inset 0 1px 0 rgb(255 255 255 / 0.28),
+            0 2px 16px rgb(13 148 136 / 0.55);
     }
 }
 
@@ -1358,9 +1410,46 @@ button:focus-visible {
             background-color 150ms ease-out;
     }
 
+    .kartu-angkat {
+        position: relative;
+        overflow: hidden;
+    }
+
     .kartu-angkat:hover {
-        transform: translateY(-3px);
+        transform: translateY(-6px);
         box-shadow: var(--tema-bayang-naik);
+    }
+
+    /*
+     * Kilau yang menyapu sekali saat kursor masuk.
+     *
+     * Digambar sebagai pseudo-elemen, bukan elemen tambahan di setiap kartu:
+     * ia murni hiasan, dan hiasan tidak perlu ikut ada di pohon dokumen yang
+     * dibacakan pembaca layar.
+     */
+    .kartu-angkat::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: linear-gradient(
+            105deg,
+            transparent 38%,
+            rgb(255 255 255 / 0.28) 50%,
+            transparent 62%
+        );
+        transform: translateX(-120%);
+        opacity: 0;
+    }
+
+    .kartu-angkat:hover::after {
+        animation: kilau-lewat 700ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* Ikon di dalamnya memantul sedikit — penegas, bukan pertunjukan. */
+    .kartu-angkat:hover .ubin-ikon,
+    .kartu-angkat:hover svg {
+        animation: pantul-kecil 420ms cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .kartu-angkat:active {
@@ -1404,4 +1493,89 @@ button:focus-visible {
     .kartu-angkat:active {
         transform: none !important;
     }
+}
+
+/*
+ * Nada GALAT untuk sistem `.nada-*` (S34b).
+ *
+ * Melengkapi teal/emerald/amber/biru/langit sebagai keluarga keenam. Dipakai
+ * ubin ikon, keping, dan keadaan kosong yang menyatakan KEGAGALAN — bukan
+ * peringatan. Bedanya bukan selera: amber berarti "berlanjut, tetapi catat",
+ * rose berarti "tidak jadi".
+ */
+@layer components {
+    .nada-galat {
+        --nada-lembut: var(--tema-galat-lembut);
+        --nada-kuat: var(--tema-galat);
+        --nada-teks: var(--tema-galat-teks);
+        --nada-cincin: 225 29 72;
+    }
+}
+
+@keyframes kilau-lewat {
+    0% {
+        transform: translateX(-120%);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translateX(120%);
+        opacity: 0;
+    }
+}
+
+@keyframes pantul-kecil {
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    45% {
+        transform: translateY(-3px);
+    }
+}
+
+/*
+ * Tersingkap saat digulir ke pandangan.
+ *
+ * Keadaan awalnya ditulis di CSS, bukan di JavaScript, supaya tidak ada
+ * kedipan sebelum skripnya sempat berjalan. Kelas `.tersingkap` dipasang
+ * IntersectionObserver; lihat useUngkap.js.
+ *
+ * Bila JavaScript tidak berjalan sama sekali, `.ungkap` yang tidak pernah
+ * memperoleh `.tersingkap` akan tetap tidak terlihat — karena itu skripnya
+ * yang memasang `.ungkap`, bukan markupnya. Tanpa skrip, tidak ada yang
+ * disembunyikan.
+ */
+.ungkap {
+    opacity: 0;
+    transform: translateY(28px);
+    transition:
+        opacity 550ms cubic-bezier(0.16, 1, 0.3, 1),
+        transform 550ms cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: var(--tunda, 0ms);
+}
+
+.ungkap.tersingkap {
+    opacity: 1;
+    transform: none;
+}
+
+/*
+ * Bar proporsi yang tumbuh dari nol.
+ *
+ * HANYA dipakai pada angka yang benar-benar punya penyebut — aturan yang
+ * ditetapkan pada S31 dan tidak diturunkan demi animasi. Bar yang tumbuh di
+ * atas angka tanpa penyebut tetap bar yang berbohong, hanya kini berbohong
+ * sambil bergerak.
+ */
+@keyframes bar-tumbuh {
+    from {
+        width: 0;
+    }
+}
+
+.bar-isi-tumbuh {
+    animation: bar-tumbuh 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: var(--tunda, 0ms);
 }

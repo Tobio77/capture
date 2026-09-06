@@ -396,7 +396,13 @@ const tanggalRingkas = (nilai) =>
 
           <span class="min-w-0 flex-1">
             <span class="block font-display text-2xl font-semibold">Absen Umum</span>
-            <span class="mt-0.5 block text-sm text-white/75">
+            <!--
+              Putih penuh, bukan putih 75%. Meredupkan teks kecil di atas latar
+              berwarna menjatuhkan kontrasnya dari 5,47 ke 3,83 — di bawah
+              ambang WCAG AA — dan itu tidak terlihat oleh siapa pun sampai
+              rasionya benar-benar dihitung.
+            -->
+            <span class="mt-0.5 block text-sm text-white">
               {{ absen_umum_aktif ? 'Datang dan pulang harian' : 'Sedang dimatikan admin' }}
             </span>
           </span>

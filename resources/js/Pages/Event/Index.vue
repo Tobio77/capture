@@ -373,7 +373,7 @@ const kolom = [
           <TombolAksi v-if="event.status === 'aktif'" ikon="cek" warna="navy" @click="tutup(event)">
             Tutup
           </TombolAksi>
-          <TombolAksi v-if="event.dapat_dihapus" ikon="hapus" warna="amber" @click="hapus(event)">
+          <TombolAksi v-if="event.dapat_dihapus" ikon="hapus" warna="rose" @click="hapus(event)">
             Hapus
           </TombolAksi>
         </td>
@@ -560,7 +560,7 @@ const kolom = [
           </p>
         </div>
 
-        <div class="grid gap-4 sm:grid-cols-3">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <label for="tanggal" class="block text-sm font-medium text-utama">Tanggal</label>
             <input

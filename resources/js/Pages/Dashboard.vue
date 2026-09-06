@@ -7,6 +7,7 @@ import Lencana from '@/Components/UI/Lencana.vue'
 import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
 import KartuStatistik from '@/Components/UI/KartuStatistik.vue'
 import KartuKehadiran from '@/Components/UI/KartuKehadiran.vue'
+import { useUngkap } from '@/Composables/useUngkap'
 
 /**
  * Dashboard ringkasan kehadiran (FR-DASH-01 s.d. FR-DASH-03).
@@ -31,6 +32,14 @@ const props = defineProps({
 
 const page = usePage()
 const pengguna = computed(() => page.props.auth.pengguna)
+
+/*
+ * Seksi di bawah lipatan tersingkap saat digulir. Dipasang pada SEKSI, bukan
+ * pada setiap kartu: menyingkap belasan kartu satu per satu membuat halaman
+ * terasa gelisah, dan pada Dashboard yang dibaca sambil menyeruput kopi itu
+ * mengganggu alih-alih menghidupkan.
+ */
+useUngkap()
 
 const cakupan = computed(() =>
   pengguna.value.lintas_unit
@@ -233,7 +242,7 @@ function waktuRelatif(iso) {
         keempatnya dijejer sebaris bersama kartu utama, labelnya terpaksa
         membungkus dua baris dan tinggi kartunya berbeda-beda.
       -->
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <KartuStatistik
           v-for="(item, urutan) in kartu"
           :key="item.label"
@@ -251,7 +260,7 @@ function waktuRelatif(iso) {
       direnungkan. Kini panel biasa; yang menandai "hidup" cukup titik berdenyut
       pada judulnya.
     -->
-    <div v-if="event_berjalan.length > 0" class="panel mt-4 p-5">
+    <div v-if="event_berjalan.length > 0" data-ungkap class="panel mt-4 p-5">
       <div class="flex items-center gap-2">
         <span class="relative flex h-2 w-2">
           <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-berhasil opacity-60"></span>
@@ -303,7 +312,7 @@ function waktuRelatif(iso) {
     <div class="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
       <div class="min-w-0 space-y-6">
         <!-- FR-DASH-02 -->
-        <div class="panel p-6">
+        <div data-ungkap class="panel p-6">
           <div class="flex items-baseline justify-between">
             <h2 class="font-display text-base font-semibold text-utama">Tren Kehadiran</h2>
             <p class="text-xs text-redup">7 hari terakhir</p>

@@ -52,6 +52,9 @@ const palet = {
   teal: 'text-aksen-teks hover:bg-aksen-lembut',
   navy: 'text-utama hover:bg-info-lembut',
   amber: 'text-peringatan-teks hover:bg-peringatan-lembut',
+
+  /* Aksi yang MENGHAPUS. Amber berarti "hati-hati", rose berarti "hilang". */
+  rose: 'text-galat-teks hover:bg-galat-lembut',
   emerald: 'text-berhasil-teks hover:bg-berhasil-lembut',
   slate: 'text-sekunder hover:bg-permukaan-hover',
 }

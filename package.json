@@ -6,7 +6,8 @@
         "build": "vite build",
         "dev": "vite",
         "test:js": "vitest run",
-        "test:js:pantau": "vitest"
+        "test:js:pantau": "vitest",
+        "periksa:kontras": "node tools/periksa-kontras.cjs"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",

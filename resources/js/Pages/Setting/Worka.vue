@@ -63,7 +63,7 @@ const waktuWorka = (iso) =>
         <form class="panel p-6" @submit.prevent="simpan">
           <div class="space-y-5">
             <div>
-              <label for="api_url" class="block text-sm font-medium text-utama">Alamat API WORKA</label>
+              <label for="api_url" class="block text-sm font-medium text-utama">Alamat API WORKA<span class="ml-0.5 text-galat-teks" aria-hidden="true">*</span></label>
               <input
                 id="api_url"
                 v-model="form.api_url"

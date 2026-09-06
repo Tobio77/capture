@@ -23,6 +23,14 @@ const props = defineProps({
 const palet = {
   emerald: { kotak: 'bg-berhasil-lembut text-berhasil-teks', titik: 'bg-berhasil' },
   amber: { kotak: 'bg-peringatan-lembut text-peringatan-teks', titik: 'bg-peringatan' },
+
+  /*
+   * Rose untuk GAGAL, bukan untuk terlambat. Sebelumnya keduanya memakai
+   * amber, sehingga "terlambat tiga menit" dan "verifikasi wajah gagal"
+   * terlihat sama seriusnya — dan begitu keduanya sama, tidak satu pun
+   * berarti apa-apa.
+   */
+  rose: { kotak: 'bg-galat-lembut text-galat-teks', titik: 'bg-galat' },
   teal: { kotak: 'bg-aksen-lembut text-aksen-teks', titik: 'bg-aksen' },
   navy: { kotak: 'bg-info-lembut text-info-teks', titik: 'bg-info-teks' },
   langit: { kotak: 'bg-langit-lembut text-langit-teks', titik: 'bg-langit' },

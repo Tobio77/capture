@@ -228,7 +228,7 @@ const kolom = [
     >
       <form id="form-unit-kerja" class="space-y-5" @submit.prevent="simpan">
         <div>
-          <label for="kode" class="block text-sm font-medium text-utama">Kode Unit Kerja</label>
+          <label for="kode" class="block text-sm font-medium text-utama">Kode Unit Kerja<span class="ml-0.5 text-galat-teks" aria-hidden="true">*</span></label>
           <input
             id="kode"
             v-model="form.kode"
@@ -247,7 +247,7 @@ const kolom = [
         </div>
 
         <div>
-          <label for="nama" class="block text-sm font-medium text-utama">Nama Unit Kerja</label>
+          <label for="nama" class="block text-sm font-medium text-utama">Nama Unit Kerja<span class="ml-0.5 text-galat-teks" aria-hidden="true">*</span></label>
           <input
             id="nama"
             v-model="form.nama"

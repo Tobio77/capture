@@ -23,7 +23,7 @@ defineProps({
 </script>
 
 <template>
-  <dl class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+  <dl class="grid grid-cols-2 gap-4 lg:grid-cols-4">
     <div v-for="item in kartu" :key="item.label" class="rounded-md border border-garis px-4 py-3">
       <div class="flex items-start justify-between gap-2">
         <div>

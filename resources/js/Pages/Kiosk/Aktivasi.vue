@@ -71,7 +71,7 @@ const kirim = () => form.post('/kiosk/aktivasi')
 
         <form class="mt-6 space-y-5" @submit.prevent="kirim">
           <div>
-            <label for="kode" class="block text-sm font-medium text-utama">Kode Aktivasi</label>
+            <label for="kode" class="block text-sm font-medium text-utama">Kode Aktivasi<span class="ml-0.5 text-galat-teks" aria-hidden="true">*</span></label>
             <input
               id="kode"
               :value="form.kode_aktivasi"

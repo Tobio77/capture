@@ -67,7 +67,7 @@ const status = computed(() => {
           warna: 'text-peringatan-teks',
         }
       : { teks: 'Absen berhasil dicatat', warna: 'text-berhasil-teks' },
-    gagal: { teks: props.pesan ?? 'Verifikasi gagal, silakan ulangi', warna: 'text-peringatan-teks' },
+    gagal: { teks: props.pesan ?? 'Verifikasi gagal, silakan ulangi', warna: 'text-galat-teks' },
     sudah: { teks: props.pesan ?? 'Kehadiran sudah tercatat', warna: 'text-info-teks' },
   }
 
@@ -87,7 +87,7 @@ const nadaTahap = computed(() => {
   const daftar = {
     memindai: 'nada-teal',
     berhasil: 'nada-emerald',
-    gagal: 'nada-amber',
+    gagal: 'nada-galat',
     sudah: 'nada-langit',
   }
 
@@ -106,7 +106,7 @@ const latarHasil = computed(() =>
 /** Bingkai pratinjau berubah warna mengikuti hasil verifikasi. */
 const warnaBingkai = computed(() => {
   if (berhasil.value) return 'border-berhasil'
-  if (gagal.value) return 'border-peringatan'
+  if (gagal.value) return 'border-galat'
   if (sudah.value) return 'border-aksen-kuat'
   if (memindai.value) return 'border-aksen'
 

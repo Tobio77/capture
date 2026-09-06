@@ -160,7 +160,7 @@ const kolom = [
         {{ jumlah_event }} event pada rentang ini
       </p>
 
-      <dl class="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <dl class="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div
           v-for="item in kartu"
           :key="item.label"
