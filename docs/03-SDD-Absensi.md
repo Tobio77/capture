@@ -1468,3 +1468,42 @@ Keduanya sudah diuji dengan menyuntikkan kembali cacatnya: mengembalikan
 `props.kiosk` memerahkan enam uji asap dengan `TypeError` yang sama seperti di
 peramban, dan menambah satu prop di controller tanpa memperbarui berkas tiruan
 memerahkan penjaganya.
+
+---
+
+## Arah visual "Pelat Bengkel" (S32)
+
+Ditetapkan di halaman depan titik absen, lalu diwariskan ke Panel Admin. Yang
+menjaganya tetap satu arah adalah aturan bahwa **paletnya tidak bertambah satu
+warna pun** — navy `#0F2A43`, teal `#0D9488`, emerald `#059669`, amber
+`#B45309`, tanah sage `#E9EEE7` — dan yang berubah hanyalah cara memakainya:
+gradasi dan lapisan opasitas menggantikan blok solid.
+
+| Unsur | Aturan |
+|---|---|
+| Bidang | Pelat navy bergradasi sebagai kepala; isinya berdiri di atas sage. Di halaman depan pelatnya ±40% tinggi layar dengan dua cahaya radial; di Panel Admin ia jauh lebih rendah dengan satu cahaya — layar admin dibaca berlama-lama dari kursi, dan bidang gelap setinggi itu melelahkan setelah jam kedua. |
+| Kedalaman | Satu elemen MELANGGAR perbatasan dua bidang (kartu jam di halaman depan). Kedalaman datang dari perbatasan yang dilanggar, bukan dari bayangan yang ditebalkan. |
+| Motif | Deret garis ukur (`.skala-ukur`, `.skala-tegak`), diambil dari irisan tiga kejuruan BLK — meteran penjahit, mistar las, sigmat otomotif — yang satu primitif dengan piringan jam. Paling banyak dua penempatan per layar; pada tiga tempat ia berhenti terbaca sebagai penanda dan mulai terbaca sebagai tekstur. |
+| Gradasi | Hanya untuk aksi utama dan bidang struktural. Warna semantik (emerald tepat waktu, amber terlambat) tetap DATAR: begitu ikut digradasi, ia berhenti menyatakan apa pun. |
+| Bobot | Pilihan sejajar dibedakan bobotnya, bukan dibuat kembar. Dua kartu identik bersebelahan adalah pola SaaS yang dibuang sejak S31. |
+| Gerak | Satu koreografi masuk per layar, bukan efek per elemen. Sesudahnya diam. |
+
+Diterapkan di kerangka dan komponen bersama, bukan di sepuluh halaman satu per
+satu: `.pelat-kepala` di `AdminLayout`, `.tombol-utama` bergradasi di tema, dan
+`.pelat-kepala .tombol-garis` yang membalik warna tombol slot `aksi` secara
+otomatis. Sepuluh salinan berarti sepuluh tempat yang harus diingat ketika
+salah satunya diperbaiki — dan yang terlupakan tidak akan terlihat sampai
+seseorang membuka halaman itu.
+
+Tiga hal yang hanya ketahuan karena diperiksa di peramban:
+
+- Ikon kustom percobaan pertama (piringan berjarum, plakat berkisi) terbaca
+  persis sebagai ikon jam dan kalender generik. Diganti benda yang benar-benar
+  ada di dunia ini: ambang pintu dengan dua panah berlawanan, dan spanduk
+  kegiatan dengan tali gantungnya (`UI/TandaAbsen.vue`).
+- `prefers-reduced-motion` menghasilkan halaman kosong total selama 0,8 detik,
+  karena aturan globalnya menolkan `animation-duration` tetapi bukan
+  `animation-delay`. Diperbaiki di aturan globalnya.
+- Gradasi teal yang benar di atas sage menjadi tombol paling pudar ketika
+  latarnya navy. Aksi utama di dalam `.pelat-kepala` karena itu memakai ujung
+  gradasi yang lebih terang.

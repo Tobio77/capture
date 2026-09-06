@@ -119,6 +119,18 @@ const opsiUnit = computed(() =>
   (props.umum?.unit_kerja ?? []).map((u) => ({ nilai: u.id, label: u.nama, keterangan: u.kode })),
 )
 
+/*
+ * Nama unit yang sedang dibaca. Nama sesi yang tersimpan berbunyi "Absen
+ * Umum — <unit>", dan itu tepat pada lembar rekap yang dibaca lepas dari
+ * layarnya; di sini tab yang sedang terbuka sudah menyatakan jenisnya,
+ * sehingga separuh depannya hanya pengulangan yang memakan tempat.
+ */
+const namaUnit = computed(
+  () =>
+    (props.umum?.unit_kerja ?? []).find((u) => u.id === props.umum?.filter?.unit_kerja_id)?.nama ??
+    '',
+)
+
 const kueriUmum = computed(() => ({
   tab: 'umum',
   ...Object.fromEntries(
@@ -363,8 +375,14 @@ const kartu = computed(() => [
       <div class="panel p-6 print:border-0 print:p-0 print:shadow-none">
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div>
+            <p
+              v-if="umum?.sesi"
+              class="text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-redup"
+            >
+              Absen Umum
+            </p>
             <h2 class="font-display text-lg font-semibold text-utama">
-              {{ umum?.sesi?.nama ?? 'Belum ada sesi absen umum' }}
+              {{ umum?.sesi ? namaUnit : 'Belum ada sesi absen umum' }}
             </h2>
             <p class="mt-1 text-sm text-sekunder">
               {{ tanggalPanjang(filter.tanggal) }}

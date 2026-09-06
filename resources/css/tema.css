@@ -1212,3 +1212,104 @@ button:focus-visible {
 .tahap-redup {
     animation-name: redup-masuk;
 }
+
+/* ==========================================================================
+ * Panel admin mengikuti arah halaman depan (S32b).
+ *
+ * Yang diwariskan dari "Pelat Bengkel": bidang navy bergradasi sebagai kepala
+ * halaman, deret garis ukur di tepinya, dan gradasi HANYA untuk aksi utama.
+ * Palet tidak bertambah satu warna pun — itulah yang membuat arah ini dapat
+ * dipindahkan ke sini tanpa membangun ulang apa pun.
+ *
+ * Ditulis di layout dan di komponen bersama, bukan di sepuluh halaman satu
+ * per satu. Sepuluh salinan berarti sepuluh tempat yang harus diingat ketika
+ * salah satunya diperbaiki.
+ * ======================================================================== */
+@layer components {
+    /*
+     * Kepala halaman admin.
+     *
+     * Lebih rendah dan lebih pendiam daripada pelat halaman depan: layar ini
+     * dibaca berlama-lama dari kursi, bukan dilirik sambil berdiri, dan bidang
+     * gelap setinggi 40% akan melelahkan setelah jam kedua. Cahayanya pun satu,
+     * bukan dua.
+     *
+     * Ia dibatasi sudut membulat dan berdiri di atas sage, tidak menempel ke
+     * tepi layar: sidebar sudah navy, dan pelat yang menyentuhnya akan luluh
+     * menjadi satu bidang gelap raksasa.
+     */
+    .pelat-kepala {
+        position: relative;
+        overflow: hidden;
+        border-radius: var(--radius-2xl);
+        background-color: #0f2a43;
+        background-image:
+            radial-gradient(
+                34rem 16rem at 88% 0%,
+                rgb(13 148 136 / 0.5),
+                rgb(13 148 136 / 0) 74%
+            ),
+            linear-gradient(126deg, #0f2a43 0%, #0b2035 74%, #0a1c2f 100%);
+        color: var(--tema-sidebar-teks);
+    }
+
+    /*
+     * Tombol di atas pelat dibalik warnanya di sini, bukan di setiap halaman.
+     * Sepuluh halaman menyerahkan tombolnya lewat slot `aksi`, dan meminta
+     * masing-masing mengingat bahwa latarnya kini gelap adalah cara paling
+     * pasti untuk mendapatkan satu halaman yang terlupakan.
+     */
+    .pelat-kepala .tombol-garis {
+        background-color: rgb(255 255 255 / 0.08);
+        border-color: var(--tema-sidebar-garis);
+        color: var(--tema-sidebar-teks);
+        box-shadow: none;
+    }
+
+    .pelat-kepala .tombol-garis:hover:not(:disabled) {
+        background-color: rgb(255 255 255 / 0.16);
+        color: #fff;
+    }
+
+    /*
+     * Aksi utama bergradasi, seperti pita "Absen Umum" di halaman depan.
+     * Gradasi dipakai untuk MENUNJUK satu tindakan per layar; kalau semua
+     * tombol bergradasi, tidak ada yang ditunjuk.
+     */
+    .tombol-utama {
+        background-image: linear-gradient(112deg, #0d9488 0%, #0f766e 62%, #0b6157 100%);
+    }
+
+    .tombol-utama:hover:not(:disabled) {
+        background-image: linear-gradient(112deg, #0f766e 0%, #0b6157 62%, #095049 100%);
+    }
+
+    .pelat-kepala .tombol-utama {
+        background-image: linear-gradient(112deg, #14b8a6 0%, #0d9488 62%, #0f766e 100%);
+        box-shadow:
+            inset 0 1px 0 rgb(255 255 255 / 0.24),
+            0 2px 10px rgb(13 148 136 / 0.4);
+    }
+
+    .pelat-kepala .tombol-utama:hover:not(:disabled) {
+        background-image: linear-gradient(112deg, #2dd4bf 0%, #14b8a6 62%, #0d9488 100%);
+    }
+}
+
+/*
+ * Pelat kepala saat dicetak.
+ *
+ * Ditulis di luar `@layer` dan dengan `!important` dengan sengaja: gambar
+ * latar tidak dapat dibatalkan oleh utility `print:bg-transparent`, yang
+ * hanya menyentuh warna latar. Tanpa aturan ini, lembar rekap keluar dengan
+ * blok tinta gelap selebar halaman di kepalanya — mahal, dan tidak ada
+ * gunanya pada lampiran administratif.
+ */
+@media print {
+    .pelat-kepala {
+        background-image: none !important;
+        background-color: transparent !important;
+        color: var(--tema-utama) !important;
+        border: 1px solid var(--tema-garis);
+    }
+}

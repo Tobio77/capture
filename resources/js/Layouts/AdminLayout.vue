@@ -94,108 +94,111 @@ const keluar = () => router.post('/keluar')
       class="fixed inset-y-0 left-0 z-40 flex w-72 flex-col bg-sidebar lapis-sidebar text-sidebar-teks transition-transform duration-200 ease-out md:sticky md:top-0 md:z-auto md:h-screen md:shrink-0 md:translate-x-0 md:shadow-none print:hidden"
       :class="laciTerbuka ? 'translate-x-0 shadow-2xl' : '-translate-x-full'"
     >
-        <div class="flex items-start justify-between border-b border-sidebar-garis px-5 py-5">
-          <Link href="/" class="flex items-center gap-3 rounded-xl">
-            <span class="ubin-merek h-10 w-10 shrink-0">
-              <Ikon nama="absen" ukuran="h-5 w-5" />
-            </span>
-            <span class="min-w-0 leading-tight">
-              <span class="block font-display text-base font-semibold">Capture</span>
-              <span class="mt-0.5 block text-xs text-sidebar-redup">Absensi Kegiatan</span>
-            </span>
-          </Link>
+      <div class="flex items-start justify-between border-b border-sidebar-garis px-5 py-5">
+        <Link href="/" class="flex items-center gap-3 rounded-xl">
+          <span class="ubin-merek h-10 w-10 shrink-0">
+            <Ikon nama="absen" ukuran="h-5 w-5" />
+          </span>
+          <span class="min-w-0 leading-tight">
+            <span class="block font-display text-base font-semibold">Capture</span>
+            <span class="mt-0.5 block text-xs text-sidebar-redup">Absensi Kegiatan</span>
+          </span>
+        </Link>
 
-          <button
-            type="button"
-            class="-mr-2 rounded-lg p-2 text-sidebar-redup transition-colors duration-150 hover:bg-white/10 hover:text-sidebar-teks md:hidden"
-            aria-label="Tutup menu navigasi"
-            @click="laciTerbuka = false"
-          >
-            <Ikon nama="tutup" ukuran="h-5 w-5" />
-          </button>
-        </div>
+        <button
+          type="button"
+          class="-mr-2 rounded-lg p-2 text-sidebar-redup transition-colors duration-150 hover:bg-white/10 hover:text-sidebar-teks md:hidden"
+          aria-label="Tutup menu navigasi"
+          @click="laciTerbuka = false"
+        >
+          <Ikon nama="tutup" ukuran="h-5 w-5" />
+        </button>
+      </div>
 
-        <!--
+      <!--
           Keadaan aktif dibuat sebagai bidang teal yang benar-benar terangkat —
           sorotan tipis di tepi atas ditambah pendar berwarna di bawahnya —
           bukan sekadar isian rata. Pada latar navy, isian rata terbaca sebagai
           "baris yang kebetulan diberi warna"; yang dicari di sini adalah
           "tombol yang sedang ditekan".
         -->
-        <nav class="gulir-halus flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
-          <template v-for="item in menu" :key="item.label">
-            <!-- Menu induk dengan submenu -->
-            <div v-if="item.anak" class="mt-4 border-t border-sidebar-garis pt-4 first:mt-0 first:border-t-0 first:pt-0">
-              <p
-                class="flex items-center gap-2 px-3 pb-1.5 text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-sidebar-redup"
-              >
-                <Ikon :nama="item.ikon" ukuran="h-3.5 w-3.5" />
-                {{ item.label }}
-              </p>
+      <nav class="gulir-halus flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
+        <template v-for="item in menu" :key="item.label">
+          <!-- Menu induk dengan submenu -->
+          <div
+            v-if="item.anak"
+            class="mt-4 border-t border-sidebar-garis pt-4 first:mt-0 first:border-t-0 first:pt-0"
+          >
+            <p
+              class="flex items-center gap-2 px-3 pb-1.5 text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-sidebar-redup"
+            >
+              <Ikon :nama="item.ikon" ukuran="h-3.5 w-3.5" />
+              {{ item.label }}
+            </p>
 
-              <Link
-                v-for="anak in item.anak"
-                :key="anak.rute"
-                :href="anak.url"
-                class="tautan-aksi relative flex items-center rounded-xl py-2 pl-9 pr-3 text-sm transition-all duration-150"
-                :class="
-                  aktif(anak.rute)
-                    ? 'bg-aksen font-medium text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.2),0_2px_10px_rgb(13_148_136/0.35)]'
-                    : 'text-sidebar-teks/80 hover:bg-white/[0.07] hover:text-sidebar-teks'
-                "
-              >
-                <span
-                  class="absolute left-3.5 h-1.5 w-1.5 rounded-full transition-colors duration-150"
-                  :class="aktif(anak.rute) ? 'bg-white' : 'bg-sidebar-redup/40'"
-                ></span>
-                {{ anak.label }}
-              </Link>
-            </div>
-
-            <!-- Menu tunggal -->
             <Link
-              v-else
-              :href="item.url"
-              class="tautan-aksi flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-150"
+              v-for="anak in item.anak"
+              :key="anak.rute"
+              :href="anak.url"
+              class="tautan-aksi relative flex items-center rounded-xl py-2 pl-9 pr-3 text-sm transition-all duration-150"
               :class="
-                aktif(item.rute)
+                aktif(anak.rute)
                   ? 'bg-aksen font-medium text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.2),0_2px_10px_rgb(13_148_136/0.35)]'
                   : 'text-sidebar-teks/80 hover:bg-white/[0.07] hover:text-sidebar-teks'
               "
             >
-              <Ikon :nama="item.ikon" ukuran="h-5 w-5 shrink-0" />
-              {{ item.label }}
-            </Link>
-          </template>
-        </nav>
-
-        <!-- Indikator peran & cakupan unit kerja -->
-        <div class="border-t border-sidebar-garis p-3">
-          <div class="rounded-xl bg-white/[0.06] p-3">
-            <div class="flex items-center gap-3">
               <span
-                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-aksen font-display text-sm font-semibold text-white ring-2 ring-white/15"
-              >
-                {{ pengguna.nama.charAt(0).toUpperCase() }}
-              </span>
-              <div class="min-w-0">
-                <p class="truncate text-sm font-medium">{{ pengguna.nama }}</p>
-                <p class="truncate text-xs text-aksen-kuat">{{ pengguna.role_label }}</p>
-              </div>
-            </div>
-
-            <p class="mt-2.5 truncate text-xs text-sidebar-redup" :title="cakupan">{{ cakupan }}</p>
+                class="absolute left-3.5 h-1.5 w-1.5 rounded-full transition-colors duration-150"
+                :class="aktif(anak.rute) ? 'bg-white' : 'bg-sidebar-redup/40'"
+              ></span>
+              {{ anak.label }}
+            </Link>
           </div>
 
-          <!-- Saklar tema tinggal di bilah atas; di sini cukup tombol keluar. -->
-          <button
-            type="button"
-            class="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-medium text-sidebar-redup transition-colors duration-150 hover:bg-white/10 hover:text-sidebar-teks"
-            @click="keluar"
+          <!-- Menu tunggal -->
+          <Link
+            v-else
+            :href="item.url"
+            class="tautan-aksi flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-150"
+            :class="
+              aktif(item.rute)
+                ? 'bg-aksen font-medium text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.2),0_2px_10px_rgb(13_148_136/0.35)]'
+                : 'text-sidebar-teks/80 hover:bg-white/[0.07] hover:text-sidebar-teks'
+            "
           >
-            <Ikon nama="keluar" ukuran="h-4 w-4" /> Keluar
-          </button>
+            <Ikon :nama="item.ikon" ukuran="h-5 w-5 shrink-0" />
+            {{ item.label }}
+          </Link>
+        </template>
+      </nav>
+
+      <!-- Indikator peran & cakupan unit kerja -->
+      <div class="border-t border-sidebar-garis p-3">
+        <div class="rounded-xl bg-white/[0.06] p-3">
+          <div class="flex items-center gap-3">
+            <span
+              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-aksen font-display text-sm font-semibold text-white ring-2 ring-white/15"
+            >
+              {{ pengguna.nama.charAt(0).toUpperCase() }}
+            </span>
+            <div class="min-w-0">
+              <p class="truncate text-sm font-medium">{{ pengguna.nama }}</p>
+              <p class="truncate text-xs text-aksen-kuat">{{ pengguna.role_label }}</p>
+            </div>
+          </div>
+
+          <p class="mt-2.5 truncate text-xs text-sidebar-redup" :title="cakupan">{{ cakupan }}</p>
         </div>
+
+        <!-- Saklar tema tinggal di bilah atas; di sini cukup tombol keluar. -->
+        <button
+          type="button"
+          class="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-medium text-sidebar-redup transition-colors duration-150 hover:bg-white/10 hover:text-sidebar-teks"
+          @click="keluar"
+        >
+          <Ikon nama="keluar" ukuran="h-4 w-4" /> Keluar
+        </button>
+      </div>
     </aside>
 
     <!-- Konten -->
@@ -213,7 +216,10 @@ const keluar = () => router.post('/keluar')
           selebar halaman adalah ruang yang terbuang, bukan ruang yang lapang.
         -->
         <p class="truncate text-sm text-redup">
-          <Link href="/admin/dashboard" class="rounded transition-colors duration-150 hover:text-sekunder">
+          <Link
+            href="/admin/dashboard"
+            class="rounded transition-colors duration-150 hover:text-sekunder"
+          >
             Panel Admin
           </Link>
           <span class="px-1.5 text-garis-kuat">/</span>
@@ -245,12 +251,41 @@ const keluar = () => router.post('/keluar')
           </Link>
         </div>
 
-        <div class="flex flex-wrap items-start justify-between gap-4 border-b border-garis pb-4">
-          <div class="min-w-0">
-            <h1 class="font-display text-2xl font-semibold text-utama sm:text-[1.75rem]">{{ judul }}</h1>
-            <p v-if="deskripsi" class="mt-1.5 max-w-2xl text-sm text-sekunder">{{ deskripsi }}</p>
+        <!--
+          Kepala halaman sebagai PELAT NAVY, mewarisi arah halaman depan
+          (S32b). Sebelumnya ia hanya judul di atas garis bawah — benar,
+          tetapi tidak menyatakan apa pun; halaman admin jadi terbaca sebagai
+          deretan kartu putih tanpa awal yang jelas.
+
+          Sudutnya membulat dan ia berdiri di atas sage, tidak menempel ke tepi
+          layar: sidebar sudah navy, dan pelat yang menyentuhnya akan luluh
+          menjadi satu bidang gelap raksasa.
+
+          Tombol yang diserahkan halaman lewat slot `aksi` dibalik warnanya
+          oleh aturan `.pelat-kepala .tombol-garis` di tema.css — bukan oleh
+          setiap halaman mengingatnya sendiri.
+        -->
+        <div
+          class="pelat-kepala px-5 py-5 sm:px-6 print:border print:border-garis print:bg-transparent print:text-utama"
+        >
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div class="min-w-0">
+              <h1 class="font-display text-2xl font-semibold sm:text-[1.75rem]">{{ judul }}</h1>
+              <p
+                v-if="deskripsi"
+                class="mt-1.5 max-w-2xl text-sm text-sidebar-redup print:text-sekunder"
+              >
+                {{ deskripsi }}
+              </p>
+            </div>
+            <slot name="aksi" />
           </div>
-          <slot name="aksi" />
+
+          <!-- Deret garis ukur: motif yang sama dengan halaman depan. -->
+          <div
+            class="skala-ukur skala-terang absolute inset-x-0 bottom-0 h-2.5 print:hidden"
+            aria-hidden="true"
+          ></div>
         </div>
 
         <Transition
