@@ -4,10 +4,12 @@ namespace Tests;
 
 use App\Models\EventAbsen;
 use App\Models\Kiosk;
+use App\Services\CaptchaHitungService;
 use App\Services\KodeUnitEventService;
 use App\Services\SettingAbsenService;
 use App\Support\PengaturanRepository;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Testing\TestResponse;
 
 abstract class TestCase extends BaseTestCase
 {
@@ -43,5 +45,29 @@ abstract class TestCase extends BaseTestCase
             $unitKerjaId ?? $kiosk->unit_kerja_id,
             '127.0.0.1',
         );
+    }
+
+    /**
+     * Kirim formulir masuk admin lengkap dengan jawaban hitungannya.
+     *
+     * CAPTCHA diminta sejak percobaan pertama (FR-AUTH-03), sehingga setiap
+     * uji yang menyentuh `/masuk` harus lebih dulu MEMBUKA layarnya untuk
+     * memperoleh soal — jawabannya tidak pernah dikirim ke klien, ia tinggal
+     * di sesi milik server.
+     *
+     * Disediakan sekali di sini alih-alih disalin ke tiap berkas uji: langkah
+     * "buka layar dulu" adalah bagian dari alur yang sebenarnya, dan uji yang
+     * melewatinya akan menguji keadaan yang tidak pernah dialami siapa pun.
+     *
+     * @param  array<string, mixed>  $kredensial
+     */
+    protected function kirimMasuk(array $kredensial): TestResponse
+    {
+        $this->get('/masuk');
+
+        return $this->post('/masuk', [
+            ...$kredensial,
+            'jawaban_captcha' => (string) session(CaptchaHitungService::KUNCI_SESI),
+        ]);
     }
 }

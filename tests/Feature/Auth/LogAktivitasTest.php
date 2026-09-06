@@ -27,7 +27,7 @@ class LogAktivitasTest extends TestCase
             'password' => Hash::make('rahasia123'),
         ]);
 
-        $this->post('/masuk', [
+        $this->kirimMasuk([
             'email' => 'admin.blksby@capture.test',
             'password' => 'rahasia123',
         ]);
@@ -61,7 +61,7 @@ class LogAktivitasTest extends TestCase
             'password' => Hash::make('rahasia123'),
         ]);
 
-        $this->post('/masuk', [
+        $this->kirimMasuk([
             'email' => 'admin.dinas@capture.test',
             'password' => 'KataSandiSalah123',
         ]);
@@ -81,7 +81,7 @@ class LogAktivitasTest extends TestCase
             'password' => Hash::make('rahasia123'),
         ]);
 
-        $this->post('/masuk', [
+        $this->kirimMasuk([
             'email' => 'mantan.admin@capture.test',
             'password' => 'rahasia123',
         ]);

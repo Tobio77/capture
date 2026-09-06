@@ -16,8 +16,7 @@ import Ikon from '@/Components/Ikon.vue'
  */
 
 defineProps({
-  /** Ditentukan server dari jumlah kegagalan berturut-turut, bukan oleh layar. */
-  perlu_captcha: { type: Boolean, default: false },
+  /** Soal hitungan; dibuat baru server setiap kali halaman ini digambar. */
   soal_captcha: { type: String, default: null },
 })
 
@@ -132,17 +131,19 @@ const kirim = () => {
           </div>
 
           <!--
-            CAPTCHA hitungan (FR-AUTH-03). Muncul hanya setelah beberapa kali
-            gagal berturut-turut — admin yang masuk setiap pagi bukan bot, dan
-            menuntut mereka mengerjakan soal setiap hari adalah biaya harian
-            tanpa manfaat keamanan apa pun.
+            CAPTCHA hitungan (FR-AUTH-03), diminta sejak percobaan pertama.
+
+            Rancangan progresif sebelumnya dibatalkan: bot yang mencoba satu
+            kombinasi pada satu akun lalu berpindah sasaran tidak pernah
+            menyentuh ambang apa pun, sehingga penghalangnya justru tidak
+            pernah terpasang pada pola serangan yang paling umum.
 
             Soalnya berupa TEKS, bukan gambar berhuruf-miring. Gambar menuntut
             `alt` yang menjelaskan isinya bagi pembaca layar, dan begitu
             `alt`-nya benar ia berhenti menjadi penghalang; yang tersisa
             hanyalah admin tunanetra yang terkunci di luar sistemnya sendiri.
           -->
-          <div v-if="perlu_captcha">
+          <div>
             <label for="jawaban-captcha" class="mb-1.5 block text-sm font-medium">
               Verifikasi
             </label>
@@ -169,7 +170,7 @@ const kirim = () => {
             </div>
 
             <p class="mt-1.5 text-xs text-redup">
-              Verifikasi ini muncul karena ada beberapa percobaan masuk yang gagal.
+              Verifikasi sederhana untuk menahan percobaan masuk otomatis.
             </p>
 
             <p v-if="form.errors.jawaban_captcha" class="mt-1.5 text-sm text-peringatan-teks">

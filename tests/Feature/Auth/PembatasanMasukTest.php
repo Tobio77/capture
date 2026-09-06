@@ -7,24 +7,23 @@ use App\Services\AutentikasiService;
 use App\Services\CaptchaHitungService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
-use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 /**
- * Pembatasan laju bertingkat dan CAPTCHA progresif pada login admin
- * (FR-AUTH-01, FR-AUTH-03).
+ * Pembatasan laju bertingkat pada login admin (FR-AUTH-01).
  *
- * Dua hal yang diuji di sini tidak dapat dilihat dari layar mana pun, dan
- * keduanya adalah tempat pertahanan ini paling mudah rusak tanpa disadari:
+ * Yang diuji di sini tidak dapat dilihat dari layar mana pun, dan justru itu
+ * tempat pertahanan ini paling mudah rusak tanpa disadari: **penguncian NAIK
+ * BERTINGKAT**. Penguncian tetap 60 detik selamanya — perilaku sebelum revisi
+ * ini — masih menyisakan 7.200 percobaan per hari bagi skrip yang dibiarkan
+ * berjalan semalaman. Yang dijaga bukan "ada penguncian", melainkan
+ * "penguncian kedua lebih lama".
  *
- *   1. Penguncian NAIK BERTINGKAT. Penguncian tetap 60 detik selamanya —
- *      perilaku sebelum revisi ini — masih menyisakan 7.200 percobaan per hari
- *      bagi skrip yang dibiarkan berjalan semalaman. Yang dijaga bukan
- *      "ada penguncian", melainkan "penguncian kedua lebih lama".
- *   2. CAPTCHA TIDAK muncul di percobaan pertama. Ini syarat pengalaman
- *      pemakaian, dan syarat semacam itu biasanya yang pertama hilang ketika
- *      seseorang kelak menyederhanakan kodenya.
+ * Seluruh percobaan di sini ikut membawa jawaban hitungan, karena CAPTCHA kini
+ * diminta sejak percobaan pertama; tanpa itu yang teruji hanyalah penolakan
+ * CAPTCHA, bukan pembatasan lajunya. Perilaku CAPTCHA-nya sendiri diuji
+ * terpisah di {@see CaptchaLoginTest}.
  */
 class PembatasanMasukTest extends TestCase
 {
@@ -88,7 +87,8 @@ class PembatasanMasukTest extends TestCase
     #[Test]
     public function login_benar_tetap_berhasil_tanpa_hambatan(): void
     {
-        $this->coba('sandi-yang-benar')->assertRedirect(route('dashboard'));
+        $this->coba('sandi-yang-benar', ['jawaban_captcha' => $this->jawabanBenar()])
+            ->assertRedirect(route('dashboard'));
 
         $this->assertAuthenticatedAs($this->admin);
     }
@@ -98,7 +98,7 @@ class PembatasanMasukTest extends TestCase
     {
         $this->gagalSebanyak(AutentikasiService::BATAS_PERCOBAAN);
 
-        $this->coba('sandi-yang-benar')
+        $this->coba('sandi-yang-benar', ['jawaban_captcha' => $this->jawabanBenar()])
             ->assertSessionHasErrors('email');
 
         $this->assertGuest();
@@ -134,14 +134,17 @@ class PembatasanMasukTest extends TestCase
     {
         // Salah ketik sekali pagi ini tidak boleh menghukum orang yang sama
         // besok — hitungannya nol lagi begitu ia berhasil masuk.
-        $this->gagalSebanyak(AutentikasiService::AMBANG_CAPTCHA);
-
-        $this->assertTrue($this->perluCaptcha());
+        $this->gagalSebanyak(AutentikasiService::BATAS_PERCOBAAN - 1);
 
         $this->coba('sandi-yang-benar', ['jawaban_captcha' => $this->jawabanBenar()])
             ->assertRedirect(route('dashboard'));
 
-        $this->assertFalse($this->perluCaptcha());
+        // Empat kegagalan tadi terhapus, sehingga lima kegagalan berikutnya
+        // masih harus dijalani penuh sebelum penguncian berlaku lagi.
+        $this->gagalSebanyak(AutentikasiService::BATAS_PERCOBAAN - 1);
+
+        $this->coba('sandi-yang-benar', ['jawaban_captcha' => $this->jawabanBenar()])
+            ->assertRedirect(route('dashboard'));
     }
 
     #[Test]
@@ -156,98 +159,19 @@ class PembatasanMasukTest extends TestCase
             $this->post('/masuk', [
                 'email' => "orang{$i}@capture.test",
                 'password' => 'sandi-salah',
+                'jawaban_captcha' => $this->jawabanBenar(),
             ]);
         }
 
-        $this->coba('sandi-yang-benar')->assertSessionHasErrors('email');
-
-        $this->assertGuest();
-    }
-
-    /* ---------------------------------------------------------------------
-     * CAPTCHA progresif
-     * ------------------------------------------------------------------- */
-
-    #[Test]
-    public function captcha_tidak_muncul_pada_percobaan_pertama(): void
-    {
-        $this->get('/masuk')
-            ->assertOk()
-            ->assertInertia(fn (Assert $halaman) => $halaman
-                ->component('Auth/Masuk')
-                ->where('perlu_captcha', false)
-                ->where('soal_captcha', null)
-                ->etc());
-    }
-
-    #[Test]
-    public function captcha_muncul_setelah_beberapa_kali_gagal(): void
-    {
-        $this->gagalSebanyak(AutentikasiService::AMBANG_CAPTCHA);
-
-        $this->get('/masuk')
-            ->assertOk()
-            ->assertInertia(fn (Assert $halaman) => $halaman
-                ->where('perlu_captcha', true)
-                ->whereNot('soal_captcha', null)
-                ->etc());
-    }
-
-    #[Test]
-    public function jawaban_captcha_yang_salah_menolak_walau_sandinya_benar(): void
-    {
-        $this->gagalSebanyak(AutentikasiService::AMBANG_CAPTCHA);
-
-        $this->coba('sandi-yang-benar', ['jawaban_captcha' => '9999'])
-            ->assertSessionHasErrors('jawaban_captcha');
-
-        $this->assertGuest();
-    }
-
-    #[Test]
-    public function soal_hangus_sekali_pakai(): void
-    {
-        /*
-         * Soal yang tidak dihanguskan setelah dijawab benar membuat satu
-         * jawaban dapat dipakai berulang untuk seluruh daftar kata sandi —
-         * persis yang hendak dicegah.
-         */
-        $this->gagalSebanyak(AutentikasiService::AMBANG_CAPTCHA);
-
-        $this->coba('sandi-salah', ['jawaban_captcha' => $this->jawabanBenar()]);
-
-        /*
-         * Yang diperiksa: soalnya HANGUS, bukan bahwa jawaban berikutnya
-         * berbeda angka. Jawabannya berkisar 1–18, sehingga soal baru cukup
-         * sering kebetulan berjawaban sama — uji yang membandingkan angkanya
-         * akan merah sesekali tanpa ada yang rusak.
-         */
-        $this->assertNull(
-            session(CaptchaHitungService::KUNCI_SESI),
-            'Soal harus dihanguskan setiap kali dijawab, benar maupun salah — '
-            .'satu jawaban benar yang dapat dipakai berulang membatalkan gunanya.',
-        );
-    }
-
-    #[Test]
-    public function jawaban_captcha_yang_benar_meloloskan_login_yang_sah(): void
-    {
-        $this->gagalSebanyak(AutentikasiService::AMBANG_CAPTCHA);
-
         $this->coba('sandi-yang-benar', ['jawaban_captcha' => $this->jawabanBenar()])
-            ->assertRedirect(route('dashboard'));
+            ->assertSessionHasErrors('email');
 
-        $this->assertAuthenticatedAs($this->admin);
+        $this->assertGuest();
     }
 
     /* ---------------------------------------------------------------------
      * Bantuan
      * ------------------------------------------------------------------- */
-
-    protected function perluCaptcha(): bool
-    {
-        return app(AutentikasiService::class)->perluCaptchaUntuk(request(), 'admin@capture.test');
-    }
 
     /**
      * Sisa detik penguncian yang sedang berlaku, atau null bila tidak terkunci.

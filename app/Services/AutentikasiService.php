@@ -23,12 +23,18 @@ use Illuminate\Validation\ValidationException;
  * iseng, tidak cukup untuk yang membiarkan skripnya berjalan semalaman: 60
  * detik per lima percobaan masih menyisakan 7.200 percobaan per hari.
  *
- * **Lapis kedua — CAPTCHA yang progresif.** Ia BUKAN pengganti lapis pertama,
- * melainkan penghalang tambahan bagi alat isian massal, dan sengaja tidak
- * pernah muncul pada percobaan pertama: admin yang masuk setiap pagi bukan
- * bot, dan menuntut mereka mengerjakan soal hitungan setiap hari adalah biaya
- * harian yang dibayar tanpa manfaat keamanan apa pun. Ia baru muncul setelah
- * {@see self::AMBANG_CAPTCHA} kegagalan berturut-turut.
+ * **Lapis kedua — CAPTCHA sejak percobaan pertama.** Ia BUKAN pengganti lapis
+ * pertama, melainkan penghalang tambahan bagi alat isian massal.
+ *
+ * Rancangan progresif sebelumnya — CAPTCHA baru muncul setelah beberapa
+ * kegagalan — dibatalkan atas permintaan pemilik sistem, dan alasannya kuat:
+ * bot yang mencoba satu kombinasi pada satu akun lalu berpindah sasaran tidak
+ * pernah menyentuh ambang apa pun, sehingga penghalangnya justru tidak pernah
+ * terpasang pada pola serangan yang paling umum. Biayanya satu soal hitungan
+ * bagi admin setiap kali masuk, dan itu dinilai sepadan.
+ *
+ * Cakupannya HANYA layar masuk Panel Admin; layar tap perangkat absen tidak
+ * pernah melewatinya. Lihat {@see CaptchaHitungService}.
  *
  * Hitungan kegagalannya bertahan {@see self::UMUR_HITUNGAN} dan dibersihkan
  * begitu satu login berhasil — sehingga salah ketik sekali pagi ini tidak
@@ -38,9 +44,6 @@ class AutentikasiService
 {
     /** Jumlah gagal berturut-turut sebelum login dikunci sementara. */
     public const int BATAS_PERCOBAAN = 5;
-
-    /** Jumlah gagal berturut-turut sebelum CAPTCHA ikut diminta. */
-    public const int AMBANG_CAPTCHA = 3;
 
     /** Lama hitungan kegagalan bertahan, dalam detik. */
     public const int UMUR_HITUNGAN = 3600;
@@ -71,15 +74,19 @@ class AutentikasiService
          * CAPTCHA diperiksa SEBELUM kata sandi, dan kegagalannya ikut dihitung.
          * Kalau ia diperiksa belakangan, penyerang cukup mengabaikan soalnya
          * dan tetap memperoleh jawaban "sandi benar/salah" dari pesan galat.
+         *
+         * Diminta sejak percobaan PERTAMA. Rancangan progresif sebelumnya —
+         * baru muncul setelah beberapa kegagalan — menukar keamanan dengan
+         * kenyamanan harian, dan pertukaran itu dibatalkan atas permintaan
+         * pemilik sistem: bot yang mencoba satu kombinasi lalu berpindah
+         * sasaran tidak pernah sampai ke ambang mana pun.
          */
-        if ($this->perluCaptcha($kunci)) {
-            if (! $this->captcha->benar($request, $kredensial['jawaban_captcha'] ?? null)) {
-                $this->catatGagal($kunci);
+        if (! $this->captcha->benar($request, $kredensial['jawaban_captcha'] ?? null)) {
+            $this->catatGagal($kunci);
 
-                throw ValidationException::withMessages([
-                    'jawaban_captcha' => 'Jawaban hitungan tidak sesuai. Soal sudah diganti, silakan coba lagi.',
-                ]);
-            }
+            throw ValidationException::withMessages([
+                'jawaban_captcha' => 'Jawaban hitungan tidak sesuai. Soal sudah diganti, silakan coba lagi.',
+            ]);
         }
 
         $berhasil = Auth::attempt(
@@ -108,24 +115,6 @@ class AutentikasiService
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
-    }
-
-    /**
-     * Apakah layar masuk perlu menampilkan CAPTCHA bagi permintaan ini.
-     *
-     * Dipakai juga oleh layar masuk saat digambar, supaya soalnya sudah ada
-     * sebelum pengguna menekan tombol — bukan muncul setelah satu kegagalan
-     * tambahan yang tidak ia mengerti sebabnya.
-     */
-    public function perluCaptchaUntuk(Request $request, ?string $email = null): bool
-    {
-        return $this->perluCaptcha($this->kunciPembatas($request, $email ?? ''))
-            || $this->perluCaptcha($this->kunciAlamat($request));
-    }
-
-    protected function perluCaptcha(string $kunci): bool
-    {
-        return $this->gagalBerturut($kunci) >= self::AMBANG_CAPTCHA;
     }
 
     protected function gagalBerturut(string $kunci): int
@@ -210,11 +199,6 @@ class AutentikasiService
      * memperoleh jatah baru — dan daftar surel dinas mudah ditebak dari pola
      * namanya. Alamat IP-nya yang tidak berganti.
      */
-    protected function kunciAlamat(Request $request): string
-    {
-        return 'ip|'.$request->ip();
-    }
-
     protected function kunciAlamatDari(string $kunci): string
     {
         return 'ip|'.Str::afterLast($kunci, '|');

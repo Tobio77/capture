@@ -30,7 +30,7 @@ class AutentikasiTest extends TestCase
             'password' => Hash::make('rahasia123'),
         ]);
 
-        $this->post('/masuk', [
+        $this->kirimMasuk([
             'email' => 'admin.dinas@capture.test',
             'password' => 'rahasia123',
         ])->assertRedirect('/admin/dashboard');
@@ -46,7 +46,7 @@ class AutentikasiTest extends TestCase
             'password' => Hash::make('rahasia123'),
         ]);
 
-        $this->post('/masuk', [
+        $this->kirimMasuk([
             'email' => 'admin.dinas@capture.test',
             'password' => 'salah',
         ])->assertSessionHasErrors('email');
@@ -62,7 +62,7 @@ class AutentikasiTest extends TestCase
             'password' => Hash::make('rahasia123'),
         ]);
 
-        $this->post('/masuk', [
+        $this->kirimMasuk([
             'email' => 'mantan.admin@capture.test',
             'password' => 'rahasia123',
         ])->assertSessionHasErrors('email');
@@ -108,14 +108,14 @@ class AutentikasiTest extends TestCase
         ]);
 
         for ($percobaan = 0; $percobaan < AutentikasiService::BATAS_PERCOBAAN; $percobaan++) {
-            $this->post('/masuk', [
+            $this->kirimMasuk([
                 'email' => 'admin.dinas@capture.test',
                 'password' => 'salah',
             ]);
         }
 
         // Kredensial benar pun ditolak selama masa penguncian.
-        $respons = $this->post('/masuk', [
+        $respons = $this->kirimMasuk([
             'email' => 'admin.dinas@capture.test',
             'password' => 'rahasia123',
         ]);

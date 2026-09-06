@@ -19,20 +19,16 @@ class SesiController extends Controller
     ) {}
 
     /**
-     * Tampilkan formulir masuk admin.
+     * Tampilkan formulir masuk admin (FR-AUTH-03).
      *
-     * CAPTCHA-nya progresif (FR-AUTH-03): ia tidak pernah muncul pada
-     * percobaan pertama, dan soalnya sudah tersedia SEBELUM tombol ditekan —
-     * bukan muncul sesudah satu kegagalan tambahan yang tidak dimengerti
-     * sebabnya oleh orang yang sedang buru-buru.
+     * Soal dibuat BARU setiap kali formulirnya digambar, bukan dipakai ulang.
+     * Halaman ini digambar lagi setiap kali login gagal, sehingga jawaban lama
+     * tidak pernah dapat diputar ulang untuk percobaan berikutnya.
      */
     public function create(Request $request): Response
     {
-        $perlu = $this->autentikasi->perluCaptchaUntuk($request);
-
         return Inertia::render('Auth/Masuk', [
-            'perlu_captcha' => $perlu,
-            'soal_captcha' => $perlu ? $this->captcha->soal($request) : null,
+            'soal_captcha' => $this->captcha->buat($request),
         ]);
     }
 
