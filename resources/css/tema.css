@@ -1167,6 +1167,16 @@ button:focus-visible {
      * bukan bayangan yang ditebalkan.
      */
     .kartu-jam {
+        /*
+         * Tinta dinyatakan sendiri, tidak diwarisi.
+         *
+         * Sejak kartu ini pindah ke DALAM pelat navy, ia mewarisi warna teks
+         * terang milik pelat — dan angka jamnya nyaris lenyap di atas kaca
+         * yang terang. Tanggal di bawahnya tetap terbaca hanya karena kebetulan
+         * menyebut kelas `text-utama` secara eksplisit; justru itulah yang
+         * menunjukkan sebabnya.
+         */
+        color: var(--tema-utama);
         background-color: var(--tema-kaca);
         /*
          * Hanya properti standarnya yang ditulis.

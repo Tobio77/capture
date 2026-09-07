@@ -76,15 +76,19 @@ const sudahIkutEvent = computed(() => props.event_diikuti !== null)
  */
 const perangkatAdHoc = computed(() => props.perangkat?.sumber === 'ad_hoc')
 
-const namaPerangkat = computed(() =>
-  perangkatAdHoc.value
+const namaPerangkat = computed(() => {
+  if (props.perangkat === null) return null
+
+  return perangkatAdHoc.value
     ? (props.perangkat.unit_kerja?.nama ?? 'Perangkat dadakan')
-    : props.perangkat.nama_titik,
-)
+    : props.perangkat.nama_titik
+})
 
 /* Perangkat terdaftar punya nama tempat; unitnya keterangan kedua yang nyata. */
 const unitPerangkat = computed(() =>
-  perangkatAdHoc.value ? null : (props.perangkat.unit_kerja?.nama ?? null),
+  props.perangkat === null || perangkatAdHoc.value
+    ? null
+    : (props.perangkat.unit_kerja?.nama ?? null),
 )
 
 /*
@@ -187,6 +191,36 @@ const status = computed(() => {
 const pitaUmum = useMiring()
 const pitaEvent = useMiring()
 
+/*
+ * Tiga keterangan bantuan di kaki halaman.
+ *
+ * Ditulis di sini, bukan di template, karena isinya bergantung keadaan: yang
+ * ketiga menyebut unit kerja perangkat ini ketika ia sudah diaktifkan, dan
+ * kalimat umum ketika belum.
+ */
+const bantuanSingkat = computed(() => [
+  {
+    ikon: 'kartu',
+    nada: 'nada-teal',
+    judul: 'Kartu tidak terbaca?',
+    isi: 'Ketik NIP secara manual pada kolom yang sama, lalu tekan Enter.',
+  },
+  {
+    ikon: 'wajah',
+    nada: 'nada-langit',
+    judul: 'Wajah tidak cocok?',
+    isi: 'Perbaiki pencahayaan dan hadapkan wajah lurus ke kamera, lalu ulangi.',
+  },
+  {
+    ikon: 'info',
+    nada: 'nada-biru',
+    judul: 'Masih gagal?',
+    isi: unitPerangkat.value
+      ? `Hubungi admin ${unitPerangkat.value} untuk dicatat manual.`
+      : 'Hubungi admin unit kerja Anda untuk dicatat manual.',
+  },
+])
+
 const langkah = ref(null)
 
 const formKode = useForm({ kode: '' })
@@ -243,216 +277,200 @@ const tanggalRingkas = (nilai) =>
 <template>
   <Head title="Titik Absen" />
 
+  <!--
+    SATU WADAH untuk seluruh halaman.
+
+    Sebelumnya pelat navy melebar dari tepi ke tepi sementara isinya duduk di
+    dalam wadah selebar 5xl — dua sistem tepi yang berbeda pada satu layar,
+    dan kartu di bawahnya karena itu tampak tidak berhubungan dengan bidang di
+    atasnya. Kini semuanya berbagi wadah, jarak tepi, dan lengkung sudut yang
+    sama.
+  -->
   <div class="flex min-h-screen flex-col bg-kertas text-utama">
-    <!--
-      PELAT NAVY.
-
-      Tingginya tidak dipatok angka: ia setinggi isinya, dan kartu jam ditarik
-      naik menimpa tepinya dengan margin negatif. Dengan begitu perbatasan
-      navy–sage selalu jatuh di tempat yang sama relatif terhadap kartu jam,
-      berapa pun tinggi layarnya — patokan yang tidak dapat diberikan oleh
-      tinggi tetap dalam satuan vh.
-    -->
-    <div class="pelat-navy tahap tahap-pelat relative overflow-hidden" style="--lama: 380ms">
+    <div class="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 py-4 sm:px-6 sm:py-5">
       <!--
-        Tiga bola cahaya yang mengapung pelan, bukan puluhan partikel.
-
-        Seluruhnya CSS: yang beranimasi hanya `transform`, pada elemen yang
-        buramnya tetap — sehingga peramban merasterkannya sekali lalu tinggal
-        memindahkannya di GPU. Tidak ada pustaka partikel, tidak ada kanvas,
-        tidak ada yang memicu tata letak dihitung ulang.
-
-        Warnanya diturunkan dari teal, emerald, dan cyan yang sudah ada. Ia
-        harus terbaca sebagai cahaya ruangan, bukan sebagai gelembung.
+        PELAT NAVY — kini sebuah objek yang berdiri di atas sage, bukan pita
+        yang memotong layar. Sudutnya membulat sebesar kartu di bawahnya.
       -->
-      <div class="bola bola-1" aria-hidden="true"></div>
-      <div class="bola bola-2" aria-hidden="true"></div>
-      <div class="bola bola-3" aria-hidden="true"></div>
-
-      <div class="relative mx-auto w-full max-w-5xl px-6">
+      <div
+        class="pelat-navy tahap tahap-pelat relative overflow-hidden rounded-3xl"
+        style="--lama: 380ms"
+      >
         <!--
-          Strip identitas. Sengaja setipis mungkin: ia menjawab pertanyaan yang
-          hanya ditanyakan sekali ("mesin ini melayani unit mana?") dan tidak
-          boleh bersaing dengan jam.
+          Tiga bola cahaya yang mengapung pelan, bukan puluhan partikel.
+
+          Seluruhnya CSS: yang beranimasi hanya `transform`, pada elemen yang
+          buramnya tetap — sehingga peramban merasterkannya sekali lalu tinggal
+          memindahkannya di GPU. Tidak ada pustaka partikel, tidak ada kanvas,
+          tidak ada yang memicu tata letak dihitung ulang.
         -->
-        <header
-          class="tahap tahap-redup flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-4"
-          style="--tunda: 180ms"
-        >
-          <p class="flex min-w-0 items-center gap-2.5">
-            <span
-              class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/15 text-sidebar-teks"
-            >
-              <Ikon nama="absen" ukuran="h-3.5 w-3.5" />
-            </span>
-            <span class="min-w-0 leading-tight">
-              <span class="block truncate font-display text-sm font-semibold text-sidebar-teks">
-                Capture
-              </span>
-              <span class="block truncate text-[0.6875rem] text-sidebar-redup">
-                Disnakertrans Provinsi Jawa Timur
-              </span>
-            </span>
-          </p>
+        <div class="bola bola-1" aria-hidden="true"></div>
+        <div class="bola bola-2" aria-hidden="true"></div>
+        <div class="bola bola-3" aria-hidden="true"></div>
 
-          <div class="flex min-w-0 items-center gap-3">
+        <div class="relative px-5 pb-7 pt-4 sm:px-7 sm:pb-8">
+          <!--
+            Strip identitas. Sengaja setipis mungkin: ia menjawab pertanyaan
+            yang hanya ditanyakan sekali ("mesin ini melayani unit mana?") dan
+            tidak boleh bersaing dengan jam.
+          -->
+          <header
+            class="tahap tahap-redup flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-white/10 pb-3"
+            style="--tunda: 180ms"
+          >
+            <p class="flex min-w-0 items-center gap-2.5">
+              <span
+                class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/15 text-sidebar-teks"
+              >
+                <Ikon nama="absen" ukuran="h-3.5 w-3.5" />
+              </span>
+              <span class="min-w-0 leading-tight">
+                <span class="block truncate font-display text-sm font-semibold text-sidebar-teks">
+                  Capture
+                </span>
+                <span class="block truncate text-[0.6875rem] text-sidebar-redup">
+                  Disnakertrans Provinsi Jawa Timur
+                </span>
+              </span>
+            </p>
+
+            <div class="flex min-w-0 items-center gap-3">
+              <span
+                v-if="perangkatAdHoc"
+                class="shrink-0 rounded-full bg-amber-400/20 px-2.5 py-1 text-[0.6875rem] font-semibold text-amber-200"
+              >
+                Ad-hoc
+              </span>
+
+              <p class="flex min-w-0 items-center gap-2 text-xs text-sidebar-redup">
+                <span v-if="perangkatAktif" class="relative flex h-2 w-2 shrink-0">
+                  <span
+                    class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-60"
+                  ></span>
+                  <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-300"></span>
+                </span>
+                <span v-else class="h-2 w-2 shrink-0 rounded-full bg-sidebar-redup"></span>
+
+                <span v-if="!perangkatAktif" class="truncate font-medium">
+                  Perangkat belum diaktifkan
+                </span>
+
+                <span v-else class="min-w-0 leading-tight">
+                  <span class="block truncate font-medium text-sidebar-teks">
+                    {{ namaPerangkat }}
+                  </span>
+                  <span v-if="unitPerangkat" class="block truncate text-[0.6875rem]">
+                    {{ unitPerangkat }}
+                  </span>
+                </span>
+              </p>
+
+              <SaklarTema />
+            </div>
+          </header>
+
+          <!--
+            HERO sebagai satu blok.
+
+            Sebelumnya tanggal dan status duduk di sudut kanan atas sementara
+            jam berada di kiri bawah — dua sudut berlawanan, dan mata harus
+            menyeberangi kanvas kosong untuk menghubungkan keduanya. Kini
+            keduanya bersebelahan: tanggal MASUK ke dalam kartu jam, dan status
+            berdiri tepat di sampingnya sebagai vonis atas angka itu.
+          -->
+          <div class="mt-6 flex flex-col gap-5 sm:mt-7 md:flex-row md:items-stretch md:gap-7">
             <!--
-              Perangkat dadakan ditandai terpisah dan berwarna lain dari titik
-              hijau "tersambung": ia bukan keadaan sehat yang berjalan normal,
-              melainkan pengingat bahwa Mode Terbuka sedang menyala dan
-              perangkat ini belum pernah ditinjau siapa pun.
+              Kartu jam. Kaca di atas navy — di sinilah buramnya paling
+              terbaca, karena yang di belakangnya bergradasi dan bergerak.
             -->
-            <span
-              v-if="perangkatAdHoc"
-              class="shrink-0 rounded-full bg-amber-400/20 px-2.5 py-1 text-[0.6875rem] font-semibold text-amber-200"
+            <div
+              class="kartu-jam tahap tahap-kartu relative overflow-hidden px-6 py-6 sm:px-8"
+              style="--tunda: 300ms; --lama: 560ms"
             >
-              Ad-hoc
-            </span>
+              <div class="skala-tegak absolute bottom-6 left-0 top-6 w-4" aria-hidden="true"></div>
 
-            <p class="flex min-w-0 items-center gap-2 text-xs text-sidebar-redup">
-              <span v-if="perangkatAktif" class="relative flex h-2 w-2 shrink-0">
+              <p class="flex items-center gap-4 pl-7 font-display tabular-nums">
                 <span
-                  class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-60"
-                ></span>
-                <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-300"></span>
-              </span>
-              <span v-else class="h-2 w-2 shrink-0 rounded-full bg-sidebar-redup"></span>
-
-              <span v-if="!perangkatAktif" class="truncate font-medium">
-                Perangkat belum diaktifkan
-              </span>
-
-              <span v-else class="min-w-0 leading-tight">
-                <span class="block truncate font-medium text-sidebar-teks">
-                  {{ namaPerangkat }}
+                  class="font-bold leading-[0.85] tracking-[-0.05em]"
+                  style="font-size: clamp(4.5rem, 13vw, 8.5rem)"
+                >
+                  {{ jam }}
                 </span>
-                <span v-if="unitPerangkat" class="block truncate text-[0.6875rem]">
-                  {{ unitPerangkat }}
+                <!--
+                  Detik memakai tinta PENUH, bukan `text-redup`. Kartu ini
+                  kaca, dan latar di belakangnya berbeda jauh antar-sisinya;
+                  teks redup hanya mencapai 3,2:1 di bagian tergelapnya. Yang
+                  membedakannya dari jam adalah ukuran dan bobot, dua hal yang
+                  tidak bergantung pada apa pun di belakangnya.
+                -->
+                <span class="font-medium leading-none" style="font-size: clamp(1.25rem, 3vw, 2rem)">
+                  {{ detik }}
                 </span>
-              </span>
-            </p>
+              </p>
 
-            <SaklarTema />
-          </div>
-        </header>
-
-        <!--
-          Tanggal dan status dirapatkan ke KANAN pelat, bukan ditumpuk di bawah
-          jam. Bersama kartu jam yang digeser ke kiri, keduanya membentuk alur
-          baca menyerong — susunan yang tidak mungkin muncul dari satu poros
-          tengah, dan itulah bedanya dengan versi sebelumnya.
-        -->
-        <div class="flex justify-end pb-28 pt-7 text-right sm:pb-32">
-          <div class="max-w-sm">
-            <p
-              class="tahap tahap-redup font-display text-xl font-medium leading-tight text-sidebar-teks sm:text-2xl"
-              style="--tunda: 260ms"
-            >
-              {{ tanggalPanjang }}
-            </p>
+              <p
+                class="mt-3 border-t border-garis pl-7 pt-3 font-display text-base font-medium text-utama sm:text-lg"
+              >
+                {{ tanggalPanjang }}
+              </p>
+            </div>
 
             <!--
-              Keping status. Satu-satunya tempat emerald dan amber muncul di
-              layar ini, dan keduanya menyampaikan keterangan yang tidak dapat
-              dibaca dari jam saja: apakah orang yang berdiri di sini masih
-              tepat waktu. Warnanya tetap datar — begitu warna semantik ikut
-              digradasi, ia berhenti berarti apa-apa.
-
-              Ia muncul PALING AKHIR dalam koreografi masuk, karena ia vonis,
-              dan vonis datang setelah jamnya terbaca.
+              Kolom pendamping. Ia yang membuat kartu jam tidak berdiri
+              sendirian di kanvas navy yang luas, dan isinya memang milik jam
+              itu: sampai pukul berapa masih dihitung tepat waktu.
             -->
-            <p
-              class="tahap tahap-redup mt-3 inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[0.8125rem] font-medium"
-              :class="status.kelas"
-              style="--tunda: 780ms"
-            >
-              <span class="h-1.5 w-1.5 rounded-full" :class="status.titik"></span>
-              {{ status.teks }}
-            </p>
+            <div class="flex min-w-0 flex-1 flex-col justify-center gap-3">
+              <p
+                class="tahap tahap-redup inline-flex w-fit items-center gap-2 rounded-full px-3.5 py-1.5 text-[0.8125rem] font-medium"
+                :class="status.kelas"
+                style="--tunda: 780ms"
+              >
+                <span class="h-1.5 w-1.5 rounded-full" :class="status.titik"></span>
+                {{ status.teks }}
+              </p>
 
-            <p class="tahap tahap-redup mt-2 text-sm text-sidebar-redup" style="--tunda: 820ms">
-              {{ konteks }}
-            </p>
+              <p class="tahap tahap-redup text-sm text-sidebar-redup" style="--tunda: 820ms">
+                {{ konteks }}
+              </p>
+
+              <p
+                v-if="sukses"
+                class="rounded-xl bg-emerald-400/15 px-3.5 py-2.5 text-sm text-emerald-200"
+              >
+                {{ sukses }}
+              </p>
+
+              <p v-if="gagal" class="rounded-xl bg-rose-400/15 px-3.5 py-2.5 text-sm text-rose-200">
+                {{ gagal }}
+              </p>
+            </div>
           </div>
         </div>
+
+        <!--
+          Deret garis ukur di tepi bawah pelat: motif utama halaman ini,
+          diambil dari irisan tiga kejuruan BLK — meteran penjahit, mistar las,
+          sigmat otomotif — yang ternyata satu primitif dengan piringan jam.
+        -->
+        <div
+          class="skala-ukur skala-terang tahap tahap-skala absolute inset-x-0 bottom-0 h-3"
+          style="--tunda: 200ms; --lama: 560ms"
+          aria-hidden="true"
+        ></div>
       </div>
 
       <!--
-        Deret garis ukur di tepi pelat: motif utama halaman ini, diambil dari
-        irisan tiga kejuruan BLK — meteran penjahit, mistar las, sigmat
-        otomotif — yang ternyata satu primitif dengan piringan jam.
-
-        Ia tergambar kiri ke kanan sebagai tahap kedua koreografi, seperti
-        meteran yang ditarik keluar.
-      -->
-      <div
-        class="skala-ukur skala-terang tahap tahap-skala absolute inset-x-0 bottom-0 h-3"
-        style="--tunda: 200ms; --lama: 560ms"
-        aria-hidden="true"
-      ></div>
-    </div>
-
-    <main class="mx-auto -mt-16 w-full max-w-5xl flex-1 px-6 pb-10 sm:-mt-20">
-      <!--
-        KARTU JAM. Melanggar perbatasan navy–sage, dan digeser dari poros
-        tengah. Perbatasan yang dilanggar itulah yang memberi kedalaman —
-        bukan bayangan yang ditebalkan.
-      -->
-      <div
-        class="kartu-jam tahap tahap-kartu relative inline-block overflow-hidden px-7 py-6 sm:px-9"
-        style="--tunda: 300ms; --lama: 560ms"
-      >
-        <!-- Penanda kedua motifnya, tegak, di sisi kartu. -->
-        <div class="skala-tegak absolute bottom-6 left-0 top-6 w-4" aria-hidden="true"></div>
-
-        <p class="flex items-center gap-4 pl-8 font-display tabular-nums">
-          <span
-            class="font-bold leading-[0.85] tracking-[-0.05em]"
-            style="font-size: clamp(4.25rem, 12vw, 7.5rem)"
-          >
-            {{ jam }}
-          </span>
-          <!--
-            Detik memakai tinta PENUH, bukan `text-redup`.
-
-            Kartu ini kini kaca, dan latar di belakangnya berbeda jauh antara
-            sisi yang menimpa navy dan sisi yang menimpa sage. Teks redup hanya
-            mencapai 3,2:1 di bagian tergelapnya — di bawah ambang WCAG AA.
-            Yang membedakannya dari jam karena itu ukuran dan bobot, dua hal
-            yang tidak bergantung pada apa pun di belakangnya.
-          -->
-          <span class="font-medium leading-none" style="font-size: clamp(1.1rem, 2.8vw, 1.75rem)">
-            {{ detik }}
-          </span>
-        </p>
-      </div>
-
-      <p
-        v-if="sukses"
-        class="mt-5 rounded-xl bg-berhasil-lembut px-4 py-3 text-sm text-berhasil-teks"
-      >
-        {{ sukses }}
-      </p>
-
-      <p
-        v-if="gagal"
-        class="mt-5 rounded-xl bg-peringatan-lembut px-4 py-3 text-sm text-peringatan-teks"
-      >
-        {{ gagal }}
-      </p>
-
-      <!--
-        Dua pilihan. Tetap selebar layar dan bertumpuk — ergonomi layar sentuh
+        Dua pilihan. Tetap selebar wadah dan bertumpuk — ergonomi layar sentuh
         yang dioperasikan sambil berdiri tidak diutak-atik. Yang dibedakan
         BOBOTNYA: yang utama lebih tinggi dan bergradasi, yang kedua lebih
-        pendek dan bergaris. Dua kotak identik bersebelahan justru pola yang
-        sudah dibuang.
+        pendek dan bergaris.
       -->
-      <div class="mt-8 flex flex-col gap-3.5">
+      <div class="mt-4 flex flex-col gap-3 sm:mt-5">
         <button
           ref="pitaUmum"
           type="button"
-          class="pita-utama kilau tautan-aksi tahap tahap-pita group flex min-h-[7rem] w-full items-center gap-5 px-6 py-5 text-left active:scale-[0.995] sm:px-8"
+          class="pita-utama kilau tautan-aksi tahap tahap-pita group flex min-h-[6.5rem] w-full items-center gap-5 px-6 py-5 text-left active:scale-[0.995] sm:px-8"
           style="--tunda: 520ms"
           @click="pilihAbsenUmum"
         >
@@ -460,12 +478,6 @@ const tanggalRingkas = (nilai) =>
 
           <span class="min-w-0 flex-1">
             <span class="block font-display text-2xl font-semibold">Absen Umum</span>
-            <!--
-              Putih penuh, bukan putih 75%. Meredupkan teks kecil di atas latar
-              berwarna menjatuhkan kontrasnya dari 5,47 ke 3,83 — di bawah
-              ambang WCAG AA — dan itu tidak terlihat oleh siapa pun sampai
-              rasionya benar-benar dihitung.
-            -->
             <span class="mt-0.5 block text-sm text-white">
               {{ absen_umum_aktif ? 'Datang dan pulang harian' : 'Sedang dimatikan admin' }}
             </span>
@@ -481,7 +493,7 @@ const tanggalRingkas = (nilai) =>
         <button
           ref="pitaEvent"
           type="button"
-          class="pita-kedua kilau tautan-aksi tahap tahap-pita group flex min-h-[6rem] w-full items-center gap-5 px-6 py-4 text-left active:scale-[0.995] sm:px-8"
+          class="pita-kedua kilau tautan-aksi tahap tahap-pita group flex min-h-[5.5rem] w-full items-center gap-5 px-6 py-4 text-left active:scale-[0.995] sm:px-8"
           :class="langkah === 'event' && 'border-aksen'"
           style="--tunda: 620ms"
           @click="pilihAbsenEvent"
@@ -573,13 +585,34 @@ const tanggalRingkas = (nilai) =>
           </p>
         </section>
       </Transition>
-    </main>
 
-    <!-- Kaki: aksi yang jarang dipakai, dan memang tidak untuk yang mengantre. -->
-    <footer class="border-t border-garis">
-      <div
-        class="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-6 py-3 text-xs"
-      >
+      <!--
+        BANTUAN SINGKAT, mengisi ruang yang sebelumnya kosong tanpa alasan.
+
+        Bukan pengisi: ketiganya menjawab pertanyaan yang benar-benar muncul di
+        depan layar ini — kartu yang tidak terbaca, wajah yang tidak cocok, dan
+        siapa yang harus dihubungi ketika keduanya gagal. Petugas yang tahu
+        jawabannya tidak perlu meninggalkan antrean untuk mencari orang.
+      -->
+      <div class="mt-4 grid grid-cols-1 gap-3 sm:mt-5 sm:grid-cols-2 lg:grid-cols-3">
+        <p
+          v-for="(bantuan, urutan) in bantuanSingkat"
+          :key="bantuan.judul"
+          class="tahap tahap-redup flex items-start gap-2.5 rounded-xl border border-garis bg-permukaan px-3.5 py-3"
+          :style="{ '--tunda': `${880 + urutan * 60}ms` }"
+        >
+          <span class="ubin-ikon ubin-gradasi h-8 w-8 shrink-0" :class="bantuan.nada">
+            <Ikon :nama="bantuan.ikon" ukuran="h-4 w-4" />
+          </span>
+          <span class="min-w-0 leading-snug">
+            <span class="block text-sm font-medium text-utama">{{ bantuan.judul }}</span>
+            <span class="mt-0.5 block text-xs text-sekunder">{{ bantuan.isi }}</span>
+          </span>
+        </p>
+      </div>
+
+      <!-- Kaki: aksi yang jarang dipakai, dan memang tidak untuk yang mengantre. -->
+      <footer class="mt-4 flex flex-wrap items-center justify-between gap-3 pt-3 text-xs sm:mt-5">
         <p v-if="!perangkatAktif" class="text-redup">
           {{
             aktivasi_tanpa_kode
@@ -603,7 +636,7 @@ const tanggalRingkas = (nilai) =>
         >
           {{ pengguna ? 'Panel Admin' : 'Masuk Admin' }}
         </Link>
-      </div>
-    </footer>
+      </footer>
+    </div>
   </div>
 </template>
