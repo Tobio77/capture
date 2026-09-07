@@ -5,6 +5,7 @@ import Ikon from '@/Components/Ikon.vue'
 import TandaAbsen from '@/Components/UI/TandaAbsen.vue'
 import SaklarTema from '@/Components/UI/SaklarTema.vue'
 import { useJamServer } from '@/Composables/useJamServer'
+import { useMiring } from '@/Composables/useMiring'
 
 /**
  * Halaman depan titik absen — "Pelat Bengkel" (S32).
@@ -131,19 +132,60 @@ const batasTertulis = computed(() =>
  * dipertahankan justru bagian yang berarti — keduanya tetap DATAR, tanpa
  * gradasi. Begitu warna semantik ikut dihias, ia berhenti menyatakan apa pun.
  */
-const status = computed(() =>
-  masihTepat.value
-    ? {
-        kelas: 'bg-emerald-400/15 text-emerald-200',
-        titik: 'bg-emerald-300',
-        teks: `Masih tepat waktu — batas ${batasTertulis.value}`,
-      }
-    : {
-        kelas: 'bg-amber-400/15 text-amber-200',
-        titik: 'bg-amber-300',
-        teks: `Lewat batas ${batasTertulis.value} — tercatat terlambat`,
-      },
+/** Menit yang sudah lewat dari batas tepat waktu; negatif berarti belum. */
+const menitLewat = computed(() =>
+  Math.round((sekarang.value.getTime() - batas.value.getTime()) / 60000),
 )
+
+/**
+ * Ambang "terlambat parah".
+ *
+ * Satu jam, bukan lima menit: terlambat sepuluh menit adalah kejadian sehari-
+ * hari yang cukup ditandai amber, sementara terlambat lebih dari sejam adalah
+ * hal lain — dan menandai keduanya sama membuat yang kedua tenggelam.
+ */
+const AMBANG_PARAH = 60
+
+const status = computed(() => {
+  if (masihTepat.value) {
+    return {
+      kelas: 'bg-emerald-400/15 text-emerald-200',
+      titik: 'bg-emerald-300',
+      teks: `Masih tepat waktu — batas ${batasTertulis.value}`,
+    }
+  }
+
+  const lewat = menitLewat.value
+
+  /*
+   * ROSE untuk terlambat parah, amber untuk terlambat biasa. Dua tingkat
+   * keseriusan yang memakai satu warna berarti keduanya berhenti berarti.
+   */
+  if (lewat >= AMBANG_PARAH) {
+    const jam = Math.floor(lewat / 60)
+    const menit = lewat % 60
+
+    return {
+      kelas: 'bg-rose-400/15 text-rose-200',
+      titik: 'bg-rose-300',
+      teks: `Lewat ${jam} jam ${menit} menit dari batas ${batasTertulis.value}`,
+    }
+  }
+
+  return {
+    kelas: 'bg-amber-400/15 text-amber-200',
+    titik: 'bg-amber-300',
+    teks: `Lewat ${lewat} menit dari batas ${batasTertulis.value} — tercatat terlambat`,
+  }
+})
+
+/*
+ * Kemiringan 3D pada dua baris pilihan. Satu pemanggilan per baris karena
+ * masing-masing punya kotak sendiri; sudutnya dihitung relatif terhadap kotak
+ * itu, bukan terhadap halaman.
+ */
+const pitaUmum = useMiring()
+const pitaEvent = useMiring()
 
 const langkah = ref(null)
 
@@ -211,8 +253,23 @@ const tanggalRingkas = (nilai) =>
       berapa pun tinggi layarnya — patokan yang tidak dapat diberikan oleh
       tinggi tetap dalam satuan vh.
     -->
-    <div class="pelat-navy tahap tahap-pelat relative" style="--lama: 380ms">
-      <div class="mx-auto w-full max-w-5xl px-6">
+    <div class="pelat-navy tahap tahap-pelat relative overflow-hidden" style="--lama: 380ms">
+      <!--
+        Tiga bola cahaya yang mengapung pelan, bukan puluhan partikel.
+
+        Seluruhnya CSS: yang beranimasi hanya `transform`, pada elemen yang
+        buramnya tetap — sehingga peramban merasterkannya sekali lalu tinggal
+        memindahkannya di GPU. Tidak ada pustaka partikel, tidak ada kanvas,
+        tidak ada yang memicu tata letak dihitung ulang.
+
+        Warnanya diturunkan dari teal, emerald, dan cyan yang sudah ada. Ia
+        harus terbaca sebagai cahaya ruangan, bukan sebagai gelembung.
+      -->
+      <div class="bola bola-1" aria-hidden="true"></div>
+      <div class="bola bola-2" aria-hidden="true"></div>
+      <div class="bola bola-3" aria-hidden="true"></div>
+
+      <div class="relative mx-auto w-full max-w-5xl px-6">
         <!--
           Strip identitas. Sengaja setipis mungkin: ia menjawab pertanyaan yang
           hanya ditanyakan sekali ("mesin ini melayani unit mana?") dan tidak
@@ -355,10 +412,16 @@ const tanggalRingkas = (nilai) =>
           >
             {{ jam }}
           </span>
-          <span
-            class="font-medium leading-none text-redup"
-            style="font-size: clamp(1.1rem, 2.8vw, 1.75rem)"
-          >
+          <!--
+            Detik memakai tinta PENUH, bukan `text-redup`.
+
+            Kartu ini kini kaca, dan latar di belakangnya berbeda jauh antara
+            sisi yang menimpa navy dan sisi yang menimpa sage. Teks redup hanya
+            mencapai 3,2:1 di bagian tergelapnya — di bawah ambang WCAG AA.
+            Yang membedakannya dari jam karena itu ukuran dan bobot, dua hal
+            yang tidak bergantung pada apa pun di belakangnya.
+          -->
+          <span class="font-medium leading-none" style="font-size: clamp(1.1rem, 2.8vw, 1.75rem)">
             {{ detik }}
           </span>
         </p>
@@ -387,8 +450,9 @@ const tanggalRingkas = (nilai) =>
       -->
       <div class="mt-8 flex flex-col gap-3.5">
         <button
+          ref="pitaUmum"
           type="button"
-          class="pita-utama tautan-aksi tahap tahap-pita group flex min-h-[7rem] w-full items-center gap-5 px-6 py-5 text-left transition-transform duration-150 active:scale-[0.995] sm:px-8"
+          class="pita-utama kilau tautan-aksi tahap tahap-pita group flex min-h-[7rem] w-full items-center gap-5 px-6 py-5 text-left active:scale-[0.995] sm:px-8"
           style="--tunda: 520ms"
           @click="pilihAbsenUmum"
         >
@@ -415,8 +479,9 @@ const tanggalRingkas = (nilai) =>
         </button>
 
         <button
+          ref="pitaEvent"
           type="button"
-          class="pita-kedua tautan-aksi tahap tahap-pita group flex min-h-[6rem] w-full items-center gap-5 px-6 py-4 text-left transition-transform duration-150 active:scale-[0.995] sm:px-8"
+          class="pita-kedua kilau tautan-aksi tahap tahap-pita group flex min-h-[6rem] w-full items-center gap-5 px-6 py-4 text-left active:scale-[0.995] sm:px-8"
           :class="langkah === 'event' && 'border-aksen'"
           style="--tunda: 620ms"
           @click="pilihAbsenEvent"

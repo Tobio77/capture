@@ -204,6 +204,22 @@
     --tema-tik: rgb(15 42 67 / 0.16);
     --tema-tik-kuat: rgb(15 42 67 / 0.3);
 
+    /*
+     * KACA (S36). Permukaan tembus pandang untuk kartu jam halaman depan.
+     *
+     * Alfa 0,74 bukan pilihan rasa: kartunya menimpa perbatasan navy–sage,
+     * sehingga latar di belakangnya berbeda jauh antara sisi kiri dan kanan.
+     * Pada 0,74 tinta navy tetap 8,67:1 bahkan di bagian yang menimpa navy —
+     * jauh di atas ambang WCAG AA — sementara buramnya masih terlihat.
+     *
+     * Konsekuensinya: hierarki di dalam kartu ini TIDAK boleh mengandalkan
+     * warna. Teks redup (#556978) hanya mencapai 3,2:1 di atas kaca yang
+     * menimpa navy. Yang membedakan jam dari detik karena itu ukuran dan
+     * bobotnya, bukan kepudarannya.
+     */
+    --tema-kaca: rgb(251 252 249 / 0.74);
+    --tema-kaca-garis: rgb(255 255 255 / 0.55);
+
     /* Tinta tetap navy: identitas struktural proyek tidak ikut bergeser. */
     --tema-utama: #0f2a43;
     --tema-sekunder: #445f76;
@@ -296,6 +312,9 @@
         --tema-tik: rgb(233 242 248 / 0.18);
         --tema-tik-kuat: rgb(233 242 248 / 0.34);
 
+        --tema-kaca: rgb(16 39 60 / 0.62);
+        --tema-kaca-garis: rgb(255 255 255 / 0.14);
+
         --tema-utama: #e9f2f8;
         --tema-sekunder: #b6cbdc;
         --tema-redup: #849fb6;
@@ -352,6 +371,9 @@
 
     --tema-tik: rgb(233 242 248 / 0.18);
     --tema-tik-kuat: rgb(233 242 248 / 0.34);
+
+    --tema-kaca: rgb(16 39 60 / 0.62);
+    --tema-kaca-garis: rgb(255 255 255 / 0.14);
 
     --tema-utama: #e9f2f8;
     --tema-sekunder: #b6cbdc;
@@ -1081,14 +1103,7 @@ button:focus-visible {
      */
     .pelat-navy {
         background-color: var(--navy-pelat, #0f2a43);
-        background-image:
-            radial-gradient(
-                40rem 24rem at 82% 6%,
-                rgb(13 148 136 / 0.62),
-                rgb(13 148 136 / 0) 72%
-            ),
-            radial-gradient(30rem 20rem at 4% 96%, rgb(5 150 105 / 0.34), rgb(5 150 105 / 0) 74%),
-            linear-gradient(148deg, #0f2a43 0%, #0b2035 62%, #0a1c2f 100%);
+        background-image: linear-gradient(148deg, #123252 0%, #0b2035 62%, #0a1c2f 100%);
         color: var(--tema-sidebar-teks);
     }
 
@@ -1152,8 +1167,18 @@ button:focus-visible {
      * bukan bayangan yang ditebalkan.
      */
     .kartu-jam {
-        background-color: var(--tema-permukaan);
-        border: 1px solid var(--tema-garis);
+        background-color: var(--tema-kaca);
+        /*
+         * Hanya properti standarnya yang ditulis.
+         *
+         * Ketika keduanya ditulis berdampingan, lightningcss membuang yang
+         * STANDAR dan menyisakan varian -webkit- saja — dan hasilnya buramnya
+         * tidak pernah terpasang di peramban mana pun. Ketahuan hanya karena
+         * nilainya dibaca dari halaman yang sudah jadi, bukan dari berkas
+         * sumbernya.
+         */
+        backdrop-filter: blur(22px) saturate(150%);
+        border: 1px solid var(--tema-kaca-garis);
         border-radius: 1.5rem;
         box-shadow:
             0 1px 2px rgb(15 42 67 / 0.06),
@@ -1578,4 +1603,157 @@ button:focus-visible {
 .bar-isi-tumbuh {
     animation: bar-tumbuh 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
     animation-delay: var(--tunda, 0ms);
+}
+
+/* ==========================================================================
+ * Teknik visual halaman depan (S36) — bukti konsep sebelum menyebar.
+ *
+ * SELURUHNYA memakai `transform`, `opacity`, dan `filter` pada elemen yang
+ * tidak pernah berubah ukuran, sehingga peramban dapat menaikkannya ke lapisan
+ * GPU dan tidak ada satu pun yang memicu reflow. Tidak ada pustaka partikel.
+ *
+ * Perangkat sasaran adalah PC kantor biasa yang menyala sepanjang hari, bukan
+ * laptop pengembang. Karena itu jumlahnya dibatasi: TIGA bola, bukan puluhan
+ * partikel — dan buramnya dipasang pada elemen yang hanya digeser, sehingga
+ * ia dirasterkan sekali lalu dipindahkan, bukan digambar ulang tiap bingkai.
+ * ======================================================================== */
+@layer components {
+    /*
+     * Bola cahaya yang mengapung di dalam pelat navy.
+     *
+     * Warnanya diturunkan dari enam keluarga yang ada — teal, emerald, cyan —
+     * bukan hue baru. Kepekatannya rendah dan buramnya besar, sehingga ia
+     * terbaca sebagai cahaya ruangan, bukan sebagai gelembung.
+     */
+    .bola {
+        position: absolute;
+        border-radius: 9999px;
+        pointer-events: none;
+        filter: blur(56px);
+        will-change: transform;
+        transform: translate3d(0, 0, 0);
+    }
+
+    .bola-1 {
+        width: 26rem;
+        height: 26rem;
+        top: -8rem;
+        right: -4rem;
+        background: rgb(13 148 136 / 0.3);
+        animation: apung-a 26s ease-in-out infinite alternate;
+    }
+
+    .bola-2 {
+        width: 20rem;
+        height: 20rem;
+        bottom: -7rem;
+        left: -3rem;
+        background: rgb(5 150 105 / 0.2);
+        animation: apung-b 34s ease-in-out infinite alternate;
+    }
+
+    .bola-3 {
+        width: 15rem;
+        height: 15rem;
+        top: 30%;
+        left: 42%;
+        background: rgb(8 145 178 / 0.22);
+        animation: apung-c 42s ease-in-out infinite alternate;
+    }
+
+    /*
+     * Kemiringan 3D mengikuti kursor.
+     *
+     * Sudutnya datang dari dua properti kustom yang disetel useMiring.js.
+     * Hanya berlaku pada penunjuk halus: layar sentuh titik absen tidak punya
+     * kursor yang melayang, sehingga di sanalah efek ini justru TIDAK pernah
+     * berjalan — dan itu kebetulan yang menguntungkan bagi perangkatnya.
+     */
+    .miring {
+        transform-style: preserve-3d;
+        will-change: transform;
+    }
+
+    @media (pointer: fine) {
+        .miring {
+            transform: perspective(900px) rotateX(var(--miring-x, 0deg))
+                rotateY(var(--miring-y, 0deg));
+            transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .miring:hover {
+            transition-duration: 90ms;
+        }
+    }
+
+    /*
+     * Sapuan cahaya diagonal saat kursor masuk.
+     *
+     * Pseudo-elemen, bukan elemen tambahan: ia murni hiasan dan tidak perlu
+     * ikut ada di pohon dokumen yang dibacakan pembaca layar.
+     */
+    .kilau {
+        position: relative;
+        overflow: hidden;
+    }
+
+    .kilau::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: linear-gradient(
+            105deg,
+            transparent 40%,
+            rgb(255 255 255 / 0.22) 50%,
+            transparent 60%
+        );
+        transform: translate3d(-130%, 0, 0);
+        opacity: 0;
+    }
+
+    .kilau:hover::after {
+        animation: kilau-lewat 760ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+}
+
+@keyframes apung-a {
+    to {
+        transform: translate3d(-3.5rem, 2.5rem, 0) scale(1.08);
+    }
+}
+
+@keyframes apung-b {
+    to {
+        transform: translate3d(3rem, -2rem, 0) scale(1.12);
+    }
+}
+
+@keyframes apung-c {
+    to {
+        transform: translate3d(2rem, 2.5rem, 0) scale(0.9);
+    }
+}
+
+/*
+ * Gerak minimal mematikan SELURUHNYA, bukan mempercepatnya.
+ *
+ * Aturan global memang memangkas durasi jadi 0,01 ms, tetapi bola yang
+ * beranimasi `alternate infinite` akan melompat ke posisi akhirnya lalu diam
+ * di sana — bukan salah, hanya tidak disengaja. Kemiringan 3D ikut
+ * ditiadakan: kartu yang miring mengikuti kursor adalah gerak, seberapa pun
+ * cepat transisinya.
+ */
+@media (prefers-reduced-motion: reduce) {
+    .bola {
+        animation: none !important;
+    }
+
+    .miring {
+        transform: none !important;
+    }
+
+    .kilau::after {
+        display: none !important;
+    }
 }

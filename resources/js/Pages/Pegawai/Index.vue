@@ -92,13 +92,18 @@ const statusKoneksi = computed(() => {
   if (!props.status_sinkron.terkonfigurasi) {
     return { label: 'Belum dikonfigurasi', warna: 'slate', denyut: false }
   }
+  /*
+   * Cyan untuk keadaan yang BUKAN sukses, gagal, maupun peringatan.
+   * "Sedang memeriksa" adalah catatan sistem, dan abu-abu membuatnya terbaca
+   * seperti fitur yang dimatikan alih-alih pekerjaan yang sedang berjalan.
+   */
   if (koneksi.value === null) {
-    return { label: 'Memeriksa koneksi…', warna: 'slate', denyut: true }
+    return { label: 'Memeriksa koneksi…', warna: 'langit', denyut: true }
   }
   if (koneksi.value === true) {
     return { label: 'Terhubung ke WORKA', warna: 'emerald', denyut: false }
   }
-  return { label: 'Tidak terhubung ke WORKA', warna: 'amber', denyut: false }
+  return { label: 'Tidak terhubung ke WORKA', warna: 'rose', denyut: false }
 })
 
 const waktu = (iso) =>
