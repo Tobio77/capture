@@ -73,3 +73,80 @@ export function useMiring({ maksimal = 6 } = {}) {
 
   return elemen
 }
+
+/**
+ * Kemiringan 3D untuk SEKELOMPOK kartu, dengan satu pendengar peristiwa.
+ *
+ * Memanggil {@see useMiring} sekali per kartu akan memasang dua pendengar
+ * pada setiap kartu; pada Dashboard yang bisa memuat sebelas kartu tertaut,
+ * itu dua puluh dua pendengar untuk satu efek hiasan. Di sini pendengarnya
+ * satu, dipasang pada wadahnya, dan kartu yang sedang disentuh kursor
+ * ditemukan lewat `closest()`.
+ *
+ * Sama seperti versi tunggalnya: tidak dipasang sama sekali pada penunjuk
+ * kasar, sehingga perangkat layar sentuh tidak membayar apa pun.
+ */
+export function useMiringDaftar(pilih, { maksimal = 5 } = {}) {
+  const wadah = ref(null)
+
+  let terjadwal = false
+  let terakhir = null
+  let sasaran = null
+
+  const halus = () =>
+    window.matchMedia?.('(pointer: fine)').matches &&
+    !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+  const tulis = () => {
+    terjadwal = false
+
+    if (!sasaran || !terakhir) return
+
+    const kotak = sasaran.getBoundingClientRect()
+    const x = (terakhir.clientX - kotak.left) / kotak.width - 0.5
+    const y = (terakhir.clientY - kotak.top) / kotak.height - 0.5
+
+    sasaran.style.setProperty('--miring-x', `${(-y * maksimal).toFixed(2)}deg`)
+    sasaran.style.setProperty('--miring-y', `${(x * maksimal).toFixed(2)}deg`)
+  }
+
+  const gerak = (peristiwa) => {
+    const kartu = peristiwa.target.closest?.(pilih)
+
+    // Berpindah kartu: yang ditinggalkan dikembalikan ke posisi datarnya.
+    if (sasaran && sasaran !== kartu) lepaskan(sasaran)
+
+    sasaran = kartu
+    terakhir = peristiwa
+
+    if (!kartu || terjadwal) return
+
+    terjadwal = true
+    requestAnimationFrame(tulis)
+  }
+
+  const lepaskan = (elemen) => {
+    elemen?.style.removeProperty('--miring-x')
+    elemen?.style.removeProperty('--miring-y')
+  }
+
+  const keluar = () => {
+    lepaskan(sasaran)
+    sasaran = null
+  }
+
+  onMounted(() => {
+    if (!wadah.value || !halus()) return
+
+    wadah.value.querySelectorAll(pilih).forEach((e) => e.classList.add('miring'))
+    wadah.value.addEventListener('pointermove', gerak)
+    wadah.value.addEventListener('pointerleave', keluar)
+  })
+
+  onBeforeUnmount(() => {
+    wadah.value?.removeEventListener('pointermove', gerak)
+    wadah.value?.removeEventListener('pointerleave', keluar)
+  })
+
+  return wadah
+}

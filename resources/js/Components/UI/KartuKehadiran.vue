@@ -22,6 +22,15 @@ const props = defineProps({
   total: { type: Number, required: true },
   tepat: { type: Number, required: true },
   terlambat: { type: Number, required: true },
+
+  /**
+   * Tampil sebagai permukaan kaca, untuk dipasang di dalam pelat navy.
+   *
+   * Kelas `.kartu-jam` menyatakan tintanya sendiri, sehingga kartu ini tidak
+   * mewarisi warna teks terang milik pelat — cacat yang pernah membuat angka
+   * jam halaman depan lenyap, dan yang kini dijaga `npm run periksa:tinta`.
+   */
+  kaca: { type: Boolean, default: false },
 })
 
 /* Keliling cincin: 2πr dengan r = 52 pada viewBox 140×140. */
@@ -56,8 +65,11 @@ const belumAbsen = computed(() => Math.max(0, props.total - props.hadir))
     layar 1440px, tiga angka rincian yang direntang selebar halaman berjarak
     ratusan piksel satu sama lain dan berhenti terbaca sebagai satu kelompok.
   -->
-  <div class="panel flex flex-col gap-7 p-6 sm:flex-row sm:items-center">
-    <div class="relative mx-auto h-36 w-36 shrink-0 sm:mx-0">
+  <div
+    class="flex flex-col gap-6 p-5 sm:flex-row sm:items-center"
+    :class="kaca ? 'kartu-jam' : 'panel'"
+  >
+    <div class="relative mx-auto h-28 w-28 shrink-0 sm:mx-0">
       <svg viewBox="0 0 140 140" class="h-full w-full -rotate-90">
         <circle
           cx="70"

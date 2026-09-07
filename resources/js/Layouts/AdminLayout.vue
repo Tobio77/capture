@@ -268,7 +268,18 @@ const keluar = () => router.post('/keluar')
         <div
           class="pelat-kepala px-5 py-5 sm:px-6 print:border print:border-garis print:bg-transparent print:text-utama"
         >
-          <div class="flex flex-wrap items-start justify-between gap-4">
+          <!--
+            Dua bola cahaya, bukan tiga seperti halaman depan.
+
+            Layar ini dibaca berlama-lama dari kursi, bukan dilirik sambil
+            berdiri; cahaya yang bergerak di belakang teks yang sedang dibaca
+            lama-lama melelahkan. Keduanya lebih pucat, lebih lambat, dan tidak
+            ikut tercetak.
+          -->
+          <div class="bola bola-kepala-1 print:hidden" aria-hidden="true"></div>
+          <div class="bola bola-kepala-2 print:hidden" aria-hidden="true"></div>
+
+          <div class="relative flex flex-wrap items-start justify-between gap-4">
             <div class="min-w-0">
               <h1 class="font-display text-2xl font-semibold sm:text-[1.75rem]">{{ judul }}</h1>
               <p
@@ -279,6 +290,22 @@ const keluar = () => router.post('/keluar')
               </p>
             </div>
             <slot name="aksi" />
+          </div>
+
+          <!--
+            Isi yang duduk DI DALAM pelat.
+
+            Dibuka sebagai slot supaya halaman yang punya satu angka pokok —
+            Dashboard dengan kehadiran hari ini — dapat menaruhnya di sini,
+            persis seperti kartu jam di halaman depan. Pelat yang hanya berisi
+            judul adalah bidang gelap yang tidak mengerjakan apa pun.
+
+            Isi apa pun yang diletakkan di sini WAJIB memakai permukaan yang
+            menyatakan tintanya sendiri (`.panel`, `.kartu-jam`); lihat aturan
+            tinta pada tema.css dan penjaganya, `npm run periksa:tinta`.
+          -->
+          <div v-if="$slots.pelat" class="relative mt-5">
+            <slot name="pelat" />
           </div>
 
           <!-- Deret garis ukur: motif yang sama dengan halaman depan. -->

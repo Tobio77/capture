@@ -217,7 +217,7 @@
      * menimpa navy. Yang membedakan jam dari detik karena itu ukuran dan
      * bobotnya, bukan kepudarannya.
      */
-    --tema-kaca: rgb(251 252 249 / 0.74);
+    --tema-kaca: rgb(251 252 249 / 0.68);
     --tema-kaca-garis: rgb(255 255 255 / 0.55);
 
     /* Tinta tetap navy: identitas struktural proyek tidak ikut bergeser. */
@@ -533,6 +533,7 @@ h4,
  * bidang yang terangkat, bukan kotak yang digambar di atas latar.
  */
 .panel {
+    color: var(--tema-utama);
     background-color: var(--tema-permukaan);
     border: 1px solid var(--tema-garis);
     border-radius: var(--radius-xl);
@@ -1177,6 +1178,11 @@ button:focus-visible {
          * menunjukkan sebabnya.
          */
         color: var(--tema-utama);
+
+        --tema-sekunder: #2f4354;
+        --tema-redup: #374855;
+        --tema-garis: rgb(15 42 67 / 0.14);
+
         background-color: var(--tema-kaca);
         /*
          * Hanya properti standarnya yang ditulis.
@@ -1765,5 +1771,32 @@ button:focus-visible {
 
     .kilau::after {
         display: none !important;
+    }
+}
+
+/*
+ * Bola cahaya untuk pelat kepala Panel Admin.
+ *
+ * Lebih pucat dan lebih lambat daripada milik halaman depan: layar ini dibaca
+ * berlama-lama dari kursi, dan cahaya yang bergerak di belakang teks yang
+ * sedang dibaca lama-lama melelahkan. Dua, bukan tiga.
+ */
+@layer components {
+    .bola-kepala-1 {
+        width: 22rem;
+        height: 22rem;
+        top: -9rem;
+        right: -3rem;
+        background: rgb(13 148 136 / 0.4);
+        animation: apung-a 38s ease-in-out infinite alternate;
+    }
+
+    .bola-kepala-2 {
+        width: 14rem;
+        height: 14rem;
+        bottom: -6rem;
+        left: 18%;
+        background: rgb(8 145 178 / 0.3);
+        animation: apung-c 52s ease-in-out infinite alternate;
     }
 }

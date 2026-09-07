@@ -8,6 +8,7 @@ import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
 import KartuStatistik from '@/Components/UI/KartuStatistik.vue'
 import KartuKehadiran from '@/Components/UI/KartuKehadiran.vue'
 import { useUngkap } from '@/Composables/useUngkap'
+import { useMiringDaftar } from '@/Composables/useMiring'
 
 /**
  * Dashboard ringkasan kehadiran (FR-DASH-01 s.d. FR-DASH-03).
@@ -40,6 +41,15 @@ const pengguna = computed(() => page.props.auth.pengguna)
  * mengganggu alih-alih menghidupkan.
  */
 useUngkap()
+
+/*
+ * Kemiringan 3D hanya pada kartu yang BENAR-BENAR dapat diklik: butir Perlu
+ * Perhatian dan sesi yang sedang berlangsung. Kartu statistik tidak ikut —
+ * kartu yang miring mengikuti kursor menjanjikan tujuan, dan angka yang tidak
+ * menuju ke mana-mana tidak boleh menjanjikannya.
+ */
+const kisiPerhatian = useMiringDaftar('a')
+const kisiSesi = useMiringDaftar('a')
 
 const cakupan = computed(() =>
   pengguna.value.lintas_unit
@@ -174,6 +184,22 @@ function waktuRelatif(iso) {
 <template>
   <AdminLayout judul="Dashboard" :deskripsi="`Ringkasan kehadiran untuk ${cakupan}.`">
     <!--
+      Angka pokok halaman ini duduk DI DALAM pelat, seperti kartu jam di
+      halaman depan. Pelat yang hanya berisi judul adalah bidang gelap yang
+      tidak mengerjakan apa pun; dengan kartu ini di dalamnya, ia menjadi
+      tempat pertama yang dibaca mata dan sekaligus alasan pelatnya ada.
+    -->
+    <template #pelat>
+      <KartuKehadiran
+        kaca
+        :hadir="statistik.hadir_hari_ini"
+        :total="statistik.total_pegawai"
+        :tepat="ketepatan.tepat"
+        :terlambat="ketepatan.terlambat"
+      />
+    </template>
+
+    <!--
       PERLU PERHATIAN (FR-DASH-04).
 
       Bagian pertama halaman ini yang meminta admin MENGERJAKAN sesuatu, bukan
@@ -192,7 +218,7 @@ function waktuRelatif(iso) {
         <span class="keping nada-amber px-2 py-0 text-[0.6875rem]">{{ perhatian.length }}</span>
       </div>
 
-      <div class="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+      <div ref="kisiPerhatian" class="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
         <Link
           v-for="(butir, urutan) in perhatian"
           :key="`${butir.jenis}-${urutan}`"
@@ -230,13 +256,6 @@ function waktuRelatif(iso) {
       pusat perhatian, dan mata akhirnya memilih yang paling kiri.
     -->
     <div class="flex flex-col gap-4">
-      <KartuKehadiran
-        :hadir="statistik.hadir_hari_ini"
-        :total="statistik.total_pegawai"
-        :tepat="ketepatan.tepat"
-        :terlambat="ketepatan.terlambat"
-      />
-
       <!--
         Tiga kartu ringkas mendapat lebar penuh masing-masing sepertiga. Ketika
         keempatnya dijejer sebaris bersama kartu utama, labelnya terpaksa
@@ -263,7 +282,9 @@ function waktuRelatif(iso) {
     <div v-if="event_berjalan.length > 0" data-ungkap class="panel mt-4 p-5">
       <div class="flex items-center gap-2">
         <span class="relative flex h-2 w-2">
-          <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-berhasil opacity-60"></span>
+          <span
+            class="absolute inline-flex h-full w-full animate-ping rounded-full bg-berhasil opacity-60"
+          ></span>
           <span class="relative inline-flex h-2 w-2 rounded-full bg-berhasil"></span>
         </span>
         <h2 class="font-display text-sm font-semibold text-utama">Sedang Berlangsung</h2>
@@ -272,7 +293,7 @@ function waktuRelatif(iso) {
         </span>
       </div>
 
-      <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div ref="kisiSesi" class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Link
           v-for="event in event_berjalan"
           :key="event.id"
@@ -392,7 +413,13 @@ function waktuRelatif(iso) {
               >
                 {{ t.jumlah }}
               </text>
-              <text :x="t.x" :y="TINGGI - 8" text-anchor="middle" fill="var(--tema-redup)" class="text-[12px]">
+              <text
+                :x="t.x"
+                :y="TINGGI - 8"
+                text-anchor="middle"
+                fill="var(--tema-redup)"
+                class="text-[12px]"
+              >
                 {{ t.label }}
               </text>
             </g>
@@ -402,44 +429,68 @@ function waktuRelatif(iso) {
         <!-- Kesiapan sistem -->
         <div class="panel p-6">
           <h2 class="font-display text-base font-semibold text-utama">Kesiapan Sistem</h2>
-            <p class="mt-1 text-xs text-redup">
-              Yang biasanya menjelaskan kegagalan absen di lapangan.
-            </p>
+          <p class="mt-1 text-xs text-redup">
+            Yang biasanya menjelaskan kegagalan absen di lapangan.
+          </p>
 
-            <div class="mt-4 space-y-3">
-              <div v-for="(baris, urutan) in [
-                { label: 'Wajah terdaftar', nilai: kesiapan.wajah_terdaftar, total: kesiapan.pegawai, persen: kesiapan.wajah_persen },
-                { label: 'Kartu RFID terdaftar', nilai: kesiapan.kartu_terdaftar, total: kesiapan.pegawai, persen: kesiapan.kartu_persen },
-              ]" :key="baris.label">
-                <div class="flex items-baseline justify-between text-xs">
-                  <span class="text-sekunder">{{ baris.label }}</span>
-                  <span class="font-display tabular-nums text-utama">
-                    {{ baris.nilai }}/{{ baris.total }} · {{ baris.persen }}%
-                  </span>
-                </div>
-                <!--
+          <div class="mt-4 space-y-3">
+            <div
+              v-for="(baris, urutan) in [
+                {
+                  label: 'Wajah terdaftar',
+                  nilai: kesiapan.wajah_terdaftar,
+                  total: kesiapan.pegawai,
+                  persen: kesiapan.wajah_persen,
+                },
+                {
+                  label: 'Kartu RFID terdaftar',
+                  nilai: kesiapan.kartu_terdaftar,
+                  total: kesiapan.pegawai,
+                  persen: kesiapan.kartu_persen,
+                },
+              ]"
+              :key="baris.label"
+            >
+              <div class="flex items-baseline justify-between text-xs">
+                <span class="text-sekunder">{{ baris.label }}</span>
+                <span class="font-display tabular-nums text-utama">
+                  {{ baris.nilai }}/{{ baris.total }} · {{ baris.persen }}%
+                </span>
+              </div>
+              <!--
                   Warnanya mengikuti seberapa siap, bukan sekadar mengisi:
                   hijau bila hampir lengkap, teal bila sedang berjalan, amber
                   bila masih tertinggal jauh.
                 -->
-                <div
-                  class="bar-jalur mt-1.5 h-2"
-                  :class="baris.persen >= 80 ? 'nada-emerald' : baris.persen >= 40 ? 'nada-teal' : 'nada-amber'"
-                >
-                  <span
-                    class="bar-isi"
-                    :style="{ width: `${Math.max(baris.persen, 2)}%`, '--tunda': `${240 + urutan * 120}ms` }"
-                  ></span>
-                </div>
-              </div>
-
-              <div class="flex items-center justify-between border-t border-garis pt-3 text-xs">
-                <span class="text-sekunder">Perangkat terpasang</span>
-                <Lencana :warna="kesiapan.perangkat_terpasang === kesiapan.perangkat ? 'emerald' : 'amber'">
-                  {{ kesiapan.perangkat_terpasang }} dari {{ kesiapan.perangkat }}
-                </Lencana>
+              <div
+                class="bar-jalur mt-1.5 h-2"
+                :class="
+                  baris.persen >= 80
+                    ? 'nada-emerald'
+                    : baris.persen >= 40
+                      ? 'nada-teal'
+                      : 'nada-amber'
+                "
+              >
+                <span
+                  class="bar-isi"
+                  :style="{
+                    width: `${Math.max(baris.persen, 2)}%`,
+                    '--tunda': `${240 + urutan * 120}ms`,
+                  }"
+                ></span>
               </div>
             </div>
+
+            <div class="flex items-center justify-between border-t border-garis pt-3 text-xs">
+              <span class="text-sekunder">Perangkat terpasang</span>
+              <Lencana
+                :warna="kesiapan.perangkat_terpasang === kesiapan.perangkat ? 'emerald' : 'amber'"
+              >
+                {{ kesiapan.perangkat_terpasang }} dari {{ kesiapan.perangkat }}
+              </Lencana>
+            </div>
+          </div>
         </div>
 
         <!-- Peringkat unit -->
@@ -459,7 +510,9 @@ function waktuRelatif(iso) {
               :key="unit.kode"
               class="masuk"
               :style="{ '--tunda': `${urutan * 55}ms` }"
-              :class="unit.persen >= 75 ? 'nada-emerald' : unit.persen >= 40 ? 'nada-teal' : 'nada-amber'"
+              :class="
+                unit.persen >= 75 ? 'nada-emerald' : unit.persen >= 40 ? 'nada-teal' : 'nada-amber'
+              "
             >
               <div class="flex items-baseline justify-between gap-3 text-sm">
                 <span class="flex min-w-0 items-baseline gap-2">
@@ -483,7 +536,10 @@ function waktuRelatif(iso) {
               <div class="bar-jalur mt-1.5 h-2">
                 <span
                   class="bar-isi"
-                  :style="{ width: `${Math.max(unit.persen, 2)}%`, '--tunda': `${180 + urutan * 55}ms` }"
+                  :style="{
+                    width: `${Math.max(unit.persen, 2)}%`,
+                    '--tunda': `${180 + urutan * 55}ms`,
+                  }"
                 ></span>
               </div>
             </li>
@@ -506,9 +562,11 @@ function waktuRelatif(iso) {
           >
             <span
               class="mt-0.5 rounded-full p-1.5"
-              :class="baris.status_ketepatan === 'terlambat'
-                ? 'bg-peringatan-lembut text-peringatan'
-                : 'bg-berhasil-lembut text-berhasil'"
+              :class="
+                baris.status_ketepatan === 'terlambat'
+                  ? 'bg-peringatan-lembut text-peringatan'
+                  : 'bg-berhasil-lembut text-berhasil'
+              "
             >
               <Ikon :nama="baris.metode === 'rfid' ? 'kartu' : 'pegawai'" ukuran="h-3.5 w-3.5" />
             </span>
