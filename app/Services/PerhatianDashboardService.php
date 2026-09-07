@@ -67,7 +67,10 @@ class PerhatianDashboardService
      */
     public const int BATAS_BUTIR = 6;
 
-    public function __construct(protected SettingAbsenService $setting) {}
+    public function __construct(
+        protected SettingAbsenService $setting,
+        protected KalenderKerjaService $kalender,
+    ) {}
 
     /**
      * @return array<int, array<string, mixed>>
@@ -195,6 +198,22 @@ class PerhatianDashboardService
     protected function kehadiranAnjlok(User $pelaku): array
     {
         if (! $this->lewatBatasMasuk()) {
+            return [];
+        }
+
+        /*
+         * Hari libur tidak dinilai sama sekali.
+         *
+         * Tanpa penjagaan ini, setiap Senin pagi panel Perlu Perhatian akan
+         * penuh laporan bahwa kehadiran Sabtu dan Minggu "anjlok" — benar
+         * secara hitungan, dan tidak menuntut tindakan apa pun dari siapa pun.
+         * Peringatan yang menyala setiap awal pekan berhenti dibaca pada pekan
+         * kedua, dan sesudah itu ia tidak lagi menyelamatkan siapa pun ketika
+         * benar-benar menyala.
+         */
+        if (! $this->kalender->hariKerja(
+            $pelaku->lintasUnit() ? null : $pelaku->unit_kerja_id,
+        )) {
             return [];
         }
 

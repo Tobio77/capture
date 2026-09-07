@@ -46,6 +46,22 @@ class UserFactory extends Factory
     }
 
     /**
+     * Admin Dinas: cakupannya seluruh unit kerja, tanpa terikat salah satunya.
+     *
+     * Berbeda dari Superadmin hanya pada menu Kelola User/Role, sehingga uji
+     * yang memeriksa batas "lintas unit" perlu dapat memakai keduanya — kalau
+     * hanya Superadmin yang tersedia, aturan yang keliru mengistimewakan
+     * Superadmin tidak akan pernah ketahuan.
+     */
+    public function adminDinas(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => PeranPengguna::AdminDinas,
+            'unit_kerja_id' => null,
+        ]);
+    }
+
+    /**
      * Admin UPT selalu terikat pada satu unit kerja.
      */
     public function adminUpt(?UnitKerja $unitKerja = null): static

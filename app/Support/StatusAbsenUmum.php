@@ -36,6 +36,16 @@ final readonly class StatusAbsenUmum
 
         public ?OverrideAbsenUmum $override = null,
         public ?string $olehNama = null,
+
+        /**
+         * Alasan hari ini bukan hari kerja, atau null bila ia hari kerja.
+         *
+         * Ia MENANDAI, tidak menutup: absen tetap diterima. Petugas piket akhir
+         * pekan yang benar-benar masuk harus tetap dapat mencatat kehadirannya,
+         * dan yang dibutuhkan rekap hanyalah tahu bahwa tap itu jatuh di luar
+         * hari kerja.
+         */
+        public ?string $alasanLibur = null,
     ) {}
 
     /**
@@ -49,6 +59,13 @@ final readonly class StatusAbsenUmum
     {
         $jendela = "{$this->jamBuka}–{$this->jamTutup}";
 
+        /*
+         * Keterangan hari libur ditempelkan pada keterangan yang sudah ada,
+         * bukan menggantikannya: statusnya tetap ditentukan jendela jam, dan
+         * yang ditambahkan hanyalah kabar bahwa tap hari ini akan ditandai.
+         */
+        $libur = $this->alasanLibur === null ? '' : " {$this->alasanLibur}; tap tetap diterima dan ditandai hari libur.";
+
         return match ($this->sumber) {
             'setting' => 'Absen umum sedang dimatikan pada Setting Absen.',
             'override' => sprintf(
@@ -58,8 +75,8 @@ final readonly class StatusAbsenUmum
                 $jendela,
             ),
             default => $this->terbuka
-                ? "Terbuka mengikuti jadwal {$jendela}."
-                : "Di luar jadwal {$jendela}.",
+                ? "Terbuka mengikuti jadwal {$jendela}.{$libur}"
+                : "Di luar jadwal {$jendela}.{$libur}",
         };
     }
 
@@ -70,6 +87,7 @@ final readonly class StatusAbsenUmum
     {
         return [
             'jenis' => $this->jenis->value,
+            'alasan_libur' => $this->alasanLibur,
             'terbuka' => $this->terbuka,
             'sumber' => $this->sumber,
             'jam_buka' => $this->jamBuka,

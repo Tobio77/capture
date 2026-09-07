@@ -77,6 +77,17 @@ class UnitKerjaService
                     'kode' => $unit->kode,
                     'nama' => $unit->nama,
                     'aktif' => $unit->aktif,
+
+                    /*
+                     * Hari kerja yang tersimpan pada unit ini, dan hari kerja
+                     * yang BERLAKU baginya setelah pewarisan. Keduanya dikirim
+                     * karena layar harus dapat membedakan "unit ini memang
+                     * Senin–Jumat" dari "unit ini belum diatur dan kebetulan
+                     * induknya Senin–Jumat" — dua keadaan yang terlihat sama
+                     * tetapi menuntut tindakan berbeda dari admin.
+                     */
+                    'hari_kerja' => $unit->hari_kerja,
+                    'hari_kerja_berlaku' => app(KalenderKerjaService::class)->hariKerjaUnit($unit->id),
                     'jumlah_pegawai' => $this->jumlahDalam($pegawaiPerUnit, $cakupan),
                     'jumlah_kiosk' => $this->jumlahDalam($kioskPerUnit, $cakupan),
                     'jumlah_unit_turunan' => count($cakupan) - 1,
@@ -128,6 +139,7 @@ class UnitKerjaService
             // karena tidak lolos scopeLevelTeratas().
             'induk_id' => UnitKerja::idOpd(),
             'aktif' => true,
+            'hari_kerja' => self::hariKerja($data),
         ]);
 
         $this->log->catat(
@@ -141,6 +153,33 @@ class UnitKerjaService
     }
 
     /**
+     * Hari kerja yang hendak disimpan, atau null bila mewarisi induk.
+     *
+     * Larik kosong dan "tidak disebut" diperlakukan SAMA: keduanya berarti
+     * unit ini belum mengaturnya sendiri. Menyimpan larik kosong akan berarti
+     * "unit ini tidak pernah bekerja pada hari apa pun" — pernyataan yang
+     * tidak pernah dimaksudkan siapa pun, dan yang akan menandai seluruh
+     * absensinya sebagai hari libur.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<int, int>|null
+     */
+    protected static function hariKerja(array $data): ?array
+    {
+        $hari = $data['hari_kerja'] ?? null;
+
+        if (! is_array($hari) || $hari === []) {
+            return null;
+        }
+
+        $bersih = array_values(array_unique(array_map('intval', $hari)));
+
+        sort($bersih);
+
+        return $bersih;
+    }
+
+    /**
      * @param  array{kode: string, nama: string}  $data
      */
     public function perbarui(UnitKerja $unitKerja, array $data, User $pelaku): UnitKerja
@@ -150,6 +189,7 @@ class UnitKerjaService
         $unitKerja->update([
             'kode' => self::normalkanKode($data['kode']),
             'nama' => $data['nama'],
+            'hari_kerja' => self::hariKerja($data),
         ]);
 
         $this->log->catat(

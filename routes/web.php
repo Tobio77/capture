@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\AbsenUmumController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\EventController;
 use App\Http\Controllers\Admin\FotoReferensiWajahController;
+use App\Http\Controllers\Admin\HariLiburController;
 use App\Http\Controllers\Admin\KartuRfidController;
 use App\Http\Controllers\Admin\LaporanController;
 use App\Http\Controllers\Admin\PegawaiController;
@@ -246,6 +247,14 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
         Route::middleware('peran:superadmin,admin_dinas')->group(function () {
             Route::get('setting', [SettingAbsenController::class, 'edit'])->name('setting-absen.index');
             Route::post('setting', [SettingAbsenController::class, 'update'])->name('setting-absen.update');
+
+            /*
+             * Hari libur bertanggal (FR-SET-08). Tanpa layar ini kalender
+             * kerja hanya setengah dapat dipakai: tanggal merah tidak akan
+             * pernah dapat dimasukkan siapa pun.
+             */
+            Route::post('setting/hari-libur', [HariLiburController::class, 'store'])->name('hari-libur.store');
+            Route::delete('setting/hari-libur/{hari_libur}', [HariLiburController::class, 'destroy'])->name('hari-libur.destroy');
         });
 
         /*

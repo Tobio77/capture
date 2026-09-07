@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['kode', 'nama', 'induk_id', 'aktif'])]
+#[Fillable(['kode', 'nama', 'induk_id', 'aktif', 'hari_kerja'])]
 class UnitKerja extends Model
 {
     /** @use HasFactory<UnitKerjaFactory> */
@@ -25,6 +25,12 @@ class UnitKerja extends Model
     {
         return [
             'aktif' => 'boolean',
+
+            /*
+             * Larik nomor hari ISO-8601 (1 Senin … 7 Minggu), atau null bila
+             * unit ini belum mengaturnya sendiri dan mewarisi induknya.
+             */
+            'hari_kerja' => 'array',
         ];
     }
 
@@ -175,6 +181,32 @@ class UnitKerja extends Model
             foreach ($anakPerInduk[$id] ?? [] as $anak) {
                 $antrian[] = $anak;
             }
+        }
+
+        return array_values($hasil);
+    }
+
+    /**
+     * Id unit ini beserta SELURUH LELUHURNYA, dari dirinya ke atas.
+     *
+     * Kebalikan arah dari {@see self::idsDenganTurunan()}, dan dipakai untuk
+     * pertanyaan yang jawabannya diwarisi: hari kerja sebuah seksi jarang
+     * diatur sendiri — yang mengaturnya biasanya UPT di atasnya.
+     *
+     * Urutannya penting: yang paling dekat lebih dahulu, sehingga pengaturan
+     * unit itu sendiri selalu mengalahkan pengaturan induknya.
+     *
+     * @return array<int, int>
+     */
+    public static function idsLeluhurDan(int $unitKerjaId): array
+    {
+        $induk = static::query()->pluck('induk_id', 'id');
+        $hasil = [];
+        $id = $unitKerjaId;
+
+        while ($id !== null && ! isset($hasil[$id])) {
+            $hasil[$id] = (int) $id;
+            $id = $induk[$id] ?? null;
         }
 
         return array_values($hasil);

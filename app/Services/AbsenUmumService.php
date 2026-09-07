@@ -44,6 +44,7 @@ class AbsenUmumService
         protected SettingAbsenService $setting,
         protected AbsensiService $absensi,
         protected LogAktivitasService $log,
+        protected KalenderKerjaService $kalender,
     ) {}
 
     /**
@@ -212,12 +213,22 @@ class AbsenUmumService
         $setting = $this->setting->ambil();
         $waktu ??= Carbon::now();
 
+        /*
+         * Alasan hari libur dibawa ke SETIAP cabang, bukan menjadi cabang
+         * tersendiri. Hari libur menandai, tidak menutup (FR-SET-08): status
+         * terbuka atau tertutupnya tetap ditentukan Setting, override, dan
+         * jendela jam — persis seperti hari kerja biasa.
+         */
+        $alasanLibur = $sesi === null
+            ? null
+            : $this->kalender->alasanLibur($sesi->unitKerja->first()?->id, $waktu->copy()->startOfDay());
+
         [$buka, $tutup] = $jenis === JenisAbsen::Datang
             ? [$setting['jam_buka_datang'], $setting['jam_tutup_datang']]
             : [$setting['jam_buka_pulang'], $setting['jam_tutup_pulang']];
 
         if (! $setting['absen_umum_aktif']) {
-            return new StatusAbsenUmum($jenis, false, 'setting', $buka, $tutup);
+            return new StatusAbsenUmum($jenis, false, 'setting', $buka, $tutup, alasanLibur: $alasanLibur);
         }
 
         $override = $sesi?->override_absen;
@@ -231,6 +242,7 @@ class AbsenUmumService
                 $tutup,
                 $override,
                 $sesi->pemasangOverride?->nama,
+                $alasanLibur,
             );
         }
 
@@ -240,6 +252,7 @@ class AbsenUmumService
             'jadwal',
             $buka,
             $tutup,
+            alasanLibur: $alasanLibur,
         );
     }
 

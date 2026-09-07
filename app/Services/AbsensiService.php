@@ -39,7 +39,10 @@ class AbsensiService
      */
     public const int BATAS_FOTO_BYTE = 150 * 1024;
 
-    public function __construct(protected SettingAbsenService $setting) {}
+    public function __construct(
+        protected SettingAbsenService $setting,
+        protected KalenderKerjaService $kalender,
+    ) {}
 
     /**
      * Kehadiran yang sudah tercatat untuk satu pasangan event × pegawai ×
@@ -100,6 +103,22 @@ class AbsensiService
                 'metode' => MetodeAbsen::from($data['metode']),
                 'waktu' => $waktu,
                 'status_ketepatan' => $this->ketepatan($event, $jenis, $waktu),
+
+                /*
+                 * Penanda hari libur DISIMPAN, bukan dihitung ulang saat
+                 * dibaca. Kalender dapat berubah kemudian — admin menambahkan
+                 * tanggal merah yang terlewat, atau mengubah hari kerja sebuah
+                 * UPT — dan absensi adalah catatan administratif: catatan yang
+                 * berubah arti setiap kali kalendernya disunting tidak dapat
+                 * dipertanggungjawabkan.
+                 *
+                 * Sejalan dengan `status_ketepatan`, yang juga ditetapkan saat
+                 * tap dan tidak pernah diturunkan ulang.
+                 */
+                'hari_libur' => ! $this->kalender->hariKerja(
+                    $pegawai->unit_kerja_id,
+                    $waktu->copy()->startOfDay(),
+                ),
                 'skor_kecocokan_wajah' => $data['skor'] ?? null,
                 'foto_path' => $fotoPath,
             ]);

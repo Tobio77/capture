@@ -22,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'metode',
     'waktu',
     'status_ketepatan',
+    'hari_libur',
     'skor_kecocokan_wajah',
     'foto_path',
 ])]
@@ -42,6 +43,9 @@ class Absensi extends Model
             'metode' => MetodeAbsen::class,
             'waktu' => 'datetime',
             'status_ketepatan' => StatusKetepatan::class,
+
+            /* Ditetapkan saat tap, tidak pernah diturunkan ulang (FR-SET-08). */
+            'hari_libur' => 'boolean',
             'skor_kecocokan_wajah' => 'decimal:2',
         ];
     }

@@ -47,9 +47,30 @@ function bersihkan() {
 const modalTerbuka = ref(false)
 const sedangDiubah = ref(null)
 
+/** Nomor hari ISO-8601: 1 Senin sampai 7 Minggu. */
+const HARI = [
+  { nomor: 1, singkat: 'Sen' },
+  { nomor: 2, singkat: 'Sel' },
+  { nomor: 3, singkat: 'Rab' },
+  { nomor: 4, singkat: 'Kam' },
+  { nomor: 5, singkat: 'Jum' },
+  { nomor: 6, singkat: 'Sab' },
+  { nomor: 7, singkat: 'Min' },
+]
+
 const form = useForm({
   kode: '',
   nama: '',
+  hari_kerja: [],
+})
+
+/** Hari kerja yang BERLAKU bagi unit yang sedang diubah, setelah pewarisan. */
+const berlakuTertulis = computed(() => {
+  const berlaku = sedangDiubah.value?.hari_kerja_berlaku ?? [1, 2, 3, 4, 5]
+
+  return HARI.filter((h) => berlaku.includes(h.nomor))
+    .map((h) => h.singkat)
+    .join(', ')
 })
 
 const bukaTambah = () => {
@@ -64,6 +85,9 @@ const bukaUbah = (unit) => {
   form.clearErrors()
   form.kode = unit.kode
   form.nama = unit.nama
+
+  // Null berarti mewarisi induk; layar menampilkannya sebagai tidak tercentang.
+  form.hari_kerja = unit.hari_kerja ?? []
   modalTerbuka.value = true
 }
 
@@ -112,11 +136,7 @@ const kolom = [
     deskripsi="Unit kerja yang berpartisipasi dalam Capture beserta jumlah pegawai dan perangkat absen terdaftar."
   >
     <template v-if="dapat_mengubah" #aksi>
-      <button
-        type="button"
-        class="tombol tombol-utama"
-        @click="bukaTambah"
-      >
+      <button type="button" class="tombol tombol-utama" @click="bukaTambah">
         <Ikon nama="tambah" ukuran="h-4 w-4" /> Tambah Unit Kerja
       </button>
     </template>
@@ -228,7 +248,9 @@ const kolom = [
     >
       <form id="form-unit-kerja" class="space-y-5" @submit.prevent="simpan">
         <div>
-          <label for="kode" class="block text-sm font-medium text-utama">Kode Unit Kerja<span class="ml-0.5 text-galat-teks" aria-hidden="true">*</span></label>
+          <label for="kode" class="block text-sm font-medium text-utama"
+            >Kode Unit Kerja<span class="ml-0.5 text-galat-teks" aria-hidden="true">*</span></label
+          >
           <input
             id="kode"
             v-model="form.kode"
@@ -247,7 +269,9 @@ const kolom = [
         </div>
 
         <div>
-          <label for="nama" class="block text-sm font-medium text-utama">Nama Unit Kerja<span class="ml-0.5 text-galat-teks" aria-hidden="true">*</span></label>
+          <label for="nama" class="block text-sm font-medium text-utama"
+            >Nama Unit Kerja<span class="ml-0.5 text-galat-teks" aria-hidden="true">*</span></label
+          >
           <input
             id="nama"
             v-model="form.nama"
@@ -261,6 +285,52 @@ const kolom = [
             {{ form.errors.nama }}
           </p>
         </div>
+
+        <!--
+          HARI KERJA (FR-SET-08).
+
+          Dibiarkan kosong berarti unit ini mewarisi induknya — bukan berarti
+          ia tidak pernah bekerja. Bedanya disebutkan langsung di layar karena
+          keduanya menghasilkan kotak yang sama-sama tidak tercentang, dan
+          admin yang salah membacanya akan menandai seluruh absensi unitnya
+          sebagai hari libur.
+        -->
+        <fieldset>
+          <legend class="block text-sm font-medium text-utama">Hari Kerja</legend>
+
+          <div class="mt-2 flex flex-wrap gap-2">
+            <label
+              v-for="hari in HARI"
+              :key="hari.nomor"
+              class="kartu-angkat cursor-pointer rounded-lg border px-3 py-2 text-sm"
+              :class="
+                form.hari_kerja.includes(hari.nomor)
+                  ? 'border-aksen bg-aksen-lembut font-medium text-aksen-teks'
+                  : 'border-garis bg-permukaan text-sekunder'
+              "
+            >
+              <input
+                v-model="form.hari_kerja"
+                type="checkbox"
+                :value="hari.nomor"
+                class="sr-only"
+              />
+              {{ hari.singkat }}
+            </label>
+          </div>
+
+          <p class="mt-2 text-xs text-redup">
+            {{
+              form.hari_kerja.length === 0
+                ? `Kosong berarti mengikuti unit induk — saat ini ${berlakuTertulis}.`
+                : 'Hari libur tidak menutup absen; tap tetap diterima dan ditandai pada rekap.'
+            }}
+          </p>
+
+          <p v-if="form.errors.hari_kerja" class="mt-1.5 text-sm text-peringatan-teks">
+            {{ form.errors.hari_kerja }}
+          </p>
+        </fieldset>
       </form>
 
       <template #aksi>

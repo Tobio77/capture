@@ -24,6 +24,15 @@ class SimpanUnitKerjaRequest extends FormRequest
                 Rule::unique('unit_kerja', 'kode')->ignore($unitKerja?->id),
             ],
             'nama' => ['required', 'string', 'max:150'],
+
+            /*
+             * Hari kerja unit ini (FR-SET-08), sebagai nomor hari ISO-8601.
+             * Larik kosong TIDAK sama dengan "tidak bekerja sama sekali": ia
+             * berarti unit ini belum mengaturnya dan mewarisi induknya, dan
+             * karena itu disimpan sebagai null.
+             */
+            'hari_kerja' => ['nullable', 'array'],
+            'hari_kerja.*' => ['integer', 'between:1,7'],
         ];
     }
 
@@ -42,6 +51,7 @@ class SimpanUnitKerjaRequest extends FormRequest
         return [
             'kode' => 'kode unit kerja',
             'nama' => 'nama unit kerja',
+            'hari_kerja' => 'hari kerja',
         ];
     }
 
