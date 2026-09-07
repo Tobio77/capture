@@ -1676,3 +1676,167 @@ sekadar kerapian.
 Satu uji lama ikut diperbaiki: ia membuat event dengan tanggal ACAK dari
 factory lalu menuntut `event_berlangsung === 1`. Ia lulus selama ini hanya
 karena tanggalnya memang tidak pernah disaring.
+
+---
+
+## Pertahanan layar masuk (S34, FR-AUTH-03)
+
+Dua lapis, dan urutannya disengaja.
+
+**Lapis pertama — pembatasan laju bertingkat** (`AutentikasiService`). Ini
+pertahanan yang sesungguhnya. Kegagalan dihitung per (surel + alamat IP) DAN
+per alamat IP saja; tanpa penghitung kedua, penyerang cukup berganti surel
+setiap lima percobaan, dan pola surel dinas mudah ditebak dari nama. Setiap
+kelipatan lima kegagalan mengunci lebih lama: 1, 5, 15, lalu 30 menit.
+Penguncian tetap 60 detik — perilaku sebelum S33 — masih menyisakan 7.200
+percobaan per hari bagi skrip yang dibiarkan berjalan semalaman.
+
+**Lapis kedua — CAPTCHA hitungan** (`CaptchaHitungService`), diminta sejak
+percobaan PERTAMA.
+
+| Keputusan | Alasan |
+|---|---|
+| Sejak percobaan pertama, bukan progresif | Bot yang mencoba satu kombinasi pada satu akun lalu berpindah sasaran tidak pernah menyentuh ambang apa pun; penghalangnya justru tidak terpasang pada pola serangan yang paling umum |
+| Teks hitungan, bukan gambar terdistorsi | Gambar yang sulit dibaca mesin juga sulit dibaca pembaca layar — bertentangan langsung dengan WCAG 2.1 AA yang dipegang proyek ini |
+| Jawaban di sesi, tidak pernah ke klien | Field tersembunyi atau atribut data membuat penghalangnya dapat dilewati siapa pun yang membuka Inspect Element |
+| Hangus sekali pakai, soal baru tiap render | Satu jawaban benar yang dapat diputar ulang membatalkan gunanya untuk seluruh daftar kata sandi |
+| Hanya `/masuk` | Layar tap perangkat absen berbeda route, controller, dan pagar autentikasi |
+
+**Batas cakupannya dikunci uji, bukan diklaim.**
+`CaptchaLoginTest::route_kiosk_tidak_pernah_menyentuh_captcha()` memeriksa tiga
+jalur kiosk dan menuntut sesinya TIDAK PERNAH berisi soal CAPTCHA — artinya
+kodenya memang tidak dilewati, bukan dilewati lalu kebetulan lolos. Batas ini
+paling mudah runtuh justru karena niat baik: memasang pemeriksaan CAPTCHA di
+middleware global akan melumpuhkan seluruh perangkat absen di lapangan, dan
+kegagalannya baru ketahuan pada apel pagi berikutnya.
+
+**Ringan, terukur:** 1000 soal dibuat dalam 1,5 ms; `GET /masuk` bertengah
+75 ms sementara halaman depan yang tidak memakai CAPTCHA bertengah 83 ms.
+Ekspektasi yang jujur: ini menaikkan penghalang bagi bot generik, bukan
+menghentikan penyerang yang menargetkan sistem ini secara khusus — tidak ada
+CAPTCHA swakelola yang begitu.
+
+## Aksesibilitas WCAG 2.1 AA (S35)
+
+Kontras **diukur, bukan dikira**, dan tiga kegagalan nyata ditemukan:
+
+| Warna | Rasio lama | Dampak |
+|---|---|---|
+| `--tema-redup` `#77899a` | 3,06:1 | hampir seluruh keterangan kecil di aplikasi |
+| Tombol utama `#0d9488` | 3,74:1 | setiap tombol simpan |
+| Pita depan, subteks putih 75% | 2,76:1 | halaman yang jadi patokan kualitas |
+
+Menggelapkan `redup` mendekatkannya ke `sekunder` dan jenjang "paling pendiam"
+jadi kurang lapang. Itu harga yang benar: teks yang tidak terbaca bukan teks
+yang pendiam, melainkan teks yang tidak ada.
+
+Varian tombol di atas pelat navy tidak memakai isian terang (2,49:1);
+pemisahannya datang dari CINCIN terang di tepinya — komponen antarmuka,
+ambangnya 3:1 — sementara hurufnya berdiri di atas isian gelap.
+
+**Alat ukurnya disimpan:** `npm run periksa:kontras` membaca nilai dari
+`tema.css`, bukan menyalinnya. Alat ukur yang menua diam-diam lebih buruk
+daripada tidak ada alat ukur, karena ia melaporkan lulus untuk warna yang sudah
+berganti — dan ia pula yang menemukan kegagalan ketiga.
+
+Sisa checklist diverifikasi di peramban: tujuh kolom wajib punya label
+terhubung dan ditandai bintang, urutan Tab berjalan dengan cincin fokus
+terlihat, login penuh dapat diselesaikan tanpa tetikus, Esc menutup modal, dan
+badge status selalu berteks sehingga tidak pernah mengandalkan warna saja.
+
+### Breakpoint
+
+| Lebar | Sidebar | Kisi | Tabel |
+|---|---|---|---|
+| < 640px | laci | 1 kolom | bergulir dalam wadahnya |
+| 640–1024px | laci | 2 kolom | kolom kurang penting disembunyikan |
+| ≥ 1024px | berlabuh | 3–4 kolom | lengkap |
+
+Sebelumnya kisi melompat dari satu kolom langsung ke tiga atau empat pada
+640px — tepat pada lebar tablet potret tempat empat kartu masing-masing hanya
+kebagian 150px.
+
+## Keluarga warna: enam, dan berhenti di situ
+
+navy · teal · emerald · amber · rose · cyan. Tidak pernah ungu/indigo/violet.
+Variasi untuk gradasi, bola cahaya, dan pendar diturunkan dari tint/shade
+keenamnya, bukan dari hue baru.
+
+| Keluarga | Token | Peran |
+|---|---|---|
+| Navy | `utama`, `sidebar`, `info` | struktural, tinta |
+| Teal | `aksen` | aksi utama |
+| Emerald | `berhasil` | tepat waktu, sukses |
+| Amber | `peringatan` | terlambat biasa, Mode Terbuka |
+| **Rose** | `galat` `#E11D48` | GAGAL: verifikasi wajah, tap ditolak, hapus, terlambat parah |
+| **Cyan** | `langit` `#0891B2` | info netral: catatan sistem, "sedang memeriksa" |
+
+Bedanya rose dan amber bukan selera: amber berarti "berlanjut, tetapi catat",
+rose berarti "tidak jadi". Dua tingkat keseriusan yang memakai satu warna
+membuat keduanya berhenti berarti apa-apa. "Terlambat parah" — lewat lebih
+dari satu jam dari batas — memakai rose dan menyebut durasinya.
+
+## Gerak (S35, S36)
+
+Timing diadopsi dari dokumen UIUX SIMPEG v2: `cubic-bezier(.16, 1, .3, 1)`
+selama 0,55 detik, geser 24px untuk elemen hero dan 28px untuk seksi yang
+tersingkap saat digulir, IntersectionObserver berambang 0,12.
+
+| Teknik | Berkas | Catatan |
+|---|---|---|
+| Koreografi masuk | `.tahap*` di tema.css | satu urutan per layar, lalu diam |
+| Tersingkap saat digulir | `useUngkap.js` | kelas `.ungkap` dipasang dari JS |
+| Kaca | `--tema-kaca`, `.kartu-jam` | alfa 0,68; jenjang tinta di dalamnya digelapkan |
+| Bola cahaya | `.bola*` | 3 di halaman depan, 2 lebih pucat di pelat admin |
+| Kemiringan 3D | `useMiring.js` | hanya penunjuk halus; satu pendengar per kisi |
+| Kilau menyapu | `.kilau::after` | pseudo-elemen, tidak masuk pohon dokumen |
+
+Empat cacat ditemukan hanya karena diperiksa di peramban, bukan dari membaca
+kode:
+
+1. **`prefers-reduced-motion` menghasilkan halaman KOSONG 0,8 detik.** Aturan
+   global menolkan `animation-duration` tetapi bukan `animation-delay`,
+   sehingga elemen bertahap bertahan di `opacity: 0` sepanjang jedanya.
+2. **IntersectionObserver hanya menyala saat MELINTASI ambang.** Gulir yang
+   melompat meninggalkan seksi terlewati pada `opacity: 0` selamanya; perlu
+   penyapu cadangan.
+3. **Buram kaca tidak pernah terpasang.** Ketika `backdrop-filter` ditulis
+   berdampingan dengan varian `-webkit-`, lightningcss membuang yang STANDAR.
+   Kini hanya properti standarnya yang ditulis.
+4. **Ikon kustom percobaan pertama terbaca sebagai ikon jam dan kalender
+   generik** — persis yang diminta ditinggalkan. Diganti ambang pintu dengan
+   dua panah berlawanan, dan spanduk kegiatan.
+
+`.kartu-angkat` dan `.miring` ditiadakan sepenuhnya di bawah
+`prefers-reduced-motion`, bukan sekadar dipercepat: aturan global memangkas
+durasi menjadi 0,01 ms, dan hasilnya bukan "tanpa gerak" melainkan "gerak yang
+seketika" — kartu tetap melompat, hanya tanpa peralihan halus.
+
+## Aturan tinta permukaan (S38)
+
+**Setiap permukaan terang menyatakan tintanya sendiri.** Ditulis pada `.panel`
+dan `.kartu-jam`, bukan diperbaiki di tempat kejadian.
+
+Tanpa aturan ini, permukaan terang yang diletakkan di dalam bidang gelap —
+pelat navy halaman depan, pelat kepala Panel Admin — mewarisi warna teks terang
+milik bidang itu dan isinya nyaris lenyap. Sudah terjadi sekali: kartu jam
+kehilangan angka jamnya begitu dipindahkan ke dalam pelat, dan tanggal di
+bawahnya tetap terbaca hanya karena kebetulan menyebut kelasnya sendiri.
+
+Di dalam `.kartu-jam`, seluruh jenjang tinta didefinisikan ulang lebih gelap.
+Latar di belakang kaca tidak pernah pasti — ia bergantung pada bidang yang
+kebetulan ada di belakangnya — dan yang pasti hanyalah kemungkinan terburuknya:
+kaca yang menimpa navy, tempat tinta redup bawaan hanya mencapai 2,93:1. Karena
+seluruh komponen menyebut token peran dan bukan warna tetap, mendefinisikan
+ulang tokennya membuat setiap isi kartu ikut menyesuaikan, termasuk isi yang
+kelak ditambahkan orang lain tanpa ia perlu tahu aturan ini ada.
+
+**Penjaganya:** `npm run periksa:tinta` membuka setiap halaman yang sudah
+dirender dan membaca warna SUNGGUHAN dari tiap permukaan. Membacanya dari
+halaman jadi, bukan dari berkas CSS, adalah satu-satunya cara memeriksa
+pewarisan. Diuji dengan menyuntikkan kembali cacat aslinya; ia menyebut
+halaman, kelas, tinta, dan cuplikan teksnya.
+
+Slot `#pelat` pada `AdminLayout` menerima isi yang duduk di dalam pelat kepala.
+Isi apa pun yang diletakkan di sana wajib memakai permukaan yang menyatakan
+tintanya sendiri.
