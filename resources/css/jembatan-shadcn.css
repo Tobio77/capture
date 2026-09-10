@@ -1,0 +1,198 @@
+/*
+ * Jembatan shadcn-vue → token tema Capture.
+ *
+ * shadcn-vue menulis komponennya dengan nama peran BAHASA INGGRIS yang tetap:
+ * `bg-background`, `text-muted-foreground`, `border-border`, `bg-primary`.
+ * Nama-nama itu tertanam di dalam berkas komponen yang ditarik lewat CLI —
+ * mengubahnya satu per satu berarti setiap `shadcn-vue add` berikutnya harus
+ * disunting ulang dengan tangan.
+ *
+ * Karena itu nama peran shadcn TIDAK diberi warna sendiri di sini; ia hanya
+ * DITUNJUKKAN ke token `--tema-*` milik `tema.css`. Akibatnya:
+ *
+ *   - `tema.css` tetap satu-satunya sumber warna aplikasi. Berkas ini tidak
+ *     memperkenalkan satu pun nilai warna baru kecuali putih untuk tinta di
+ *     atas isian penuh, yang memang sudah dipakai `.tombol-utama`.
+ *   - Komponen shadcn apa pun yang ditarik nanti langsung berwarna
+ *     navy/teal/emerald/amber/rose, bukan neutral/zinc bawaannya.
+ *   - Mode gelap ikut bekerja tanpa disentuh: yang berbalik adalah `--tema-*`
+ *     di bawahnya, bukan token di berkas ini.
+ *
+ * Yang SENGAJA TIDAK dipetakan: skala `--radius-*`. Bawaan shadcn menghitung
+ * ulang `--radius-sm/md/lg/xl` dari satu `--radius`, dan itu akan menimpa
+ * skala sudut yang sudah dinaikkan `tema.css` pada S30 — seluruh aplikasi ikut
+ * berubah bentuk hanya karena satu komponen ditambahkan. Komponen shadcn di
+ * sini memakai `rounded-md`/`rounded-lg` milik proyek.
+ * ======================================================================== */
+
+/*
+ * Varian `dark:` mengikuti `data-tema`, bukan `prefers-color-scheme` sendirian.
+ *
+ * Halaman proyek ini tidak memakai `dark:` sama sekali — tokennya yang
+ * berbalik. Tetapi komponen shadcn membawa `dark:` di dalam dirinya, dan
+ * varian bawaan Tailwind hanya membaca preferensi OS. Tanpa penulisan ulang
+ * ini, komponen shadcn akan gelap sendirian saat pengguna memilih Terang di
+ * atas OS gelap, dan tetap terang saat pengguna memilih Gelap di atas OS
+ * terang — dua-duanya di halaman yang sama.
+ *
+ * Urutannya sama dengan `tema.css`: mode Sistem lewat media query yang tunduk
+ * pada pilihan Terang yang eksplisit, lalu pilihan Gelap yang eksplisit.
+ */
+@custom-variant dark {
+    @media (prefers-color-scheme: dark) {
+        &:where(:root:not([data-tema='terang']), :root:not([data-tema='terang']) *) {
+            @slot;
+        }
+    }
+
+    &:where(:root[data-tema='gelap'], :root[data-tema='gelap'] *) {
+        @slot;
+    }
+}
+
+:root {
+    /* --------------------------------------------------------- permukaan */
+    --background: var(--tema-kertas);
+    --foreground: var(--tema-utama);
+
+    --card: var(--tema-permukaan);
+    --card-foreground: var(--tema-utama);
+
+    --popover: var(--tema-permukaan);
+    --popover-foreground: var(--tema-utama);
+
+    /* ------------------------------------------------------------ tindakan
+     * `primary` shadcn adalah aksi utama — itu teal, sama dengan
+     * `.tombol-utama`, bukan navy struktural.
+     */
+    --primary: var(--tema-aksen);
+    --primary-foreground: #ffffff;
+
+    --secondary: var(--tema-permukaan-2);
+    --secondary-foreground: var(--tema-utama);
+
+    /*
+     * PERHATIAN penamaan: `accent` di shadcn BUKAN warna merek melainkan
+     * permukaan sorot — baris menu yang sedang ditunjuk, tanggal yang disorot
+     * tetikus. Warna merek proyek, `--tema-aksen`, masuk ke `primary` di atas,
+     * bukan ke sini. Menyamakan keduanya karena namanya mirip akan mewarnai
+     * seluruh baris menu dengan teal pekat.
+     */
+    --accent: var(--tema-permukaan-hover);
+    --accent-foreground: var(--tema-utama);
+
+    --muted: var(--tema-permukaan-2);
+    --muted-foreground: var(--tema-redup);
+
+    /* Rose, bukan amber: `destructive` berarti tidak jadi, bukan hati-hati. */
+    --destructive: var(--tema-galat);
+    --destructive-foreground: #ffffff;
+
+    /* ------------------------------------------------------- garis & fokus */
+    --border: var(--tema-garis);
+    --input: var(--tema-garis-kuat);
+    --ring: var(--tema-aksen);
+
+    /*
+     * Deret grafik: lima keluarga warna yang berbeda, tanpa satu pun
+     * mengulang — teal, emerald, langit, amber, rose. Tidak ada ungu/indigo.
+     */
+    --chart-1: var(--tema-aksen);
+    --chart-2: var(--tema-berhasil);
+    --chart-3: var(--tema-langit);
+    --chart-4: var(--tema-peringatan);
+    --chart-5: var(--tema-galat);
+
+    /* ---------------------------------------------------------- bilah sisi */
+    --sidebar: var(--tema-sidebar);
+    --sidebar-foreground: var(--tema-sidebar-teks);
+    --sidebar-primary: var(--tema-aksen);
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: var(--tema-sidebar-2);
+    --sidebar-accent-foreground: var(--tema-sidebar-teks);
+    --sidebar-border: var(--tema-sidebar-garis);
+    --sidebar-ring: var(--tema-aksen);
+
+    /* Dipakai komponen yang menyebut `var(--radius)` secara langsung. */
+    --radius: var(--radius-lg);
+}
+
+/* ==========================================================================
+ * Mode gelap — HANYA tinta di atas isian penuh.
+ *
+ * Sisa tokennya tidak perlu ditulis ulang: semuanya menunjuk ke `--tema-*`,
+ * yang sudah berbalik sendiri di `tema.css`. Yang tidak bisa ikut berbalik
+ * adalah putih di atas teal dan rose, karena di mode gelap kedua warna itu
+ * menjadi terang (#14b8a6 dan #fb7185) dan tinta putih di atasnya turun jauh
+ * di bawah ambang WCAG AA. Di sana tintanya menjadi navy gelap.
+ *
+ * Sama seperti `tema.css`, daftarnya muncul DUA KALI — mode Sistem dan
+ * pilihan Gelap yang eksplisit. Bila menambah token, ubah KEDUANYA.
+ * ======================================================================== */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-tema='terang']) {
+        --primary-foreground: var(--tema-kertas);
+        --destructive-foreground: var(--tema-kertas);
+        --sidebar-primary-foreground: var(--tema-kertas);
+    }
+}
+
+:root[data-tema='gelap'] {
+    --primary-foreground: var(--tema-kertas);
+    --destructive-foreground: var(--tema-kertas);
+    --sidebar-primary-foreground: var(--tema-kertas);
+}
+
+/* ==========================================================================
+ * Pendaftaran ke Tailwind.
+ *
+ * `inline` penting: tanpa itu nilai token dibekukan saat berkas dibaca,
+ * sehingga `bg-primary` tidak ikut berubah ketika `--tema-aksen` berbalik di
+ * mode gelap.
+ *
+ * `--color-sidebar` sengaja tidak didaftarkan ulang — `tema.css` sudah
+ * memilikinya, dan nilainya sama.
+ * ======================================================================== */
+@theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-ring: var(--sidebar-ring);
+}
