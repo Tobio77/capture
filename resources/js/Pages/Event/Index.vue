@@ -11,6 +11,7 @@ import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
 import TombolAksi from '@/Components/UI/TombolAksi.vue'
 import Pilihan from '@/Components/UI/Pilihan.vue'
 import RentangTanggal from '@/Components/UI/RentangTanggal.vue'
+import TanggalIsian from '@/Components/UI/TanggalIsian.vue'
 import TombolProses from '@/Components/UI/TombolProses.vue'
 
 /**
@@ -563,11 +564,11 @@ const kolom = [
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <label for="tanggal" class="block text-sm font-medium text-utama">Tanggal</label>
-            <input
+            <TanggalIsian
               id="tanggal"
               v-model="form.tanggal"
-              type="date"
-              class="mt-1 block w-full rounded-md border-garis bayang focus:border-aksen focus:ring-aksen sm:text-sm"
+              class="mt-1"
+              :bermasalah="Boolean(form.errors.tanggal)"
             />
             <p v-if="form.errors.tanggal" class="mt-1 text-xs text-peringatan-teks">
               {{ form.errors.tanggal }}

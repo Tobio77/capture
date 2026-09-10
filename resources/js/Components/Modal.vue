@@ -1,89 +1,102 @@
 <script setup>
-import { onMounted, onUnmounted, watch } from 'vue'
 import Ikon from '@/Components/Ikon.vue'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from '@/Components/shadcn/dialog'
+
+/**
+ * Dialog admin.
+ *
+ * Tampilannya tidak berubah dari versi sebelumnya — tirai navy, panel putih
+ * bersudut, kepala bergaris, kaki untuk tombol aksi. Yang berganti adalah
+ * mesin di baliknya: dari `Teleport` + `Transition` buatan sendiri menjadi
+ * primitif Dialog milik Reka UI (lewat shadcn-vue).
+ *
+ * Alasannya bukan gaya, melainkan tiga hal yang tidak dipunyai versi lama:
+ *
+ *   1. JEBAKAN FOKUS. Sebelumnya Tab dari isian terakhir di dalam dialog
+ *      melompat ke tautan sidebar di belakang tirai — pengguna papan ketik
+ *      bisa mengisi formulir di balik lapisan yang menutupinya.
+ *   2. PENGEMBALIAN FOKUS. Setelah dialog ditutup, fokus kembali ke tombol
+ *      yang membukanya, bukan lompat ke awal halaman.
+ *   3. DIALOG BERTUMPUK. Penangan Escape yang lama dipasang per instance ke
+ *      `document`, sehingga satu tekan Escape menutup SEMUA dialog yang
+ *      terbuka sekaligus. Reka UI hanya menutup yang paling atas.
+ *
+ * Kunci gulir halaman juga tidak lagi menimpa `document.body.style.overflow`
+ * begitu saja — yang lama mengembalikannya ke string kosong saat menutup,
+ * menghapus nilai apa pun yang mungkin sudah dipasang pihak lain.
+ *
+ * Isi yang terlalu tinggi kini bergulir DI DALAM panel (`max-h-[85vh]` pada
+ * panel, `overflow-y-auto` pada badan), bukan menggulirkan seluruh tirai.
+ * Kepala dan kaki karena itu tetap terlihat pada formulir yang panjang.
+ */
 
 const props = defineProps({
   terbuka: { type: Boolean, default: false },
   judul: { type: String, required: true },
   lebar: { type: String, default: 'max-w-lg' },
+
+  /**
+   * Kalimat penjelas di bawah judul.
+   *
+   * Bila kosong, judulnya dipakai ulang sebagai keterangan tersembunyi.
+   * Reka UI menuntut setiap dialog punya keterangan yang dapat dibacakan
+   * pembaca layar; tanpa itu ia memperingatkan di konsol dan dialognya
+   * kehilangan `aria-describedby`.
+   */
+  keterangan: { type: String, default: '' },
 })
 
 const emit = defineEmits(['tutup'])
 
-const tanganiEscape = (event) => {
-  if (event.key === 'Escape' && props.terbuka) emit('tutup')
+/** Reka UI mengabarkan buka/tutup lewat satu kanal; kita hanya perlu tutupnya. */
+const perubahanBuka = (terbuka) => {
+  if (!terbuka) emit('tutup')
 }
-
-watch(
-  () => props.terbuka,
-  (terbuka) => {
-    document.body.style.overflow = terbuka ? 'hidden' : ''
-  },
-)
-
-onMounted(() => document.addEventListener('keydown', tanganiEscape))
-onUnmounted(() => {
-  document.removeEventListener('keydown', tanganiEscape)
-  document.body.style.overflow = ''
-})
 </script>
 
 <template>
-  <Teleport to="body">
-    <!-- Tirai dan panel dianimasikan terpisah: tirai memudar, panel naik
-         sedikit sambil membesar, sehingga asal-usulnya terbaca. -->
-    <Transition
-      enter-active-class="transition-opacity duration-200 ease-out"
-      enter-from-class="opacity-0"
-      leave-active-class="transition-opacity duration-150 ease-in"
-      leave-to-class="opacity-0"
+  <Dialog :open="terbuka" @update:open="perubahanBuka">
+    <DialogContent
+      :show-close-button="false"
+      :class="[
+        'flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-none',
+        lebar,
+      ]"
     >
-      <div v-if="terbuka" class="fixed inset-0 z-50 overflow-y-auto">
-        <div
-          class="fixed inset-0 bg-navy-900/60 backdrop-blur-[2px]"
-          @click="emit('tutup')"
-        ></div>
+      <div class="flex items-start justify-between border-b border-garis px-6 py-4">
+        <div class="min-w-0">
+          <DialogTitle class="text-base">{{ judul }}</DialogTitle>
 
-        <div class="relative flex min-h-full items-center justify-center p-4">
-          <Transition
-            appear
-            enter-active-class="transition duration-200 ease-out"
-            enter-from-class="translate-y-3 scale-95 opacity-0"
-            enter-to-class="translate-y-0 scale-100 opacity-100"
-          >
-            <div
-              class="w-full rounded-xl border border-garis bg-permukaan shadow-2xl"
-              :class="lebar"
-              role="dialog"
-              aria-modal="true"
-              :aria-label="judul"
-            >
-              <div class="flex items-start justify-between border-b border-garis px-6 py-4">
-                <h2 class="font-display text-base font-semibold text-utama">{{ judul }}</h2>
-                <button
-                  type="button"
-                  class="-mr-1 rounded-md p-1.5 text-redup transition-colors duration-150 hover:bg-permukaan-hover hover:text-utama"
-                  aria-label="Tutup"
-                  @click="emit('tutup')"
-                >
-                  <Ikon nama="tutup" ukuran="h-5 w-5" />
-                </button>
-              </div>
-
-              <div class="px-6 py-5">
-                <slot />
-              </div>
-
-              <div
-                v-if="$slots.aksi"
-                class="flex justify-end gap-3 border-t border-garis px-6 py-4"
-              >
-                <slot name="aksi" />
-              </div>
-            </div>
-          </Transition>
+          <DialogDescription v-if="keterangan" class="mt-1 text-sm text-sekunder">
+            {{ keterangan }}
+          </DialogDescription>
+          <DialogDescription v-else class="sr-only">{{ judul }}</DialogDescription>
         </div>
+
+        <DialogClose
+          class="-mr-1 shrink-0 rounded-md p-1.5 text-redup transition-colors duration-150 hover:bg-permukaan-hover hover:text-utama"
+          aria-label="Tutup"
+        >
+          <Ikon nama="tutup" ukuran="h-5 w-5" />
+        </DialogClose>
       </div>
-    </Transition>
-  </Teleport>
+
+      <div class="flex-1 overflow-y-auto px-6 py-5">
+        <slot />
+      </div>
+
+      <div
+        v-if="$slots.aksi"
+        class="flex justify-end gap-3 border-t border-garis px-6 py-4"
+      >
+        <slot name="aksi" />
+      </div>
+    </DialogContent>
+  </Dialog>
 </template>

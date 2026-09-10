@@ -7,6 +7,7 @@ import TombolProses from '@/Components/UI/TombolProses.vue'
 import TombolAksi from '@/Components/UI/TombolAksi.vue'
 import Lencana from '@/Components/UI/Lencana.vue'
 import Pilihan from '@/Components/UI/Pilihan.vue'
+import TanggalIsian from '@/Components/UI/TanggalIsian.vue'
 
 /**
  * Setting Absen — pengaturan global sistem (FR-SET-01 s.d. FR-SET-06).
@@ -413,12 +414,16 @@ const simpan = () => {
             <label for="libur-tanggal" class="mb-1.5 block text-sm font-medium text-utama">
               Tanggal<span class="ml-0.5 text-galat-teks" aria-hidden="true">*</span>
             </label>
-            <input
+            <!--
+              `required` bawaan ikut lepas bersama input native, tetapi tidak
+              ada lubang yang terbuka: tombol simpan sudah nonaktif selama
+              tanggal atau keterangan kosong (lihat `:nonaktif` di bawah), dan
+              sisi server tetap memvalidasinya.
+            -->
+            <TanggalIsian
               id="libur-tanggal"
               v-model="formLibur.tanggal"
-              type="date"
-              required
-              class="kolom-isian"
+              :bermasalah="Boolean(formLibur.errors.tanggal)"
             />
           </div>
 
