@@ -5,7 +5,9 @@ namespace Tests\Feature\Admin;
 use App\Models\HariLibur;
 use App\Models\UnitKerja;
 use App\Models\User;
+use App\Services\KalenderKerjaService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -188,6 +190,74 @@ class HariLiburTest extends TestCase
                 ->where('boleh_libur_nasional', true)
                 ->has('unit_kerja_libur')
                 ->etc());
+    }
+
+    #[Test]
+    public function pilihan_unit_hanya_level_teratas(): void
+    {
+        /*
+         * Daftar inilah satu-satunya di aplikasi yang dulu mendatarkan SELURUH
+         * tabel unit kerja — seksi dan subbag ikut ditawarkan, padahal absensi
+         * tidak pernah diselenggarakan pada tingkat itu. Setiap penyaring lain
+         * (Daftar Event, Laporan, Kelola Pegawai, Kelola User, Perangkat
+         * Absen, Absen Umum) sudah memakai levelTeratas() sejak S05b.
+         */
+        $seksi = UnitKerja::factory()->create([
+            'kode' => 'BLK-SBY-TU',
+            'induk_id' => $this->upt->id,
+        ]);
+
+        $this->actingAs($this->superadmin)
+            ->get('/admin/kelola-absen/setting')
+            ->assertOk()
+            ->assertInertia(function (Assert $halaman) use ($seksi) {
+                $nilai = collect($halaman->toArray()['props']['unit_kerja_libur'])
+                    ->pluck('nilai');
+
+                $this->assertContains($this->upt->id, $nilai->all(), 'UPT harus tetap ditawarkan.');
+                $this->assertContains($this->lain->id, $nilai->all());
+                $this->assertNotContains($seksi->id, $nilai->all(), 'Seksi tidak boleh ditawarkan.');
+
+                // Simpul OPD adalah INDUK dari level teratas, bukan anggotanya.
+                $this->assertNotContains($this->opd->id, $nilai->all());
+            });
+    }
+
+    #[Test]
+    public function libur_unit_induk_tetap_menurun_ke_seksi_di_bawahnya(): void
+    {
+        /*
+         * Penjaga dari salah paham yang paling mahal pada perubahan ini:
+         * mempersempit PILIHAN tidak boleh mempersempit JANGKAUAN. Libur yang
+         * dipasang pada UPT harus tetap menandai hari bagi seksi di bawahnya,
+         * sebab pencarian libur menelusuri ke atas lewat idsLeluhurDan().
+         *
+         * Bila suatu saat pencariannya diubah menjadi pencocokan
+         * unit_kerja_id persis, uji inilah yang akan gagal — bukan
+         * laporannya, yang akan tetap terlihat rapi sambil kehilangan orang.
+         */
+        $seksi = UnitKerja::factory()->create([
+            'kode' => 'BLK-SBY-TU',
+            'induk_id' => $this->upt->id,
+        ]);
+
+        HariLibur::query()->create([
+            'tanggal' => '2026-10-01',
+            'keterangan' => 'Ulang Tahun BLK Surabaya',
+            'unit_kerja_id' => $this->upt->id,
+        ]);
+
+        $kalender = app(KalenderKerjaService::class);
+        $tanggal = Carbon::parse('2026-10-01');
+
+        $this->assertSame(
+            'Ulang Tahun BLK Surabaya',
+            $kalender->alasanLibur($seksi->id, $tanggal),
+            'Seksi harus mewarisi libur UPT induknya.',
+        );
+
+        // Dan tidak bocor ke UPT lain yang sederajat.
+        $this->assertNull($kalender->alasanLibur($this->lain->id, $tanggal));
     }
 
     #[Test]

@@ -336,4 +336,69 @@ class LaporanTest extends TestCase
                 ->where('filter.sampai', '2026-09-30')
                 ->etc());
     }
+
+    #[Test]
+    public function kolom_unit_menyebut_unit_level_teratas_bukan_seksi(): void
+    {
+        /*
+         * Pegawai menaut ke seksi, sedangkan yang ditawarkan penyaring di atas
+         * tabel adalah UPT/bidang. Sebelum perubahan ini kolomnya menyebut
+         * seksi, sehingga tabel yang disaring "UPT BLK Singosari" memuat
+         * baris-baris bertuliskan "BLK-SGS-TU" — dan pembaca mengira
+         * penyaringnya tidak bekerja.
+         */
+        ['upt' => $upt, 'seksi' => $seksi] = $this->hirarki();
+
+        Pegawai::factory()->create(['nama' => 'Ahmad Fauzi', 'unit_kerja_id' => $seksi->id]);
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('baris.data.0.unit_kerja', $upt->nama)
+                ->etc());
+    }
+
+    #[Test]
+    public function menggulung_nama_unit_tidak_menggulung_perhitungannya(): void
+    {
+        /*
+         * Penjaga dari kekeliruan yang paling mahal pada perubahan ini: yang
+         * digulung HANYA nama yang tertulis, bukan `unit_kerja_id` yang
+         * dipakai menghitung. Kalau sampai id-nya ikut digulung, laporan akan
+         * terlihat rapi — nama unitnya sudah benar — sambil kehilangan pegawai
+         * yang bertaut ke seksi, dan salah menghitung event yang berlaku.
+         *
+         * Dua hal yang dijaga sekaligus: pegawai seksi tetap MASUK ke laporan
+         * unit induknya, dan event yang dinyatakan bagi induknya tetap
+         * terhitung berlaku baginya.
+         */
+        ['upt' => $upt, 'seksi' => $seksi] = $this->hirarki();
+
+        $diInduk = Pegawai::factory()->create(['nama' => 'Ahmad Fauzi', 'unit_kerja_id' => $upt->id]);
+        $diSeksi = Pegawai::factory()->create(['nama' => 'Budi Santoso', 'unit_kerja_id' => $seksi->id]);
+
+        $this->eventPada('2026-09-01', $upt);
+        $this->eventPada('2026-09-02', $upt);
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL."?dari=2026-09-01&sampai=2026-09-30&unit_kerja_id={$upt->id}")
+            ->assertOk()
+            ->assertInertia(function (Assert $page) use ($diInduk, $diSeksi, $upt) {
+                $baris = collect($page->toArray()['props']['baris']['data'])
+                    ->keyBy('pegawai_id');
+
+                // Pegawai seksi tidak boleh hilang dari laporan induknya.
+                $this->assertCount(2, $baris);
+                $this->assertTrue($baris->has($diSeksi->id), 'Pegawai seksi harus ikut terhitung.');
+
+                // Keduanya menuliskan nama unit yang sama…
+                $this->assertSame($upt->nama, $baris[$diInduk->id]['unit_kerja']);
+                $this->assertSame($upt->nama, $baris[$diSeksi->id]['unit_kerja']);
+
+                // …dan keduanya sama-sama terkena dua event milik induknya.
+                $this->assertSame(2, $baris[$diInduk->id]['event_berlaku']);
+                $this->assertSame(2, $baris[$diSeksi->id]['event_berlaku']);
+            });
+    }
 }

@@ -57,11 +57,32 @@ class SettingAbsenController extends Controller
         return Inertia::render('Setting/Absen', [
             'setting' => $this->setting->ambil(),
             'hari_libur' => $libur,
+            /*
+             * Unit level teratas saja, sama seperti setiap penyaring dan
+             * formulir lain yang menawarkan unit kerja (Daftar Event, Laporan,
+             * Kelola Pegawai, Kelola User, Perangkat Absen, Absen Umum).
+             * Sebelumnya daftar ini satu-satunya yang mendatarkan seluruh 117
+             * baris tabel unit kerja, sehingga admin diminta memilih di antara
+             * puluhan seksi dan subbag yang tidak pernah menjadi satuan
+             * penyelenggara absensi.
+             *
+             * Yang HILANG hanyalah pilihannya, bukan jangkauannya: libur yang
+             * dipasang pada sebuah bidang atau UPT tetap menurun ke seluruh
+             * seksi di bawahnya, karena pencarian libur menelusuri ke atas
+             * lewat {@see UnitKerja::idsLeluhurDan()} — bukan mencocokkan
+             * `unit_kerja_id` persis.
+             *
+             * Cakupan Admin UPT memakai `idTeratasMenaungi()`, bukan
+             * `idsDenganTurunan()`: yang kedua menghasilkan daftar KOSONG bila
+             * penggunanya bertaut ke seksi, sebab tidak ada satu pun turunan
+             * seksi yang berstatus level teratas.
+             */
             'unit_kerja_libur' => UnitKerja::query()
+                ->levelTeratas()
                 ->aktif()
                 ->when(
                     ! $pengguna->lintasUnit(),
-                    fn ($q) => $q->whereIn('id', UnitKerja::idsDenganTurunan($pengguna->unit_kerja_id)),
+                    fn ($q) => $q->whereIn('id', UnitKerja::idTeratasMenaungi($pengguna->unit_kerja_id)),
                 )
                 ->orderBy('nama')
                 ->get(['id', 'nama'])

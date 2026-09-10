@@ -104,8 +104,25 @@ class LaporanService
         $berlakuUntukUnit = $this->eventPerUnit($event);
         $kehadiran = $this->kehadiran($event->pluck('id'), $pegawai->pluck('id'));
 
+        /*
+         * Kolom "Unit Kerja" menyebut unit LEVEL TERATAS, bukan seksi tempat
+         * pegawai bertaut. Pegawai menaut ke seksi/subbag, sedangkan yang
+         * dikenali pembaca laporan — dan yang ditawarkan penyaring di atas
+         * tabel — adalah bidang atau UPT. Tabel yang penyaringnya menyebut
+         * "Bidang Hubungan Industrial dan Jaminan Sosial" lalu memuat kolom
+         * berisi "Kelompok Jabatan Fungsional dan Pelaksana" membuat pembaca
+         * mengira penyaringnya tidak bekerja.
+         *
+         * Yang berubah HANYA nama yang tertulis. Perhitungan di bawah tetap
+         * memakai `$orang->unit_kerja_id` yang sebenarnya — cakupan event
+         * dinyatakan per unit dan sudah diperluas ke seluruh turunan pada
+         * eventPerUnit(). Menggulung id-nya di sini, bukan sekadar namanya,
+         * akan membuat laporan tampak rapi sambil salah menghitung.
+         */
+        $namaTeratas = UnitKerja::namaTeratasPerUnit();
+
         $baris = $pegawai
-            ->map(function (Pegawai $orang) use ($berlakuUntukUnit, $kehadiran) {
+            ->map(function (Pegawai $orang) use ($berlakuUntukUnit, $kehadiran, $namaTeratas) {
                 $berlaku = $berlakuUntukUnit[$orang->unit_kerja_id] ?? 0;
                 $catatan = $kehadiran[$orang->id] ?? ['hadir' => 0, 'terlambat' => 0];
 
@@ -113,7 +130,7 @@ class LaporanService
                     'pegawai_id' => $orang->id,
                     'nip' => $orang->nip,
                     'nama' => $orang->nama,
-                    'unit_kerja' => $orang->unitKerja?->nama,
+                    'unit_kerja' => $namaTeratas[$orang->unit_kerja_id] ?? $orang->unitKerja?->nama,
                     'event_berlaku' => $berlaku,
                     'hadir' => $catatan['hadir'],
                     'terlambat' => $catatan['terlambat'],

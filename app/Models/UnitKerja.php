@@ -213,6 +213,54 @@ class UnitKerja extends Model
     }
 
     /**
+     * Peta id unit → NAMA unit level teratas yang menaunginya.
+     *
+     * Bentuk borongan dari {@see self::idTeratasUntuk()}, dan sengaja ada
+     * karena bentuk satuannya mahal: ia membaca ulang seluruh tabel untuk
+     * setiap unit yang ditanyakan. Dipakai laporan yang harus menuliskan nama
+     * unit bagi ribuan pegawai sekaligus — memanggil versi satuan di sana
+     * berarti ribuan kali pembacaan tabel yang sama.
+     *
+     * Unit yang tidak bernaung di bawah level teratas mana pun memetakan ke
+     * NAMANYA SENDIRI, bukan ke null: yang termasuk di dalamnya simpul OPD —
+     * ia induk dari level teratas, bukan anggotanya — dan unit yatim pada
+     * instalasi yang belum pernah menyinkronkan WORKA. Menuliskan namanya
+     * sendiri selalu lebih berguna daripada sel kosong.
+     *
+     * @return array<int, string>
+     */
+    public static function namaTeratasPerUnit(): array
+    {
+        $unit = static::query()->get(['id', 'induk_id', 'nama']);
+
+        $indukDari = $unit->pluck('induk_id', 'id');
+        $namaDari = $unit->pluck('nama', 'id');
+        $teratas = static::query()->levelTeratas()->pluck('id')->flip();
+
+        $peta = [];
+
+        foreach ($unit as $satu) {
+            $id = (int) $satu->id;
+            $dilalui = [];
+
+            // Menelusuri ke atas sampai bertemu unit level teratas. Penjaga
+            // siklus sama seperti idsDenganTurunan(): FK tidak mencegah
+            // A → B → A, dan satu baris rusak tidak boleh membuat permintaan
+            // berputar selamanya.
+            while ($id !== null && ! isset($teratas[$id]) && ! isset($dilalui[$id])) {
+                $dilalui[$id] = true;
+                $id = $indukDari[$id] === null ? null : (int) $indukDari[$id];
+            }
+
+            $peta[(int) $satu->id] = $id !== null && isset($teratas[$id])
+                ? $namaDari[$id]
+                : $satu->nama;
+        }
+
+        return $peta;
+    }
+
+    /**
      * Peta induk → daftar id anak langsung, dari satu kali baca tabel.
      *
      * @return array<int, array<int, int>>
