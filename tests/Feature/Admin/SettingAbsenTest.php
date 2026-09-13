@@ -46,6 +46,9 @@ class SettingAbsenTest extends TestCase
             'jam_tutup_pulang' => '18:00',
 
             'wajib_kode_aktivasi' => true,
+
+            'ambang_kehadiran_minimum' => 80,
+            'ambang_keterlambatan_maksimum' => 15,
         ], $ubahan);
     }
 
@@ -129,6 +132,46 @@ class SettingAbsenTest extends TestCase
         $this->actingAs($admin)
             ->post(self::URL, $this->isian(['ambang_kecocokan_wajah' => 100]))
             ->assertSessionHasErrors('ambang_kecocokan_wajah');
+    }
+
+    #[Test]
+    public function ambang_laporan_bawaan_delapan_puluh_dan_lima_belas(): void
+    {
+        // Instalasi baru, belum pernah diatur admin (FR-LAP-04).
+        $setting = app(SettingAbsenService::class)->ambil();
+
+        $this->assertSame(80, $setting['ambang_kehadiran_minimum']);
+        $this->assertSame(15, $setting['ambang_keterlambatan_maksimum']);
+    }
+
+    #[Test]
+    public function ambang_laporan_di_luar_rentang_ditolak(): void
+    {
+        $admin = User::factory()->superadmin()->create();
+
+        $this->actingAs($admin)
+            ->post(self::URL, $this->isian(['ambang_kehadiran_minimum' => 49]))
+            ->assertSessionHasErrors('ambang_kehadiran_minimum');
+
+        $this->actingAs($admin)
+            ->post(self::URL, $this->isian(['ambang_keterlambatan_maksimum' => 51]))
+            ->assertSessionHasErrors('ambang_keterlambatan_maksimum');
+    }
+
+    #[Test]
+    public function ambang_laporan_dapat_diubah_admin(): void
+    {
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->post(self::URL, $this->isian([
+                'ambang_kehadiran_minimum' => 75,
+                'ambang_keterlambatan_maksimum' => 20,
+            ]))
+            ->assertSessionHas('sukses');
+
+        $setting = app(SettingAbsenService::class)->ambil();
+
+        $this->assertSame(75, $setting['ambang_kehadiran_minimum']);
+        $this->assertSame(20, $setting['ambang_keterlambatan_maksimum']);
     }
 
     #[Test]

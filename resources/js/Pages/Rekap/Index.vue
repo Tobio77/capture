@@ -5,11 +5,14 @@ import AdminLayout from '@/Layouts/AdminLayout.vue'
 import Ikon from '@/Components/Ikon.vue'
 import KolomCari from '@/Components/UI/KolomCari.vue'
 import Pilihan from '@/Components/UI/Pilihan.vue'
+import PilihanKolom from '@/Components/UI/PilihanKolom.vue'
 import Tanggal from '@/Components/UI/Tanggal.vue'
 import Lencana from '@/Components/UI/Lencana.vue'
 import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
 import RingkasanRekap from '@/Components/Rekap/RingkasanRekap.vue'
 import TabelRekap from '@/Components/Rekap/TabelRekap.vue'
+import { keQueryString } from '@/lib/kueri'
+import { hariIniIso } from '@/lib/tanggal'
 
 /**
  * Rekap Absen (FR-REK-01 s.d. FR-REK-03), dua tab.
@@ -170,7 +173,7 @@ let jedaSegar = null
  * Hanya rekap yang masih bergerak yang perlu disegarkan: event yang entry-nya
  * dibuka, dan sesi harian hari ini. Rekap kemarin tidak akan berubah lagi.
  */
-const hariIni = computed(() => filter.tanggal === new Date().toISOString().slice(0, 10))
+const hariIni = computed(() => filter.tanggal === hariIniIso())
 
 onMounted(() => {
   jedaSegar = setInterval(segarkan, JEDA_SEGAR_MS)
@@ -210,6 +213,24 @@ async function segarkan() {
 }
 
 /*
+ * Checklist kolom "Unduh Data" — sama untuk kedua tab karena bentuk rekapnya
+ * sama (rekap kehadiran per pegawai pada satu sesi), lihat
+ * `RekapController::KOLOM`/`AbsenUmumController::KOLOM` di sisi server. NIP
+ * dan Nama terkunci selalu ikut.
+ */
+const KOLOM_REKAP = [
+  { kunci: 'nip', label: 'NIP', terkunci: true },
+  { kunci: 'nama', label: 'Nama', terkunci: true },
+  { kunci: 'unit_kerja', label: 'Unit Kerja' },
+  { kunci: 'jam_masuk', label: 'Jam Masuk' },
+  { kunci: 'jam_pulang', label: 'Jam Pulang' },
+  { kunci: 'metode', label: 'Metode' },
+  { kunci: 'status_label', label: 'Status' },
+]
+
+const kolomTerpilih = ref(KOLOM_REKAP.map((k) => k.kunci))
+
+/*
  * Ekspor tab harian memanggil endpoint Absen Umum apa adanya — berkasnya
  * memang berkas yang sama, dan menyalinnya ke sini hanya akan melahirkan
  * lampiran kedua yang berbeda tipis.
@@ -221,15 +242,20 @@ function unduh(format) {
     const kueri = { ...kueriUmum.value, format }
 
     delete kueri.tab
+    if (format !== 'pdf') kueri.kolom = kolomTerpilih.value
+
     window.location.href =
-      '/admin/kelola-absen/absen-umum/ekspor?' + new URLSearchParams(kueri).toString()
+      '/admin/kelola-absen/absen-umum/ekspor?' + keQueryString(kueri)
 
     return
   }
 
   if (!props.event) return
 
-  window.location.href = `${ALAMAT}/${props.event.id}/ekspor?format=${format}`
+  const kueri = { format }
+  if (format !== 'pdf') kueri.kolom = kolomTerpilih.value
+
+  window.location.href = `${ALAMAT}/${props.event.id}/ekspor?` + keQueryString(kueri)
 }
 
 const dapatDiunduh = computed(() =>
@@ -303,6 +329,7 @@ const kartu = computed(() => [
         <button type="button" class="tombol tombol-garis" @click="cetak">
           <Ikon nama="cetak" ukuran="h-4 w-4" /> Cetak
         </button>
+        <PilihanKolom v-model="kolomTerpilih" :kolom="KOLOM_REKAP" />
         <button
           type="button"
           :disabled="!dapatDiunduh"
@@ -310,6 +337,14 @@ const kartu = computed(() => [
           @click="unduh('csv')"
         >
           <Ikon nama="unduh" ukuran="h-4 w-4" /> CSV
+        </button>
+        <button
+          type="button"
+          :disabled="!dapatDiunduh"
+          class="tombol tombol-garis disabled:opacity-50"
+          @click="unduh('xlsx')"
+        >
+          <Ikon nama="unduh" ukuran="h-4 w-4" /> Excel
         </button>
         <button
           type="button"

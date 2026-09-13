@@ -247,9 +247,23 @@ class LaporanService
      */
     protected function eventPadaRentang(Carbon $dari, Carbon $sampai): Collection
     {
+        /*
+         * `whereDate()`, bukan `whereBetween('tanggal', [...])` mentah:
+         * `tanggal` bercast `date`, dan sebagian penyimpanan (SQLite pada
+         * lingkungan uji, tanpa tipe DATE sungguhan) menuliskannya sebagai
+         * "2026-09-11 00:00:00" apa adanya. Dibandingkan sebagai STRING
+         * terhadap batas atas "2026-09-11", nilai itu justru lebih besar
+         * secara leksikografis — batas atasnya sendiri diam-diam
+         * TEREKSKLUSI. MySQL produksi tidak pernah menampakkan ini karena
+         * kolom DATE sungguhan memotong jamnya saat disimpan, tetapi query
+         * yang benar tidak boleh bergantung pada kebetulan mesin
+         * penyimpanannya. `whereDate()` membandingkan sebagai tanggal di
+         * kedua sisi, pada mesin basis data mana pun.
+         */
         return EventAbsen::query()
             ->with('unitKerja:id')
-            ->whereBetween('tanggal', [$dari->toDateString(), $sampai->toDateString()])
+            ->whereDate('tanggal', '>=', $dari->toDateString())
+            ->whereDate('tanggal', '<=', $sampai->toDateString())
             ->get();
     }
 

@@ -93,6 +93,10 @@ class SettingAbsenController extends Controller
                 'ambang_min' => SettingAbsenService::AMBANG_MIN,
                 'ambang_maks' => SettingAbsenService::AMBANG_MAKS,
                 'toleransi_maks' => SettingAbsenService::TOLERANSI_MAKS_MENIT,
+                'ambang_kehadiran_min' => SettingAbsenService::AMBANG_KEHADIRAN_MIN,
+                'ambang_kehadiran_maks' => SettingAbsenService::AMBANG_KEHADIRAN_MAKS,
+                'ambang_keterlambatan_min' => SettingAbsenService::AMBANG_KETERLAMBATAN_MIN,
+                'ambang_keterlambatan_maks' => SettingAbsenService::AMBANG_KETERLAMBATAN_MAKS,
             ],
         ]);
     }

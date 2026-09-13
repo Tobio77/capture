@@ -13,6 +13,7 @@ import Pilihan from '@/Components/UI/Pilihan.vue'
 import RentangTanggal from '@/Components/UI/RentangTanggal.vue'
 import TanggalIsian from '@/Components/UI/TanggalIsian.vue'
 import TombolProses from '@/Components/UI/TombolProses.vue'
+import { hariIniIso } from '@/lib/tanggal'
 
 /**
  * Daftar Event (FR-EVT-01 s.d. FR-EVT-05).
@@ -48,7 +49,7 @@ const mereset = ref(null)
 
 const form = useForm({
   nama: '',
-  tanggal: new Date().toISOString().slice(0, 10),
+  tanggal: hariIniIso(),
   jam_mulai: '07:30',
   toleransi_menit: props.nilai_awal.toleransi_menit,
   cakupan: 'unit',

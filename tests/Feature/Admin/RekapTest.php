@@ -11,8 +11,11 @@ use App\Models\User;
 use App\Services\AbsensiService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia as Assert;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use PHPUnit\Framework\Attributes\Test;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Tests\TestCase;
 
 /**
@@ -309,6 +312,69 @@ class RekapTest extends TestCase
         $this->actingAs(User::factory()->adminUpt($upt)->create())
             ->get(self::URL."/{$event->id}/ekspor")
             ->assertForbidden();
+    }
+
+    #[Test]
+    public function rekap_dapat_diunduh_sebagai_xlsx_sungguhan(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        $event = EventAbsen::factory()->create(['nama' => 'Apel Pagi', 'tanggal' => '2026-09-07']);
+        $event->unitKerja()->attach($upt);
+
+        Absensi::factory()->create([
+            'event_absen_id' => $event->id,
+            'pegawai_id' => Pegawai::factory()->create([
+                'nama' => 'Ahmad Fauzi',
+                'unit_kerja_id' => $upt->id,
+            ])->id,
+        ]);
+
+        $jawaban = $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL."/{$event->id}/ekspor?format=xlsx")
+            ->assertOk();
+
+        $sementara = tempnam(sys_get_temp_dir(), 'rekap-uji').'.xlsx';
+        file_put_contents($sementara, $this->berkasUnduhan($jawaban));
+
+        $sheet = IOFactory::load($sementara)->getActiveSheet();
+
+        $this->assertSame('NIP', $sheet->getCell('A1')->getValue());
+        $this->assertSame('Ahmad Fauzi', $sheet->getCell('B2')->getValue());
+    }
+
+    #[Test]
+    public function checklist_kolom_menyaring_kolom_ekspor_rekap(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        $event = EventAbsen::factory()->create(['nama' => 'Apel Pagi', 'tanggal' => '2026-09-07']);
+        $event->unitKerja()->attach($upt);
+
+        Absensi::factory()->create([
+            'event_absen_id' => $event->id,
+            'pegawai_id' => Pegawai::factory()->create([
+                'nama' => 'Ahmad Fauzi',
+                'unit_kerja_id' => $upt->id,
+            ])->id,
+        ]);
+
+        $csv = $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL."/{$event->id}/ekspor?".http_build_query(['kolom' => ['metode']]))
+            ->assertOk()
+            ->streamedContent();
+
+        // NIP dan Nama tetap ikut walau tidak diminta; Unit Kerja/Jam/Status
+        // tidak, sebab hanya 'metode' yang diminta.
+        $this->assertStringContainsString('"NIP";"Nama";"Metode"', $csv);
+        $this->assertStringNotContainsString('Unit Kerja', $csv);
+    }
+
+    protected function berkasUnduhan(TestResponse $jawaban): string
+    {
+        $base = $jawaban->baseResponse;
+
+        return $base instanceof BinaryFileResponse
+            ? file_get_contents($base->getFile()->getPathname())
+            : $jawaban->streamedContent();
     }
 
     #[Test]

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Symfony\Component\HttpFoundation\Response;
@@ -47,6 +48,26 @@ class EksporService
             fn ($nilai) => '"'.str_replace('"', '""', (string) $nilai).'"',
             $kolom,
         ));
+    }
+
+    /**
+     * Kolom yang diminta klien lewat checklist ("Unduh Data"), disaring ke
+     * daftar yang dikenal ($kolomTersedia) dan disusun ulang ke urutan
+     * kanonisnya — bukan urutan kiriman klien, supaya berkas yang dihasilkan
+     * tetap dapat diprediksi. Dipakai bersama oleh Laporan dan Rekap (kedua
+     * tab): bentuknya sama meski daftar kolomnya berbeda-beda per menu.
+     *
+     * @param  array<string, string>  $kolomTersedia  peta kunci => label, urutan kanonis
+     * @param  array<int, string>  $wajib  kunci yang selalu ikut apa pun yang diminta
+     * @return array<int, string>
+     */
+    public function kolomAktif(Request $request, array $kolomTersedia, array $wajib = []): array
+    {
+        $diminta = $request->has('kolom')
+            ? array_merge($wajib, (array) $request->input('kolom'))
+            : array_keys($kolomTersedia);
+
+        return array_values(array_intersect(array_keys($kolomTersedia), $diminta));
     }
 
     public function unduhCsv(string $isi, string $namaBerkas): StreamedResponse

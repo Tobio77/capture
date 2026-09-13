@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Exports\TabelDataExport;
 use App\Http\Controllers\Controller;
 use App\Models\Absensi;
 use App\Models\EventAbsen;
@@ -17,6 +18,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
+use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -25,6 +27,27 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class RekapController extends Controller
 {
+    /**
+     * Kolom "Unduh Data" (CSV/Excel) untuk tab kegiatan maupun tab umum —
+     * bentuknya sama persis di kedua tab karena keduanya menampilkan rekap
+     * kehadiran per pegawai pada satu sesi (event kegiatan atau harian). NIP
+     * dan Nama selalu ikut apa pun yang diminta. Disalin di
+     * {@see AbsenUmumController::KOLOM} karena kedua controller tidak
+     * berbagi kelas induk — jaga keduanya tetap sama bila salah satunya
+     * berubah.
+     *
+     * @var array<string, string>
+     */
+    protected const array KOLOM = [
+        'nip' => 'NIP',
+        'nama' => 'Nama',
+        'unit_kerja' => 'Unit Kerja',
+        'jam_masuk' => 'Jam Masuk',
+        'jam_pulang' => 'Jam Pulang',
+        'metode' => 'Metode',
+        'status_label' => 'Status',
+    ];
+
     public function __construct(
         protected EventAbsenService $event,
         protected AbsensiService $absensi,
@@ -182,21 +205,18 @@ class RekapController extends Controller
             ], "{$nama}.pdf");
         }
 
-        return $this->ekspor->unduhCsv(
-            $this->ekspor->csv(
-                ['NIP', 'Nama', 'Unit Kerja', 'Jam Masuk', 'Jam Pulang', 'Metode', 'Status'],
-                $rekap->map(fn (array $isi) => [
-                    $isi['nip'],
-                    $isi['nama'],
-                    $isi['unit_kerja'] ?? '',
-                    $isi['jam_masuk'] ?? '',
-                    $isi['jam_pulang'] ?? '',
-                    $isi['metode'],
-                    $isi['status_label'] ?? '',
-                ]),
-            ),
-            "{$nama}.csv",
-        );
+        $kolomAktif = $this->ekspor->kolomAktif($request, self::KOLOM, ['nip', 'nama']);
+        $judul = array_map(fn (string $kunci) => self::KOLOM[$kunci], $kolomAktif);
+        $baris = $rekap->map(fn (array $isi) => array_map(
+            fn (string $kunci) => $isi[$kunci] ?? '',
+            $kolomAktif,
+        ));
+
+        if ($request->string('format')->toString() === 'xlsx') {
+            return Excel::download(new TabelDataExport($judul, $baris->all()), "{$nama}.xlsx");
+        }
+
+        return $this->ekspor->unduhCsv($this->ekspor->csv($judul, $baris), "{$nama}.csv");
     }
 
     /**

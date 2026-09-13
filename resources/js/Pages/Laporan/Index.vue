@@ -1,12 +1,14 @@
 <script setup>
-import { computed, reactive } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { router } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
 import Ikon from '@/Components/Ikon.vue'
 import TabelData from '@/Components/UI/TabelData.vue'
 import KolomCari from '@/Components/UI/KolomCari.vue'
 import Pilihan from '@/Components/UI/Pilihan.vue'
+import PilihanKolom from '@/Components/UI/PilihanKolom.vue'
 import RentangTanggal from '@/Components/UI/RentangTanggal.vue'
+import { keQueryString } from '@/lib/kueri'
 
 /**
  * Laporan kehadiran per pegawai (FR-LAP-01 s.d. FR-LAP-03).
@@ -39,9 +41,46 @@ function terapkan() {
   })
 }
 
+/*
+ * Checklist kolom — bagian dari "Unduh Data" (CSV/Excel), tidak menyentuh
+ * Generate Laporan sama sekali: dokumen resminya punya bentuk tetap.
+ * NIP dan Nama terkunci selalu ikut; mengunduh tabel tanpa satu pun cara
+ * mengenali barisnya tidak ada gunanya.
+ */
+const KOLOM_LAPORAN = [
+  { kunci: 'nip', label: 'NIP', terkunci: true },
+  { kunci: 'nama', label: 'Nama', terkunci: true },
+  { kunci: 'unit_kerja', label: 'Unit Kerja' },
+  { kunci: 'event_berlaku', label: 'Event Berlaku' },
+  { kunci: 'hadir', label: 'Hadir' },
+  { kunci: 'terlambat', label: 'Terlambat' },
+  { kunci: 'tanpa_keterangan', label: 'Tanpa Keterangan' },
+]
+
+const kolomTerpilih = ref(KOLOM_LAPORAN.map((k) => k.kunci))
+
 function unduh(format) {
-  window.location.href =
-    '/admin/laporan/ekspor?' + new URLSearchParams({ ...kueri.value, format }).toString()
+  const kueriUnduh = { ...kueri.value, format }
+
+  // Checklist kolom hanya berarti bagi tabel mentah (CSV/Excel); PDF adalah
+  // lembar cetak dengan kolom tetap.
+  if (format !== 'pdf') {
+    kueriUnduh.kolom = kolomTerpilih.value
+  }
+
+  window.location.href = '/admin/laporan/ekspor?' + keQueryString(kueriUnduh)
+}
+
+/**
+ * Generate Laporan Resmi — jalur TERPISAH dari Unduh Data di atas, memakai
+ * filter periode/unit yang sama tetapi tidak pernah menyertakan `cari`
+ * (dokumen ini ringkasan per unit, bukan daftar pegawai yang disaring) atau
+ * `kolom` (bentuknya tetap, bukan tabel untuk diolah lanjut).
+ */
+function generate(format) {
+  const { cari: _cari, ...kueriResmi } = kueri.value
+
+  window.location.href = '/admin/laporan/generate?' + keQueryString({ ...kueriResmi, format })
 }
 
 function cetak() {
@@ -108,20 +147,45 @@ const kolom = [
     deskripsi="Rekap per pegawai untuk rentang tanggal dan unit kerja yang dipilih."
   >
     <template #aksi>
-      <div class="flex flex-wrap items-center gap-2 print:hidden">
-        <button type="button" class="tombol tombol-garis" @click="cetak">
-          <Ikon nama="cetak" ukuran="h-4 w-4" /> Cetak
-        </button>
-        <button type="button" class="tombol tombol-garis" @click="unduh('csv')">
-          <Ikon nama="unduh" ukuran="h-4 w-4" /> CSV
-        </button>
-        <button
-          type="button"
-          class="tombol tombol-utama"
-          @click="unduh('pdf')"
-        >
-          <Ikon nama="unduh" ukuran="h-4 w-4" /> Unduh PDF
-        </button>
+      <div class="flex flex-wrap items-center gap-4 print:hidden">
+        <!--
+          UNDUH DATA — tabel mentah, cepat, tanpa narasi. Sengaja beda label
+          dan gaya tombol dari "Generate Laporan" di sebelahnya: keduanya
+          bukan varian dari fitur yang sama.
+        -->
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" class="tombol tombol-garis" @click="cetak">
+            <Ikon nama="cetak" ukuran="h-4 w-4" /> Cetak
+          </button>
+          <PilihanKolom v-model="kolomTerpilih" :kolom="KOLOM_LAPORAN" />
+          <button type="button" class="tombol tombol-garis" @click="unduh('csv')">
+            <Ikon nama="unduh" ukuran="h-4 w-4" /> CSV
+          </button>
+          <button type="button" class="tombol tombol-garis" @click="unduh('xlsx')">
+            <Ikon nama="unduh" ukuran="h-4 w-4" /> Excel
+          </button>
+        </div>
+
+        <div class="h-6 w-px bg-garis" aria-hidden="true"></div>
+
+        <!--
+          GENERATE LAPORAN — dokumen resmi kop surat, tersedia PDF/Word/Excel.
+          FR-LAP-04.
+        -->
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs font-medium uppercase tracking-wider text-redup">
+            Generate Laporan
+          </span>
+          <button type="button" class="tombol tombol-garis" @click="generate('docx')">
+            <Ikon nama="unduh" ukuran="h-4 w-4" /> Word
+          </button>
+          <button type="button" class="tombol tombol-garis" @click="generate('xlsx')">
+            <Ikon nama="unduh" ukuran="h-4 w-4" /> Excel
+          </button>
+          <button type="button" class="tombol tombol-utama" @click="generate('pdf')">
+            <Ikon nama="unduh" ukuran="h-4 w-4" /> PDF
+          </button>
+        </div>
       </div>
     </template>
 

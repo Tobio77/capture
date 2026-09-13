@@ -45,6 +45,17 @@ class SimpanSettingAbsenRequest extends FormRequest
             'jam_buka_pulang' => ['required', 'date_format:H:i'],
             'jam_tutup_pulang' => ['required', 'date_format:H:i'],
             'wajib_kode_aktivasi' => ['required', 'boolean'],
+
+            'ambang_kehadiran_minimum' => [
+                'required', 'integer',
+                'min:'.SettingAbsenService::AMBANG_KEHADIRAN_MIN,
+                'max:'.SettingAbsenService::AMBANG_KEHADIRAN_MAKS,
+            ],
+            'ambang_keterlambatan_maksimum' => [
+                'required', 'integer',
+                'min:'.SettingAbsenService::AMBANG_KETERLAMBATAN_MIN,
+                'max:'.SettingAbsenService::AMBANG_KETERLAMBATAN_MAKS,
+            ],
         ];
     }
 
@@ -89,6 +100,8 @@ class SimpanSettingAbsenRequest extends FormRequest
             'jam_buka_pulang' => 'jam buka absen pulang',
             'jam_tutup_pulang' => 'jam tutup absen pulang',
             'wajib_kode_aktivasi' => 'wajib kode aktivasi perangkat',
+            'ambang_kehadiran_minimum' => 'ambang kehadiran minimum',
+            'ambang_keterlambatan_maksimum' => 'ambang keterlambatan maksimum',
         ];
     }
 }

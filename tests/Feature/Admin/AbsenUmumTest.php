@@ -15,8 +15,11 @@ use App\Services\EventAbsenService;
 use App\Services\SettingAbsenService;
 use App\Support\PengaturanRepository;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia as Assert;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use PHPUnit\Framework\Attributes\Test;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Tests\TestCase;
 
 /**
@@ -445,5 +448,67 @@ class AbsenUmumTest extends TestCase
         $this->actingAs(User::factory()->superadmin()->create())
             ->get(self::URL."/ekspor?unit_kerja_id={$upt->id}")
             ->assertNotFound();
+    }
+
+    #[Test]
+    public function rekap_absen_umum_dapat_diunduh_sebagai_xlsx_sungguhan(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        $sesi = app(AbsenUmumService::class)->buka($upt->id);
+
+        Absensi::factory()->create([
+            'event_absen_id' => $sesi->id,
+            'pegawai_id' => Pegawai::factory()->create([
+                'nama' => 'Ahmad Fauzi',
+                'unit_kerja_id' => $upt->id,
+            ])->id,
+        ]);
+
+        $jawaban = $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL."/ekspor?unit_kerja_id={$upt->id}&format=xlsx")
+            ->assertOk();
+
+        $sementara = tempnam(sys_get_temp_dir(), 'absen-umum-uji').'.xlsx';
+        file_put_contents($sementara, $this->berkasUnduhan($jawaban));
+
+        $sheet = IOFactory::load($sementara)->getActiveSheet();
+
+        $this->assertSame('NIP', $sheet->getCell('A1')->getValue());
+        $this->assertSame('Ahmad Fauzi', $sheet->getCell('B2')->getValue());
+    }
+
+    #[Test]
+    public function checklist_kolom_menyaring_kolom_ekspor_absen_umum(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        $sesi = app(AbsenUmumService::class)->buka($upt->id);
+
+        Absensi::factory()->create([
+            'event_absen_id' => $sesi->id,
+            'pegawai_id' => Pegawai::factory()->create([
+                'nama' => 'Ahmad Fauzi',
+                'unit_kerja_id' => $upt->id,
+            ])->id,
+        ]);
+
+        $csv = $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL.'/ekspor?'.http_build_query([
+                'unit_kerja_id' => $upt->id,
+                'kolom' => ['metode'],
+            ]))
+            ->assertOk()
+            ->streamedContent();
+
+        $this->assertStringContainsString('"NIP";"Nama";"Metode"', $csv);
+        $this->assertStringNotContainsString('Unit Kerja', $csv);
+    }
+
+    protected function berkasUnduhan(TestResponse $jawaban): string
+    {
+        $base = $jawaban->baseResponse;
+
+        return $base instanceof BinaryFileResponse
+            ? file_get_contents($base->getFile()->getPathname())
+            : $jawaban->streamedContent();
     }
 }

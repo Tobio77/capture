@@ -4,13 +4,14 @@ import { useForm } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
 import Ikon from '@/Components/Ikon.vue'
 import TombolProses from '@/Components/UI/TombolProses.vue'
-import TombolAksi from '@/Components/UI/TombolAksi.vue'
-import Lencana from '@/Components/UI/Lencana.vue'
-import Pilihan from '@/Components/UI/Pilihan.vue'
-import TanggalIsian from '@/Components/UI/TanggalIsian.vue'
+import HariLibur from '@/Pages/Setting/HariLibur.vue'
 
 /**
  * Setting Absen — pengaturan global sistem (FR-SET-01 s.d. FR-SET-06).
+ *
+ * Hari Libur (FR-SET-08) ada di berkas sendiri ({@see HariLibur.vue}):
+ * formulir, penyimpanan, dan kegagalannya berdiri lepas dari setting absen
+ * di sini, jadi tidak ada gunanya ikut memanjangkan berkas ini.
  */
 
 const props = defineProps({
@@ -18,47 +19,13 @@ const props = defineProps({
   preset_kompresi: { type: Array, required: true },
   batas: { type: Object, required: true },
 
-  /** Hari libur bertanggal yang masih relevan (FR-SET-08). */
+  /** Hari libur bertanggal yang masih relevan (FR-SET-08) — diteruskan apa adanya ke HariLibur.vue. */
   hari_libur: { type: Array, default: () => [] },
   unit_kerja_libur: { type: Array, default: () => [] },
   boleh_libur_nasional: { type: Boolean, default: false },
 })
 
 const form = useForm({ ...props.setting })
-
-/*
- * Formulir hari libur berdiri SENDIRI, tidak menumpang formulir setting.
- *
- * Keduanya menyimpan ke tempat berbeda dan gagal dengan cara berbeda:
- * menyatukannya berarti satu kesalahan pada tanggal libur akan menggagalkan
- * penyimpanan seluruh setting absen, dan sebaliknya.
- */
-const formLibur = useForm({
-  tanggal: '',
-  keterangan: '',
-  unit_kerja_id: null,
-})
-
-const opsiCakupanLibur = computed(() => [
-  ...(props.boleh_libur_nasional
-    ? [{ nilai: null, label: 'Seluruh unit kerja (nasional)' }]
-    : []),
-  ...props.unit_kerja_libur,
-])
-
-const tambahLibur = () =>
-  formLibur.post('/admin/kelola-absen/setting/hari-libur', {
-    preserveScroll: true,
-    onSuccess: () => formLibur.reset(),
-  })
-
-const hapusLibur = (libur) => {
-  if (! window.confirm(`Hapus hari libur "${libur.keterangan}" pada ${libur.tanggal_panjang}?`)) {
-    return
-  }
-
-  formLibur.delete(`/admin/kelola-absen/setting/hari-libur/${libur.id}`, { preserveScroll: true })
-}
 
 /*
  * Dua jendela, bukan satu. Jam pulang sengaja dapat berbeda antar unit lewat
@@ -353,6 +320,76 @@ const simpan = () => {
           <p v-if="presetTerpilih" class="mt-3 text-xs text-redup">{{ presetTerpilih.keterangan }}</p>
           <p v-if="form.errors.kompresi_foto" class="mt-2 text-xs text-peringatan-teks">{{ form.errors.kompresi_foto }}</p>
         </section>
+
+        <!-- FR-LAP-04 -->
+        <section class="panel p-6">
+          <h2 class="font-display text-sm font-semibold text-utama">Ambang Batas Laporan</h2>
+          <p class="mt-1 text-xs text-redup">
+            Menyalakan bagian Rekomendasi pada Laporan Resmi: unit yang melampaui salah satu ambang
+            ini disebutkan namanya beserta saran tindak lanjut.
+          </p>
+
+          <div class="mt-4 space-y-6">
+            <div>
+              <label for="ambang-kehadiran" class="block text-sm font-medium text-utama">
+                Kehadiran Minimum
+              </label>
+              <p class="mt-0.5 text-xs text-redup">
+                Unit dengan tingkat kehadiran di bawah ini direkomendasikan untuk dievaluasi.
+              </p>
+              <div class="mt-3 flex items-center gap-4">
+                <input
+                  id="ambang-kehadiran"
+                  v-model.number="form.ambang_kehadiran_minimum"
+                  type="range"
+                  :min="batas.ambang_kehadiran_min"
+                  :max="batas.ambang_kehadiran_maks"
+                  class="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-permukaan-2 accent-[var(--tema-aksen)]"
+                />
+                <span class="w-16 text-right font-display text-lg font-semibold tabular-nums text-utama">
+                  {{ form.ambang_kehadiran_minimum }}%
+                </span>
+              </div>
+              <div class="mt-1 flex justify-between text-xs text-redup">
+                <span>{{ batas.ambang_kehadiran_min }}%</span>
+                <span>{{ batas.ambang_kehadiran_maks }}%</span>
+              </div>
+              <p v-if="form.errors.ambang_kehadiran_minimum" class="mt-1.5 text-xs text-peringatan-teks">
+                {{ form.errors.ambang_kehadiran_minimum }}
+              </p>
+            </div>
+
+            <div>
+              <label for="ambang-keterlambatan" class="block text-sm font-medium text-utama">
+                Keterlambatan Maksimum
+              </label>
+              <p class="mt-0.5 text-xs text-redup">
+                Unit dengan tingkat keterlambatan di atas ini — dari total kehadirannya sendiri —
+                direkomendasikan untuk ditinjau kedisiplinan waktunya.
+              </p>
+              <div class="mt-3 flex items-center gap-4">
+                <input
+                  id="ambang-keterlambatan"
+                  v-model.number="form.ambang_keterlambatan_maksimum"
+                  type="range"
+                  :min="batas.ambang_keterlambatan_min"
+                  :max="batas.ambang_keterlambatan_maks"
+                  class="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-permukaan-2 accent-[var(--tema-aksen)]"
+                />
+                <span class="w-16 text-right font-display text-lg font-semibold tabular-nums text-utama">
+                  {{ form.ambang_keterlambatan_maksimum }}%
+                </span>
+              </div>
+              <div class="mt-1 flex justify-between text-xs text-redup">
+                <span>{{ batas.ambang_keterlambatan_min }}%</span>
+                <span>{{ batas.ambang_keterlambatan_maks }}%</span>
+              </div>
+              <p v-if="form.errors.ambang_keterlambatan_maksimum" class="mt-1.5 text-xs text-peringatan-teks">
+                {{ form.errors.ambang_keterlambatan_maksimum }}
+              </p>
+            </div>
+          </div>
+        </section>
       </div>
 
       <aside class="space-y-4">
@@ -389,114 +426,10 @@ const simpan = () => {
       </aside>
     </form>
 
-      <!--
-        HARI LIBUR BERTANGGAL (FR-SET-08).
-
-        Hari libur MENANDAI absensi, tidak menutupnya: tap tetap diterima, dan
-        rekap yang membacanya tahu bahwa tap itu jatuh di luar hari kerja.
-        Keputusan itu diambil karena kantor dinas menjalankan piket akhir pekan
-        — menutup absennya berarti petugas piket yang benar-benar masuk tidak
-        dapat mencatat kehadirannya sama sekali.
-
-        Diisi tangan, tidak ditarik dari layanan luar: jaringan dinas kerap
-        berada di belakang proxy yang menyaring keluar, dan kalender yang gagal
-        diam-diam membuat seluruh rekap salah tanpa ada yang tahu sebabnya.
-      -->
-      <div class="panel mt-6 p-6">
-        <h2 class="font-display text-base font-semibold text-utama">Hari Libur</h2>
-        <p class="mt-1 text-sm text-sekunder">
-          Tanggal merah dan cuti bersama. Absen tetap diterima pada hari ini; tapnya ditandai
-          sehingga rekap tidak menghitungnya sebagai kehadiran yang hilang.
-        </p>
-
-        <form class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4" @submit.prevent="tambahLibur">
-          <div>
-            <label for="libur-tanggal" class="mb-1.5 block text-sm font-medium text-utama">
-              Tanggal<span class="ml-0.5 text-galat-teks" aria-hidden="true">*</span>
-            </label>
-            <!--
-              `required` bawaan ikut lepas bersama input native, tetapi tidak
-              ada lubang yang terbuka: tombol simpan sudah nonaktif selama
-              tanggal atau keterangan kosong (lihat `:nonaktif` di bawah), dan
-              sisi server tetap memvalidasinya.
-            -->
-            <TanggalIsian
-              id="libur-tanggal"
-              v-model="formLibur.tanggal"
-              :bermasalah="Boolean(formLibur.errors.tanggal)"
-            />
-          </div>
-
-          <div class="lg:col-span-2">
-            <label for="libur-keterangan" class="mb-1.5 block text-sm font-medium text-utama">
-              Keterangan<span class="ml-0.5 text-galat-teks" aria-hidden="true">*</span>
-            </label>
-            <input
-              id="libur-keterangan"
-              v-model="formLibur.keterangan"
-              type="text"
-              required
-              maxlength="150"
-              placeholder="mis. Hari Raya Idulfitri"
-              class="kolom-isian"
-            />
-          </div>
-
-          <div>
-            <label for="libur-unit" class="mb-1.5 block text-sm font-medium text-utama">
-              Berlaku untuk
-            </label>
-            <Pilihan
-              id="libur-unit"
-              v-model="formLibur.unit_kerja_id"
-              :opsi="opsiCakupanLibur"
-              placeholder="Pilih cakupan…"
-            />
-          </div>
-
-          <div class="sm:col-span-2 lg:col-span-4">
-            <TombolProses
-              :proses="formLibur.processing"
-              :nonaktif="!formLibur.tanggal || !formLibur.keterangan"
-              ikon="tambah"
-              teks-proses="Menambahkan…"
-            >
-              Tambah Hari Libur
-            </TombolProses>
-
-            <p v-if="formLibur.errors.tanggal" class="mt-2 text-sm text-galat-teks">
-              {{ formLibur.errors.tanggal }}
-            </p>
-          </div>
-        </form>
-
-        <ul v-if="hari_libur.length > 0" class="mt-5 flex flex-col gap-2">
-          <li
-            v-for="libur in hari_libur"
-            :key="libur.id"
-            class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-garis bg-permukaan-2 px-4 py-2.5"
-            :class="libur.lampau && 'opacity-60'"
-          >
-            <div class="min-w-0">
-              <p class="truncate text-sm font-medium text-utama">
-                {{ libur.keterangan }}
-                <Lencana v-if="libur.nasional" warna="langit" :titik="false" class="ml-1.5">
-                  Nasional
-                </Lencana>
-              </p>
-              <p class="mt-0.5 truncate text-xs text-redup">
-                {{ libur.tanggal_panjang }} · {{ libur.cakupan }}
-              </p>
-            </div>
-
-            <TombolAksi ikon="hapus" warna="rose" @click="hapusLibur(libur)">Hapus</TombolAksi>
-          </li>
-        </ul>
-
-        <p v-else class="mt-5 rounded-xl bg-permukaan-2 px-4 py-5 text-center text-sm text-redup">
-          Belum ada hari libur terdaftar. Akhir pekan sudah ditangani lewat hari kerja tiap unit
-          pada Setting Unit Kerja; daftar ini untuk tanggal merah dan cuti bersama.
-        </p>
-      </div>
+      <HariLibur
+        :hari_libur="hari_libur"
+        :unit_kerja_libur="unit_kerja_libur"
+        :boleh_libur_nasional="boleh_libur_nasional"
+      />
   </AdminLayout>
 </template>

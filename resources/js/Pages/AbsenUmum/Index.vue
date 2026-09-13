@@ -9,6 +9,7 @@ import Pilihan from '@/Components/UI/Pilihan.vue'
 import Tanggal from '@/Components/UI/Tanggal.vue'
 import RingkasanRekap from '@/Components/Rekap/RingkasanRekap.vue'
 import TabelRekap from '@/Components/Rekap/TabelRekap.vue'
+import { hariIniIso } from '@/lib/tanggal'
 
 /**
  * Absen Umum — pemantauan sesi absensi harian tanpa event kegiatan.
@@ -96,7 +97,7 @@ const cetak = () => window.print()
 const JEDA_SEGARKAN_MS = 15000
 let jeda = null
 
-const hariIni = computed(() => filter.tanggal === new Date().toISOString().slice(0, 10))
+const hariIni = computed(() => filter.tanggal === hariIniIso())
 
 onMounted(() => {
   jeda = setInterval(segarkan, JEDA_SEGARKAN_MS)

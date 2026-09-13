@@ -2,14 +2,18 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Enums\PeranPengguna;
 use App\Models\Absensi;
 use App\Models\EventAbsen;
 use App\Models\Pegawai;
 use App\Models\UnitKerja;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia as Assert;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use PHPUnit\Framework\Attributes\Test;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Tests\TestCase;
 
 /**
@@ -400,5 +404,158 @@ class LaporanTest extends TestCase
                 $this->assertSame(2, $baris[$diInduk->id]['event_berlaku']);
                 $this->assertSame(2, $baris[$diSeksi->id]['event_berlaku']);
             });
+    }
+
+    /* ---------------------------------------------------------------------
+     * Bagian A — checklist kolom & Excel sungguhan.
+     * ------------------------------------------------------------------- */
+
+    #[Test]
+    public function checklist_kolom_menyaring_kolom_csv(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        Pegawai::factory()->create(['nip' => '199001012020011001', 'nama' => 'Ahmad Fauzi', 'unit_kerja_id' => $upt->id]);
+        $this->eventPada('2026-09-05', $upt);
+
+        $isi = $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL.'/ekspor?dari=2026-09-01&sampai=2026-09-30&kolom[]=hadir')
+            ->assertOk()
+            ->streamedContent();
+
+        // NIP dan Nama tetap ikut walau tidak diminta — tabel tanpa keduanya
+        // tidak ada gunanya. Kolom lain yang tidak dicentang (Unit Kerja,
+        // Terlambat, dst) tidak ikut.
+        $this->assertStringContainsString('"NIP";"Nama";"Hadir"', $isi);
+        $this->assertStringNotContainsString('Unit Kerja', $isi);
+        $this->assertStringNotContainsString('Terlambat', $isi);
+    }
+
+    #[Test]
+    public function kolom_yang_tidak_dikenal_diabaikan(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        Pegawai::factory()->create(['unit_kerja_id' => $upt->id]);
+
+        // 'sql_injection_coba' bukan kunci kolom yang sah — harus dilewati
+        // dengan tenang, bukan membocorkan kolom lain lewat nama sembarangan.
+        $isi = $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL.'/ekspor?dari=2026-09-01&sampai=2026-09-30&kolom[]=sql_injection_coba')
+            ->assertOk()
+            ->streamedContent();
+
+        $this->assertStringContainsString('"NIP";"Nama"', $isi);
+    }
+
+    #[Test]
+    public function ekspor_excel_menghasilkan_berkas_xlsx_sungguhan(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        Pegawai::factory()->create(['nama' => 'Ahmad Fauzi', 'unit_kerja_id' => $upt->id]);
+        $this->eventPada('2026-09-05', $upt);
+
+        $jawaban = $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL.'/ekspor?format=xlsx&dari=2026-09-01&sampai=2026-09-30')
+            ->assertOk()
+            ->assertDownload('laporan-kehadiran-20260901-sd-20260930.xlsx');
+
+        // Tanda tangan ZIP: .xlsx adalah arsip ZIP, bukan CSV berlabel palsu.
+        $this->assertStringStartsWith("PK\x03\x04", $this->isiBerkasUnduhan($jawaban));
+    }
+
+    /* ---------------------------------------------------------------------
+     * Bagian B — Generate Laporan Resmi (FR-LAP-04).
+     * ------------------------------------------------------------------- */
+
+    #[Test]
+    public function generate_pdf_menghasilkan_berkas_pdf_potret(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        Pegawai::factory()->create(['nama' => 'Ahmad Fauzi', 'unit_kerja_id' => $upt->id]);
+        $this->eventPada('2026-09-05', $upt);
+
+        $jawaban = $this->actingAs(User::factory()->superadmin()->create())
+            ->get('/admin/laporan/generate?dari=2026-09-01&sampai=2026-09-30')
+            ->assertOk()
+            ->assertDownload('laporan-resmi-20260901-sd-20260930.pdf');
+
+        $this->assertStringStartsWith('%PDF-', $jawaban->getContent());
+    }
+
+    #[Test]
+    public function generate_word_menghasilkan_docx_sungguhan(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        Pegawai::factory()->create(['unit_kerja_id' => $upt->id]);
+
+        $jawaban = $this->actingAs(User::factory()->superadmin()->create())
+            ->get('/admin/laporan/generate?format=docx&dari=2026-09-01&sampai=2026-09-30')
+            ->assertOk()
+            ->assertDownload('laporan-resmi-20260901-sd-20260930.docx');
+
+        $this->assertStringStartsWith("PK\x03\x04", $jawaban->streamedContent());
+    }
+
+    #[Test]
+    public function generate_excel_menghasilkan_xlsx_sungguhan(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        Pegawai::factory()->create(['unit_kerja_id' => $upt->id]);
+
+        $jawaban = $this->actingAs(User::factory()->superadmin()->create())
+            ->get('/admin/laporan/generate?format=xlsx&dari=2026-09-01&sampai=2026-09-30')
+            ->assertOk()
+            ->assertDownload('laporan-resmi-20260901-sd-20260930.xlsx');
+
+        $this->assertStringStartsWith("PK\x03\x04", $this->isiBerkasUnduhan($jawaban));
+    }
+
+    #[Test]
+    public function generate_mengikuti_cakupan_peran_yang_sama_dengan_unduh_data(): void
+    {
+        // Admin UPT hanya boleh melihat unitnya sendiri — jaminan yang sama
+        // dengan "Unduh Data", sebab generate() memakai LaporanService::rekap()
+        // yang sama persis.
+        ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
+        Pegawai::factory()->create(['nama' => 'Punya UPT', 'unit_kerja_id' => $upt->id]);
+        Pegawai::factory()->create(['nama' => 'Punya Unit Lain', 'unit_kerja_id' => $lain->id]);
+        $this->eventPada('2026-09-05', $upt);
+        $this->eventPada('2026-09-05', $lain);
+
+        $adminUpt = User::factory()->create(['role' => PeranPengguna::AdminUpt, 'unit_kerja_id' => $upt->id]);
+
+        $jawaban = $this->actingAs($adminUpt)
+            ->get('/admin/laporan/generate?format=xlsx&dari=2026-09-01&sampai=2026-09-30')
+            ->assertOk();
+
+        $sementara = tempnam(sys_get_temp_dir(), 'laporan-resmi-uji').'.xlsx';
+        file_put_contents($sementara, $this->isiBerkasUnduhan($jawaban));
+
+        $sheet = IOFactory::load($sementara)->getActiveSheet();
+        $isiSheet = '';
+
+        for ($baris = 1; $baris <= $sheet->getHighestRow(); $baris++) {
+            $isiSheet .= ' '.$sheet->getCell("A{$baris}")->getValue();
+        }
+
+        unlink($sementara);
+
+        $this->assertStringContainsString($upt->nama, $isiSheet);
+        $this->assertStringNotContainsString($lain->nama, $isiSheet);
+    }
+
+    /**
+     * `Excel::download()` mengembalikan BinaryFileResponse — Symfony sengaja
+     * membuat `getContent()`-nya selalu kosong (isinya distream langsung dari
+     * berkas sementara, tidak pernah disimpan di memori), berbeda dari CSV
+     * dan PDF yang lewat StreamedResponse biasa. Baca langsung dari berkas
+     * sementaranya, bukan dari respons.
+     */
+    protected function isiBerkasUnduhan(TestResponse $jawaban): string
+    {
+        $base = $jawaban->baseResponse;
+
+        return $base instanceof BinaryFileResponse
+            ? file_get_contents($base->getFile()->getPathname())
+            : $jawaban->streamedContent();
     }
 }
