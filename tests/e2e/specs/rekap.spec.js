@@ -1,0 +1,84 @@
+import { test, expect } from '@playwright/test'
+import { BERKAS_AUTH } from '../auth-state.js'
+import { PEGAWAI_TANPA_WAJAH, UNIT_KERJA } from '../data.js'
+import {
+  bukaPaksaAbsenUmum,
+  daftarkanDanAktifkanKiosk,
+  pilihDariDropdown,
+  pilihTanggalHariIni,
+  siapkanUntukTapKiosk,
+} from '../helpers.js'
+
+/**
+ * Rekap Absen, kedua tab (FR-REK-01 s.d. FR-REK-03) — "Unduh Data" (CSV/
+ * Excel) untuk tab kegiatan dan tab umum. Endpoint ekspornya sama persis
+ * (`TabelDataExport`) dengan Laporan, sudah teruji format & isinya lewat
+ * `RekapTest`/`AbsenUmumTest` PHP; yang dipastikan di sini hanya bahwa
+ * tombolnya benar-benar mengunduh dari layar sungguhan.
+ */
+test.describe('Rekap Absen', () => {
+  test.use({ storageState: BERKAS_AUTH.superadmin })
+
+  test('tab umum: unduh CSV dan Excel', async ({ page, context }) => {
+    await siapkanUntukTapKiosk(page)
+    await bukaPaksaAbsenUmum(page, UNIT_KERJA.blkSurabaya.nama)
+
+    const kiosk = await daftarkanDanAktifkanKiosk(page, context, UNIT_KERJA.blkSurabaya.nama)
+    await kiosk.getByRole('button', { name: 'Absen Umum' }).click()
+    await expect(kiosk).toHaveURL(/\/kiosk\/umum/)
+
+    await kiosk.getByLabel('Kartu atau NIP').fill(PEGAWAI_TANPA_WAJAH.nip)
+    await kiosk.getByRole('button', { name: 'Absen Datang' }).click()
+    await expect(kiosk.getByText('Absen berhasil dicatat')).toBeVisible({ timeout: 15_000 })
+    await kiosk.close()
+
+    // Superadmin tidak berunit sendiri, sehingga tab umum jatuh ke unit
+    // pertama menurut cakupannya — belum tentu BLK Surabaya. Dipilih
+    // eksplisit lewat filter yang sama dipakai layar ini.
+    await page.goto('/admin/kelola-absen/rekap?tab=umum')
+    await pilihDariDropdown(page, 'unit', UNIT_KERJA.blkSurabaya.nama)
+    await expect(page.getByText(PEGAWAI_TANPA_WAJAH.nama)).toBeVisible()
+
+    const [csv] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'CSV' }).click(),
+    ])
+    expect(csv.suggestedFilename()).toMatch(/\.csv$/)
+
+    const [xlsx] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'Excel' }).click(),
+    ])
+    expect(xlsx.suggestedFilename()).toMatch(/\.xlsx$/)
+  })
+
+  test('tab kegiatan: unduh CSV dan Excel', async ({ page }) => {
+    const namaEvent = `E2E Rekap ${Date.now()}`
+
+    await page.goto('/admin/kelola-absen/event')
+    await page.getByRole('button', { name: 'Buat Event' }).click()
+    await page.getByLabel('Nama Event').fill(namaEvent)
+    await pilihTanggalHariIni(page, 'tanggal')
+    await page.getByLabel('Jam Mulai').fill('00:00')
+    await page.getByLabel('Semua unit').check()
+    await page.getByRole('button', { name: 'Simpan Event' }).click()
+    await expect(page.getByRole('row', { name: new RegExp(namaEvent) })).toBeVisible()
+
+    // Tidak ada tap pada event ini — tab kegiatan Rekap tetap dapat diunduh
+    // walau kosong (baris nol bukan alasan menyembunyikan tombolnya).
+    await page.goto('/admin/kelola-absen/rekap')
+    await expect(page.getByRole('heading', { name: namaEvent })).toBeVisible()
+
+    const [csv] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'CSV' }).click(),
+    ])
+    expect(csv.suggestedFilename()).toMatch(/\.csv$/)
+
+    const [xlsx] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'Excel' }).click(),
+    ])
+    expect(xlsx.suggestedFilename()).toMatch(/\.xlsx$/)
+  })
+})

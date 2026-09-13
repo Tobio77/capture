@@ -7,10 +7,14 @@
         "dev": "vite",
         "test:js": "vitest run",
         "test:js:pantau": "vitest",
+        "test:e2e": "playwright test",
+        "test:e2e:ui": "playwright test --ui",
+        "test:e2e:ci": "playwright test --reporter=github",
         "periksa:kontras": "node tools/periksa-kontras.cjs",
         "periksa:tinta": "node tools/periksa-tinta.cjs"
     },
     "devDependencies": {
+        "@playwright/test": "^1.63.0",
         "@tailwindcss/vite": "^4.0.0",
         "@vue/test-utils": "^2.5.0",
         "axios": "^1.11.0",

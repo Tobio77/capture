@@ -1,0 +1,56 @@
+name: E2E
+
+# Jalan di tiap PR (dan push ke main) — mengikuti aplikasi sungguhan lewat
+# `php artisan serve`, terhadap basis data SQLite KHUSUS E2E yang disegarkan
+# `tests/e2e/global-setup.js` sebelum test mana pun berjalan. Lihat
+# `playwright.config.js` dan `tests/e2e/README.md` untuk detail lengkapnya,
+# termasuk journey mana yang SENGAJA di luar cakupan (verifikasi wajah
+# sungguhan, kartu RFID, WORKA sungguhan) dan alasannya.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Siapkan PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: sqlite3, pdo_sqlite, mbstring, gd, zip, bcmath
+          coverage: none
+
+      - name: Pasang dependensi Composer
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Siapkan Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Pasang dependensi npm
+        run: npm ci
+
+      - name: Build aset frontend
+        run: npm run build
+
+      - name: Pasang Chromium (Playwright)
+        run: npx playwright install --with-deps chromium
+
+      - name: Jalankan suite E2E
+        run: npm run test:e2e:ci
+
+      - name: Unggah laporan Playwright
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
