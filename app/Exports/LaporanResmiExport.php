@@ -12,6 +12,7 @@ use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 /**
@@ -79,7 +80,7 @@ class LaporanResmiExport implements FromArray, ShouldAutoSize, WithEvents, WithT
         $logo = resource_path('images/logo-pemprov-jatim.png');
 
         if (is_file($logo)) {
-            $gambar = new \PhpOffice\PhpSpreadsheet\Worksheet\Drawing();
+            $gambar = new Drawing;
             $gambar->setPath($logo);
             $gambar->setHeight(56);
             $gambar->setCoordinates('A1');

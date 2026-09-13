@@ -8,6 +8,7 @@ use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 /**
@@ -43,7 +44,7 @@ class TabelDataExport implements FromArray, ShouldAutoSize, WithHeadings, WithSt
         $kolomTerakhir = Coordinate::stringFromColumnIndex(count($this->judul));
         $sheet->getStyle("A1:{$kolomTerakhir}1")->getFont()->setBold(true);
         $sheet->getStyle("A1:{$kolomTerakhir}1")->getFill()
-            ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+            ->setFillType(Fill::FILL_SOLID)
             ->getStartColor()->setRGB('F1F5F9');
         $sheet->freezePane('A2');
 
