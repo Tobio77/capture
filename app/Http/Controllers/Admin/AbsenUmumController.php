@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Enums\OverrideAbsenUmum;
+use App\Exports\TabelDataExport;
 use App\Http\Controllers\Controller;
 use App\Models\UnitKerja;
 use App\Services\AbsensiService;
@@ -15,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
+use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 /**
@@ -31,6 +33,23 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
  */
 class AbsenUmumController extends Controller
 {
+    /**
+     * Sama persis dengan {@see RekapController::KOLOM} — lihat catatan di
+     * sana. Disalin, bukan diwarisi, karena tab kegiatan dan tab umum
+     * dilayani controller yang berbeda tanpa kelas induk bersama.
+     *
+     * @var array<string, string>
+     */
+    protected const array KOLOM = [
+        'nip' => 'NIP',
+        'nama' => 'Nama',
+        'unit_kerja' => 'Unit Kerja',
+        'jam_masuk' => 'Jam Masuk',
+        'jam_pulang' => 'Jam Pulang',
+        'metode' => 'Metode',
+        'status_label' => 'Status',
+    ];
+
     public function __construct(
         protected AbsenUmumService $absenUmum,
         protected AbsensiService $absensi,
@@ -80,7 +99,7 @@ class AbsenUmumController extends Controller
              * karena seseorang menutupnya dan lupa mencabutnya" — keduanya
              * terlihat sama di layar tetapi menuntut tindakan berbeda.
              */
-            'status_jendela' => collect($this->absenUmum->statusSemua($sesi))
+            'status_jendela' => collect($this->absenUmum->statusSemua($unitId, $sesi))
                 ->map(fn ($status) => $status->untukLayar()),
             'sesi' => $sesi === null ? null : [
                 'id' => $sesi->id,
@@ -135,7 +154,7 @@ class AbsenUmumController extends Controller
             'daftar_wajah_otomatis' => ! $setting['metode_wajah_aktif'],
 
             // FR-SET-07; lihat catatan pada LayarKioskController.
-            'status_jendela' => collect($this->absenUmum->statusSemua($sesi))
+            'status_jendela' => collect($this->absenUmum->statusSemua($unitId, $sesi))
                 ->map(fn ($status) => $status->untukLayar()),
 
             // Jam server, dipakai layar untuk menyetel jam berjalannya sendiri.
@@ -269,21 +288,18 @@ class AbsenUmumController extends Controller
             ], "{$nama}.pdf");
         }
 
-        return $this->ekspor->unduhCsv(
-            $this->ekspor->csv(
-                ['NIP', 'Nama', 'Unit Kerja', 'Jam Masuk', 'Jam Pulang', 'Metode', 'Status'],
-                $baris->map(fn (array $isi) => [
-                    $isi['nip'],
-                    $isi['nama'],
-                    $isi['unit_kerja'] ?? '',
-                    $isi['jam_masuk'] ?? '',
-                    $isi['jam_pulang'] ?? '',
-                    $isi['metode'],
-                    $isi['status_label'] ?? '',
-                ]),
-            ),
-            "{$nama}.csv",
-        );
+        $kolomAktif = $this->ekspor->kolomAktif($request, self::KOLOM, ['nip', 'nama']);
+        $judul = array_map(fn (string $kunci) => self::KOLOM[$kunci], $kolomAktif);
+        $baris = $baris->map(fn (array $isi) => array_map(
+            fn (string $kunci) => $isi[$kunci] ?? '',
+            $kolomAktif,
+        ));
+
+        if ($request->string('format')->toString() === 'xlsx') {
+            return Excel::download(new TabelDataExport($judul, $baris->all()), "{$nama}.xlsx");
+        }
+
+        return $this->ekspor->unduhCsv($this->ekspor->csv($judul, $baris), "{$nama}.csv");
     }
 
     protected function tanggal(Request $request): Carbon

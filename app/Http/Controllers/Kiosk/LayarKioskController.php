@@ -84,7 +84,7 @@ class LayarKioskController extends Controller
              * Hanya untuk mode umum: kegiatan tidak mengenal jendela jam.
              */
             'status_jendela' => $mode === TitikAbsenService::MODE_UMUM
-                ? collect($this->absenUmum->statusSemua($event))->map(fn ($s) => $s->untukLayar())
+                ? collect($this->absenUmum->statusSemua($kiosk?->unit_kerja_id, $event))->map(fn ($s) => $s->untukLayar())
                 : null,
 
             /*

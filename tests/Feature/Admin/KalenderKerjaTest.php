@@ -3,6 +3,7 @@
 namespace Tests\Feature\Admin;
 
 use App\Enums\JenisAbsen;
+use App\Enums\OverrideAbsenUmum;
 use App\Models\Absensi;
 use App\Models\EventAbsen;
 use App\Models\HariLibur;
@@ -25,19 +26,25 @@ use Tests\TestCase;
 /**
  * Kalender hari kerja dan hari libur (FR-SET-08).
  *
- * Keputusan pokoknya: hari libur MENANDAI, tidak menutup. Kantor dinas
- * menjalankan piket akhir pekan, dan menutup absen umum berarti petugas piket
- * yang benar-benar masuk tidak dapat mencatat kehadirannya sama sekali.
+ * Fungsi tunggal {@see KalenderKerjaService::hariKerja()} (dan pasangannya,
+ * {@see KalenderKerjaService::alasanLibur()}) adalah SATU-SATUNYA tempat
+ * pertanyaan "apakah tanggal ini hari kerja bagi unit ini" dijawab — dipakai
+ * jendela buka/tutup Absen Umum, penanda `Absensi.hari_libur`, dan penyebut
+ * "hari kerja" pada Laporan Resmi. Berkas ini menguji fungsi itu sendiri;
+ * dampaknya pada jendela buka/tutup diuji lebih rinci di
+ * {@see JendelaAbsenUmumTest}.
  *
- * Yang paling mudah rusak diam-diam — dan karena itu diuji terpisah — bukan
- * "hari libur terdeteksi", melainkan tiga hal ini:
+ * Yang paling mudah rusak diam-diam — dan karena itu diuji terpisah — tiga
+ * hal ini:
  *
- *   1. Tap pada hari libur TETAP DITERIMA. Begitu seseorang kelak menyamakan
- *      "libur" dengan "tertutup", petugas piket terkunci di luar sistem.
- *   2. Penandanya DISIMPAN, bukan dihitung ulang saat dibaca. Kalender dapat
+ *   1. Penandanya DISIMPAN, bukan dihitung ulang saat dibaca. Kalender dapat
  *      berubah kemudian, dan catatan administratif tidak boleh ikut berubah.
- *   3. Hari kerja diwarisi dari induk. Menuntut setiap seksi mengaturnya
+ *   2. Hari kerja diwarisi dari induk. Menuntut setiap seksi mengaturnya
  *      sendiri hanya melahirkan puluhan salinan yang akan berbeda diam-diam.
+ *   3. Tap yang tetap diterima lewat OVERRIDE pada hari libur tetap tercatat
+ *      dengan penandanya — kebijakan "menandai" itu sendiri tidak pernah
+ *      dicabut, yang berubah (lihat JendelaAbsenUmumTest) hanyalah jalan
+ *      untuk sampai ke sana.
  */
 class KalenderKerjaTest extends TestCase
 {
@@ -92,30 +99,37 @@ class KalenderKerjaTest extends TestCase
     }
 
     /* ---------------------------------------------------------------------
-     * Menandai, bukan menutup
+     * Menandai, LEWAT OVERRIDE — bukan lagi bawaan
      * ------------------------------------------------------------------- */
 
     #[Test]
-    public function tap_pada_hari_libur_tetap_diterima(): void
+    public function tap_pada_hari_libur_ditolak_tanpa_override(): void
     {
         /*
-         * Syarat yang paling penting di seluruh berkas ini. Petugas piket yang
-         * masuk Sabtu harus tetap dapat mencatat kehadirannya tanpa meminta
-         * admin membuka paksa dari rumah.
+         * Revisi kebijakan S39. Sebelum ini tap pada hari libur selalu
+         * diterima; sejak revisi kalender kerja, jendela Absen Umum tertutup
+         * otomatis di luar hari kerja, dan satu-satunya jalan tetap menerima
+         * tap adalah override manual admin — lihat dua uji di bawah.
          */
-        $this->tap()->assertOk()->assertJson(['success' => true]);
+        $this->tap()
+            ->assertStatus(409)
+            ->assertJson(['success' => false, 'code' => 'DI_LUAR_JAM']);
 
-        $this->assertSame(1, Absensi::query()->count());
+        $this->assertSame(0, Absensi::query()->count());
     }
 
     #[Test]
-    public function tap_pada_hari_libur_ditandai(): void
+    public function tap_pada_hari_libur_ditandai_ketika_dibuka_lewat_override(): void
     {
-        $this->tap();
+        // Kebijakan "menandai" itu sendiri TIDAK dicabut — yang berubah
+        // hanyalah jalan untuk sampai ke sana (perbaikan atas revisi di atas).
+        app(AbsenUmumService::class)->aturOverride($this->upt->id, OverrideAbsenUmum::Buka, $this->admin);
+
+        $this->tap()->assertOk();
 
         $this->assertTrue(
             Absensi::query()->sole()->hari_libur,
-            'Tap di luar hari kerja harus tercatat dengan penandanya.',
+            'Tap yang diterima lewat override pada hari libur harus tetap tercatat dengan penandanya.',
         );
     }
 
@@ -271,16 +285,25 @@ class KalenderKerjaTest extends TestCase
      * ------------------------------------------------------------------- */
 
     #[Test]
-    public function status_absen_umum_menyebut_hari_libur_tanpa_menutupnya(): void
+    public function status_absen_umum_tertutup_karena_kalender_kecuali_override(): void
     {
-        $this->tap();
+        $absenUmum = app(AbsenUmumService::class);
 
-        $status = app(AbsenUmumService::class)
-            ->status(JenisAbsen::Datang, app(AbsenUmumService::class)->sesi($this->upt->id));
+        $tertutup = $absenUmum->status(JenisAbsen::Datang, $this->upt->id);
 
-        $this->assertTrue($status->terbuka, 'Hari libur menandai, bukan menutup.');
-        $this->assertStringContainsString('Sabtu', $status->keterangan());
-        $this->assertStringContainsString('ditandai hari libur', $status->keterangan());
+        $this->assertFalse($tertutup->terbuka);
+        $this->assertSame('kalender', $tertutup->sumber);
+        $this->assertStringContainsString('Sabtu', $tertutup->keterangan());
+        $this->assertStringContainsString('tertutup otomatis', $tertutup->keterangan());
+
+        // Override tetap menang, dan alasan kalendernya tidak disembunyikan.
+        $sesi = $absenUmum->aturOverride($this->upt->id, OverrideAbsenUmum::Buka, $this->admin);
+
+        $terbuka = $absenUmum->status(JenisAbsen::Datang, $this->upt->id, $sesi);
+
+        $this->assertTrue($terbuka->terbuka);
+        $this->assertSame('override', $terbuka->sumber);
+        $this->assertStringContainsString('Sabtu', $terbuka->keterangan());
     }
 
     #[Test]

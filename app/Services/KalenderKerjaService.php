@@ -10,19 +10,25 @@ use Illuminate\Support\Carbon;
  * Kalender hari kerja per unit kerja (FR-SET-08).
  *
  * Menjawab satu pertanyaan: apakah tanggal ini hari kerja bagi unit ini, dan
- * kalau bukan, mengapa.
+ * kalau bukan, mengapa. Fungsi INILAH — bukan penghitungan ulang di masing-
+ * masing fitur — yang dipakai jendela buka/tutup Absen Umum
+ * ({@see AbsenUmumService::status()}), penanda `Absensi.hari_libur`, dan
+ * penyebut "hari kerja" pada Laporan Resmi.
  *
- * **Hari libur MENANDAI, tidak menutup.** Absen umum tetap menerima tap pada
- * hari libur, dan tapnya tercatat dengan penanda. Kantor dinas menjalankan
- * piket akhir pekan; menutup absennya berarti petugas piket yang benar-benar
- * masuk tidak dapat mencatat kehadirannya sama sekali. Yang dihasilkan
- * kalender ini adalah KETERANGAN, bukan larangan — dan keterangan itulah yang
- * membuat rekap tidak menghitung Sabtu-Minggu sebagai nol.
+ * Dua sumber "bukan hari kerja", dan keduanya diperiksa, hari libur lebih
+ * dahulu:
  *
- * Dua sumber "bukan hari kerja", dan keduanya diperiksa:
+ *   1. Tanggal yang terdaftar sebagai hari libur — nasional maupun khusus unit.
+ *   2. Hari dalam pekan yang memang bukan hari kerja unit itu.
  *
- *   1. Hari dalam pekan yang memang bukan hari kerja unit itu.
- *   2. Tanggal yang terdaftar sebagai hari libur — nasional maupun khusus unit.
+ * **Apa yang pemanggil lakukan dengan jawaban "bukan hari kerja" bukan urusan
+ * kelas ini**, dan itu memang sengaja. Sejak revisi kalender kerja, jendela
+ * Absen Umum menutup dirinya sendiri di luar hari kerja (kecuali override
+ * manual) — sebelum revisi itu (S39) ia hanya menandai tanpa menutup.
+ * Penanda `Absensi.hari_libur` sendiri tidak pernah berubah maknanya: tap
+ * yang diterima lewat override pada hari libur tetap tercatat dengan
+ * penanda itu, sebagai catatan administratif yang tidak boleh berubah arti
+ * ketika kalender kelak disunting — lihat {@see self::alasanLibur()}.
  */
 class KalenderKerjaService
 {

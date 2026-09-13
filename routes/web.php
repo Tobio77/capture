@@ -254,6 +254,14 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
              * pernah dapat dimasukkan siapa pun.
              */
             Route::post('setting/hari-libur', [HariLiburController::class, 'store'])->name('hari-libur.store');
+
+            // Impor massal (FR-SET-08): admin mengisi belasan tanggal sekaligus
+            // tiap tahun, dibatasi laju karena satu permintaan dapat membawa
+            // banyak baris sekaligus.
+            Route::post('setting/hari-libur/impor', [HariLiburController::class, 'impor'])
+                ->middleware('throttle:10,1')
+                ->name('hari-libur.impor');
+
             Route::delete('setting/hari-libur/{hari_libur}', [HariLiburController::class, 'destroy'])->name('hari-libur.destroy');
         });
 

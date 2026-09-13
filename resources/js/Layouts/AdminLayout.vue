@@ -32,6 +32,13 @@ const aktif = (rute) => ruteSaatIni.value === rute
 const modeTerbuka = computed(() => page.props.mode_terbuka === true)
 
 /*
+ * Pasangan Mode Terbuka, dan yang lebih berat dari keduanya. Sampai audit
+ * pra-deploy, sakelar ini tidak punya peringatan apa pun — padahal ia yang
+ * menentukan apakah kehadiran benar-benar dibuktikan wajah.
+ */
+const verifikasiWajahMati = computed(() => page.props.verifikasi_wajah_mati === true)
+
+/*
  * Di bawah `md` sidebar menjadi laci yang meluncur dari kiri di atas isi
  * halaman, bukan menumpuk di atasnya: menu proyek ini punya sebelas butir,
  * dan menumpuknya akan mendorong isi halaman jauh ke bawah lipatan.
@@ -230,6 +237,34 @@ const keluar = () => router.post('/keluar')
       </div>
 
       <main class="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-6">
+        <!--
+          Peringatan verifikasi wajah MATI; terlihat di setiap halaman admin.
+
+          Rose, bukan amber, dan berdiri di atas Mode Terbuka: selama sakelar
+          ini mati, kehadiran tidak dibuktikan wajah sama sekali — cukup
+          menyebut NIP. Amber berarti "berlanjut, tetapi catat"; ini "sistem
+          sedang tidak membuktikan apa pun".
+        -->
+        <div
+          v-if="verifikasiWajahMati"
+          class="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-galat bg-galat-lembut px-4 py-3 print:hidden"
+        >
+          <p class="flex items-start gap-2 text-sm text-galat-teks">
+            <Ikon nama="peringatan" ukuran="h-5 w-5 shrink-0" />
+            <span>
+              <span class="font-semibold">Verifikasi Wajah Mati</span> — kehadiran dicatat tanpa
+              membuktikan wajah, jadi siapa pun yang menyebut NIP orang lain akan diterima. Nyalakan
+              kembali segera setelah keperluannya selesai.
+            </span>
+          </p>
+          <Link
+            href="/admin/kelola-absen/setting"
+            class="tautan-aksi inline-flex shrink-0 items-center gap-1.5 rounded-md border border-galat px-3 py-2 text-xs font-semibold text-galat-teks transition hover:bg-galat-lembut active:scale-95"
+          >
+            <Ikon nama="filter" ukuran="h-3.5 w-3.5" /> Nyalakan
+          </Link>
+        </div>
+
         <!-- Peringatan Mode Terbuka; terlihat di setiap halaman admin. -->
         <div
           v-if="modeTerbuka"

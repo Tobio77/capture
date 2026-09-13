@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Absen;
 
 use App\Enums\JenisAbsen;
+use App\Enums\SumberKiosk;
 use App\Exceptions\AbsenGandaException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SimpanAbsenRequest;
@@ -57,6 +58,7 @@ class SimpanAbsenController extends Controller
         if ($event->absenUmum()) {
             $status = $this->absenUmum->status(
                 JenisAbsen::from($request->string('jenis')->toString()),
+                $event->unitKerja->first()?->id,
                 $event,
             );
 
@@ -75,26 +77,56 @@ class SimpanAbsenController extends Controller
             return $this->gagal('PEGAWAI_TIDAK_AKTIF', 'Pegawai tidak aktif.', 403);
         }
 
+        /*
+         * Pegawai harus termasuk cakupan event yang sedang dilayani titik absen
+         * ini (perbaikan H-1).
+         *
+         * Sebelumnya tidak ada pemeriksaan apa pun: `kenali()` mencari ke
+         * SELURUH tabel pegawai, sehingga perangkat di satu UPT dapat
+         * mencatatkan kehadiran pegawai UPT lain pada eventnya sendiri. Pagar
+         * yang sama sudah lama berdiri di FotoPegawaiController — ia ada di
+         * endpoint foto, tetapi tidak di endpoint yang menulis absensi.
+         */
+        if (! in_array($pegawai->unit_kerja_id, $this->event->unitTercakup($event), true)) {
+            return $this->gagal(
+                'DI_LUAR_CAKUPAN',
+                'Pegawai ini tidak termasuk cakupan kegiatan pada titik absen ini.',
+                403,
+            );
+        }
+
         $setting = $this->setting->ambil();
-        $skor = $request->has('skor') ? (float) $request->input('skor') : null;
+        $skor = null;
 
         /*
          * FR-TAP-06: kehadiran hanya dicatat bila verifikasi wajah berhasil.
-         * Ambang dibaca ulang dari Setting Absen, bukan dari kiriman kiosk,
-         * supaya kiosk tidak dapat menurunkan syaratnya sendiri.
+         *
+         * Yang memutuskan adalah SERVER, bukan medan `skor` kiriman peramban
+         * (perbaikan C-1). Deskriptor hasil capture dibandingkan di sini dengan
+         * embedding referensi yang tidak pernah meninggalkan server; angka apa
+         * pun yang disertakan peramban pada medan `skor` diabaikan.
          */
         if ($setting['metode_wajah_aktif']) {
-            if ($skor === null) {
-                return $this->gagal('WAJAH_BELUM_DIVERIFIKASI', 'Verifikasi wajah wajib sebelum absen dicatat.', 422);
+            $hasil = FotoReferensiWajahService::cocokkan(
+                $pegawai,
+                $request->input('embedding'),
+                (float) $setting['ambang_kecocokan_wajah'],
+            );
+
+            if ($hasil['skor'] === null) {
+                return $this->gagal('WAJAH_BELUM_DIVERIFIKASI', $hasil['alasan'], 422);
             }
 
-            if ($skor < $setting['ambang_kecocokan_wajah']) {
+            if (! $hasil['cocok']) {
                 return $this->gagal(
                     'WAJAH_TIDAK_COCOK',
-                    "Skor kecocokan {$skor}% di bawah ambang {$setting['ambang_kecocokan_wajah']}%.",
+                    "Skor kecocokan {$hasil['skor']}% di bawah ambang {$setting['ambang_kecocokan_wajah']}%.",
                     422,
+                    ['skor' => $hasil['skor']],
                 );
             }
+
+            $skor = $hasil['skor'];
         }
 
         try {
@@ -145,8 +177,25 @@ class SimpanAbsenController extends Controller
          * Hanya berlaku saat verifikasi wajah MATI. Ketika ia menyala, absen
          * pegawai tanpa foto referensi sudah ditolak jauh sebelum baris ini,
          * dan tidak ada foto yang boleh dipromosikan tanpa pembanding.
+         *
+         * TIDAK PERNAH dari perangkat ad-hoc (perbaikan H-2).
+         *
+         * Perangkat ad-hoc lahir dari Mode Terbuka: siapa pun yang dapat
+         * menjangkau alamat aplikasi menerbitkan device token untuk dirinya
+         * sendiri, tanpa seorang pun meninjaunya. Membiarkannya memasok foto
+         * referensi berarti penyerang dapat menjadikan wajahnya sendiri sebagai
+         * wajah resmi pegawai lain — dan kerusakan itu BERTAHAN melewati
+         * penyalaan kembali verifikasi wajah, karena justru pada hari itulah
+         * wajah palsunya mulai dipakai mencocokkan.
+         *
+         * Layar absen umum di peramban admin ($kiosk === null) tetap boleh:
+         * di baliknya ada sesi admin yang namanya tercatat, bukan mesin
+         * anonim.
          */
+        $bolehPromosi = $kiosk === null || $kiosk->sumber !== SumberKiosk::AdHoc;
+
         $dipromosikan = ! $setting['metode_wajah_aktif']
+            && $bolehPromosi
             && $this->wajah->promosikanDariAbsen(
                 $pegawai,
                 $absensi->foto_path,
@@ -160,6 +209,10 @@ class SimpanAbsenController extends Controller
                 'waktu' => $absensi->waktu->format('H:i'),
                 'status_ketepatan' => $absensi->status_ketepatan?->value,
 
+                // Skor hasil perhitungan SERVER, bukan angka kiriman layar —
+                // layar menampilkannya, tidak lagi menentukannya.
+                'skor' => $absensi->skor_kecocokan_wajah,
+
                 // Layar memberitahukannya kepada pegawai: fotonya kini menjadi
                 // foto referensi, dan ia tidak perlu mendatangi admin lagi.
                 'wajah_didaftarkan' => $dipromosikan,
@@ -171,12 +224,16 @@ class SimpanAbsenController extends Controller
         ]);
     }
 
-    protected function gagal(string $kode, string $pesan, int $status): JsonResponse
+    /**
+     * @param  array<string, mixed>  $data  keterangan tambahan untuk layar, mis. skor kecocokan
+     */
+    protected function gagal(string $kode, string $pesan, int $status, array $data = []): JsonResponse
     {
-        return response()->json([
+        return response()->json(array_filter([
             'success' => false,
             'code' => $kode,
             'message' => $pesan,
-        ], $status);
+            'data' => $data === [] ? null : $data,
+        ], fn ($nilai) => $nilai !== null), $status);
     }
 }

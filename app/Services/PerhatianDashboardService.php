@@ -84,10 +84,76 @@ class PerhatianDashboardService
          * mahal bila diabaikan.
          */
         return array_slice(array_values(array_filter([
+            ...$this->pengamanDilonggarkan(),
             ...$this->kegiatanLupaDitutup($pelaku),
             ...$this->kehadiranAnjlok($pelaku),
             ...$this->perangkatSunyi($pelaku),
         ])), 0, self::BATAS_BUTIR);
+    }
+
+    /**
+     * Pengaman yang dilonggarkan dan belum dipulihkan (perbaikan H-3).
+     *
+     * Berdiri PALING ATAS, mendahului kegiatan yang lupa ditutup: yang lain
+     * membuat data menjadi salah, yang ini membuat kehadiran tidak terbukti
+     * sama sekali.
+     *
+     * Keduanya mudah dinyalakan untuk satu apel pagi lalu terlupakan
+     * berminggu-minggu. Spanduk di kerangka Panel Admin sudah mengingatkan
+     * setiap saat, tetapi spanduk yang selalu ada akan berhenti terbaca;
+     * butir di sini menyebut BERAPA LAMA, dan itu yang membuat kelalaiannya
+     * terasa.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function pengamanDilonggarkan(): array
+    {
+        $setting = $this->setting->ambil();
+        $butir = [];
+
+        if (! $setting['metode_wajah_aktif']) {
+            $butir[] = [
+                'jenis' => 'verifikasi_wajah_mati',
+                'nada' => 'rose',
+                'ikon' => 'peringatan',
+                'judul' => 'Verifikasi wajah dimatikan',
+                'keterangan' => 'Kehadiran dicatat tanpa membuktikan wajah'
+                    .$this->lamanya(SettingAbsenService::KUNCI_WAJAH_MATI_SEJAK)
+                    .'. Siapa pun yang menyebut NIP orang lain akan diterima.',
+                'aksi' => 'Nyalakan kembali',
+                'url' => '/admin/kelola-absen/setting',
+            ];
+        }
+
+        if ($setting['wajib_kode_aktivasi'] === false) {
+            $butir[] = [
+                'jenis' => 'mode_terbuka',
+                'nada' => 'amber',
+                'ikon' => 'peringatan',
+                'judul' => 'Mode Terbuka menyala',
+                'keterangan' => 'Perangkat dapat mengabsen tanpa kode aktivasi'
+                    .$this->lamanya(SettingAbsenService::KUNCI_TERBUKA_SEJAK)
+                    .'. Mesin mana pun yang menjangkau alamat aplikasi dapat menjadi titik absen.',
+                'aksi' => 'Nonaktifkan',
+                'url' => '/admin/kelola-absen/setting',
+            ];
+        }
+
+        return $butir;
+    }
+
+    /**
+     * " sejak 3 hari lalu", atau untai kosong bila waktunya tidak diketahui.
+     *
+     * Instalasi yang sakelarnya sudah dimatikan sebelum stempel waktu ini
+     * diperkenalkan tidak punya nilainya. Butirnya tetap muncul — yang hilang
+     * hanya keterangan lamanya, bukan peringatannya.
+     */
+    protected function lamanya(string $kunci): string
+    {
+        $sejak = $this->setting->dilonggarkanSejak($kunci);
+
+        return $sejak === null ? '' : ' sejak '.$sejak->diffForHumans();
     }
 
     /**

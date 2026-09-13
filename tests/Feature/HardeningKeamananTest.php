@@ -2,19 +2,23 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AksiLog;
 use App\Enums\StatusEvent;
 use App\Models\EventAbsen;
 use App\Models\Kiosk;
+use App\Models\LogAktivitas;
 use App\Models\Pegawai;
 use App\Models\UnitKerja;
 use App\Models\User;
 use App\Services\KioskService;
 use App\Services\PenggunaService;
+use App\Services\PerhatianDashboardService;
 use App\Services\SettingAbsenService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\Test;
+use RuntimeException;
 use Tests\TestCase;
 
 /**
@@ -149,39 +153,47 @@ class HardeningKeamananTest extends TestCase
      * ------------------------------------------------------------------- */
 
     #[Test]
-    public function embedding_tidak_dikirim_ketika_verifikasi_wajah_dimatikan(): void
+    public function embedding_tidak_pernah_meninggalkan_server(): void
     {
-        // Tidak ada gunanya menaruh data biometrik pada perangkat yang memang
-        // tidak akan memakainya.
-        $this->aturWajah(false);
+        /*
+         * Kebijakannya berubah pada audit pra-deploy, dan arahnya satu:
+         * TIDAK PERNAH, apa pun keadaan settingnya.
+         *
+         * Sebelumnya deskriptor 128 dimensi dikirim ke peramban ketika
+         * verifikasi wajah menyala, supaya pencocokan 1:1 dapat dilakukan di
+         * sana. Itu membuat pemeriksaan ulang di server mustahil dipercaya:
+         * peramban yang sudah memegang vektor referensinya cukup
+         * memantulkannya kembali sebagai "hasil capture" miliknya untuk
+         * memperoleh jarak nol dan skor sempurna.
+         *
+         * Kini server yang mencocokkan, dan tidak ada satu pun biometrik yang
+         * perlu berada di titik absen.
+         */
+        foreach ([true, false] as $verifikasiMenyala) {
+            $this->aturWajah($verifikasiMenyala);
 
-        Pegawai::factory()->wajahTerdaftar()->create([
-            'nip' => '199001012020011001',
-            'unit_kerja_id' => $this->upt->id,
-        ]);
+            $pegawai = Pegawai::factory()->wajahTerdaftar()->create([
+                'nip' => $verifikasiMenyala ? '199001012020011001' : '199001012020011002',
+                'unit_kerja_id' => $this->upt->id,
+            ]);
 
-        $this->denganPerangkat()
-            ->post('/kiosk/event/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
-            ->assertOk()
-            ->assertJson(['data' => ['embedding_wajah' => null]]);
-    }
+            $jawaban = $this->denganPerangkat()
+                ->post(
+                    '/kiosk/event/tap/identifikasi',
+                    ['id_card' => $pegawai->nip],
+                    ['Accept' => 'application/json'],
+                )
+                ->assertOk();
 
-    #[Test]
-    public function embedding_dikirim_ketika_verifikasi_wajah_menyala(): void
-    {
-        $this->aturWajah(true);
+            $this->assertArrayNotHasKey('embedding_wajah', $jawaban->json('data'));
 
-        Pegawai::factory()->wajahTerdaftar()->create([
-            'nip' => '199001012020011001',
-            'unit_kerja_id' => $this->upt->id,
-        ]);
-
-        $data = $this->denganPerangkat()
-            ->post('/kiosk/event/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
-            ->assertOk()
-            ->json('data');
-
-        $this->assertCount(128, $data['embedding_wajah']);
+            // Bukan sekadar medannya yang hilang: tidak satu pun angkanya
+            // muncul di badan jawaban, lewat nama medan apa pun.
+            $this->assertStringNotContainsString(
+                (string) $pegawai->embedding_wajah[0],
+                $jawaban->getContent(),
+            );
+        }
     }
 
     #[Test]
@@ -291,5 +303,181 @@ class HardeningKeamananTest extends TestCase
             'payload' => 'kosong',
             'last_activity' => now()->timestamp,
         ]);
+    }
+    /* ---------------------------------------------------------------------
+     * Perbaikan audit pra-deploy.
+     * ------------------------------------------------------------------- */
+
+    #[Test]
+    public function setiap_jawaban_membawa_header_keamanan(): void
+    {
+        /*
+         * Perbaikan M-2. Yang paling nyata di antaranya X-Frame-Options:
+         * tanpa itu panel admin dapat dibingkai halaman lain, dan admin yang
+         * sedang login dapat dipancing menekan sakelar Mode Terbuka tanpa
+         * pernah melihat layar yang sebenarnya ia sentuh.
+         */
+        $jawaban = $this->actingAs(User::factory()->superadmin()->create())
+            ->get('/admin/dashboard')
+            ->assertOk();
+
+        $jawaban->assertHeader('X-Frame-Options', 'DENY');
+        $jawaban->assertHeader('X-Content-Type-Options', 'nosniff');
+        $jawaban->assertHeader('Referrer-Policy', 'same-origin');
+
+        // Kamera hanya untuk aplikasi ini sendiri; sisanya ditutup.
+        $this->assertStringContainsString(
+            'camera=(self)',
+            $jawaban->headers->get('Permissions-Policy'),
+        );
+        $this->assertStringContainsString(
+            'microphone=()',
+            $jawaban->headers->get('Permissions-Policy'),
+        );
+    }
+
+    #[Test]
+    public function header_keamanan_juga_menempel_pada_halaman_publik(): void
+    {
+        // Halaman depan terbuka tanpa autentikasi apa pun; justru di sanalah
+        // pembingkaian paling mudah dicoba.
+        $this->get('/')
+            ->assertOk()
+            ->assertHeader('X-Frame-Options', 'DENY');
+    }
+
+    #[Test]
+    public function hsts_tidak_dikirim_lewat_sambungan_tak_terenkripsi(): void
+    {
+        /*
+         * Peramban mengabaikan HSTS dari sambungan HTTP, jadi mengirimkannya
+         * tidak ada gunanya — tetapi memasangnya di lingkungan pengembangan
+         * yang berjalan di HTTP akan mengunci capture.test ke HTTPS pada
+         * peramban pengembang selama setahun.
+         */
+        $this->assertNull(
+            $this->get('http://capture.test/')->headers->get('Strict-Transport-Security'),
+        );
+
+        // Dan sebaliknya: begitu sambungannya aman, HSTS ikut terpasang.
+        $this->assertSame(
+            'max-age=31536000; includeSubDomains',
+            $this->get('https://capture.test/')->headers->get('Strict-Transport-Security'),
+        );
+    }
+
+    #[Test]
+    public function kode_aktivasi_tidak_pernah_tersimpan_apa_adanya(): void
+    {
+        /*
+         * Perbaikan L-1. Risikonya memang kecil — sekali pakai, berlaku 24
+         * jam — tetapi siapa pun yang dapat membaca tabel `kiosk` dapat
+         * mengaktifkan perangkat atas nama titik absen mana pun, dan
+         * perangkat yang lahir dari situ terlihat sah di Daftar Perangkat.
+         */
+        $kiosk = Kiosk::factory()->menungguAktivasi('ABCD2345')->create([
+            'unit_kerja_id' => $this->upt->id,
+        ]);
+
+        $tersimpan = DB::table('kiosk')->where('id', $kiosk->id)->value('kode_aktivasi');
+
+        $this->assertNotSame('ABCD2345', $tersimpan);
+        $this->assertSame(KioskService::hashToken('ABCD2345'), $tersimpan);
+
+        // Dan kodenya tetap dapat ditukarkan seperti biasa.
+        $this->post('/kiosk/aktivasi', ['kode_aktivasi' => 'ABCD2345'])
+            ->assertRedirect('/');
+    }
+
+    #[Test]
+    public function baris_audit_tidak_dapat_dihapus_lewat_aplikasi(): void
+    {
+        /*
+         * Perbaikan L-3. Sifat append-only sebelumnya benar karena tidak ada
+         * kode yang pernah menulisnya, bukan karena ada yang mencegahnya —
+         * dan jejak audit yang bergantung pada ketiadaan kode adalah jejak
+         * yang akan hilang pada sesi ke sekian.
+         *
+         * Ini pagar lapis APLIKASI; ia tidak menghentikan siapa pun yang
+         * sudah memegang akses SQL langsung.
+         */
+        $baris = LogAktivitas::query()->create([
+            'aksi' => AksiLog::Masuk,
+            'deskripsi' => 'Uji jejak audit.',
+        ]);
+
+        try {
+            $baris->delete();
+            $this->fail('Baris audit seharusnya tidak dapat dihapus.');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('append-only', $e->getMessage());
+        }
+
+        try {
+            $baris->update(['deskripsi' => 'Disunting diam-diam.']);
+            $this->fail('Baris audit seharusnya tidak dapat diubah.');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('append-only', $e->getMessage());
+        }
+
+        $this->assertDatabaseHas('log_aktivitas', ['deskripsi' => 'Uji jejak audit.']);
+    }
+
+    #[Test]
+    public function mematikan_verifikasi_wajah_memasang_peringatan_dan_mencatat_waktunya(): void
+    {
+        /*
+         * Perbaikan H-3. Sampai audit pra-deploy, verifikasi wajah yang
+         * dimatikan tidak memunculkan peringatan di mana pun — hanya satu
+         * sakelar di halaman Setting yang harus sengaja dibuka untuk dilihat.
+         */
+        $admin = User::factory()->superadmin()->create();
+
+        $this->aturWajah(false);
+
+        // Spanduk di kerangka Panel Admin, terlihat di setiap halaman.
+        $this->actingAs($admin)
+            ->get('/admin/dashboard')
+            ->assertOk()
+            ->assertInertia(fn ($halaman) => $halaman->where('verifikasi_wajah_mati', true)->etc());
+
+        // Dan butirnya di panel Perhatian, yang menyebut berapa lama.
+        $perhatian = collect(
+            app(PerhatianDashboardService::class)->untuk($admin),
+        );
+
+        $this->assertTrue($perhatian->contains('jenis', 'verifikasi_wajah_mati'));
+
+        $this->assertNotNull(
+            app(SettingAbsenService::class)
+                ->dilonggarkanSejak(SettingAbsenService::KUNCI_WAJAH_MATI_SEJAK),
+        );
+    }
+
+    #[Test]
+    public function menyalakan_kembali_verifikasi_wajah_menghapus_peringatannya(): void
+    {
+        $admin = User::factory()->superadmin()->create();
+
+        $this->aturWajah(false);
+        $this->aturWajah(true);
+
+        $this->actingAs($admin)
+            ->get('/admin/dashboard')
+            ->assertOk()
+            ->assertInertia(fn ($halaman) => $halaman->where('verifikasi_wajah_mati', false)->etc());
+
+        $perhatian = collect(
+            app(PerhatianDashboardService::class)->untuk($admin),
+        );
+
+        $this->assertFalse($perhatian->contains('jenis', 'verifikasi_wajah_mati'));
+
+        // Stempel waktunya ikut dihapus, supaya pemulihan yang benar tidak
+        // meninggalkan peringatan yang menggantung.
+        $this->assertNull(
+            app(SettingAbsenService::class)
+                ->dilonggarkanSejak(SettingAbsenService::KUNCI_WAJAH_MATI_SEJAK),
+        );
     }
 }

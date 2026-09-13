@@ -2,25 +2,47 @@ import { ref } from 'vue'
 import { useFaceApi } from '@/Composables/useFaceApi'
 
 /**
- * Verifikasi wajah 1:1 di sisi klien (FR-TAP-04, SDD §3).
+ * Penangkapan deskriptor wajah untuk verifikasi 1:1 (FR-TAP-04, SDD §3).
  *
- * Embedding hasil capture dibandingkan HANYA dengan embedding milik ID yang
- * di-tap — bukan pencarian ke seluruh pegawai. Server mengirimkan deskriptor
- * itu bersama jawaban identifikasi tap, sehingga tidak ada biometrik pegawai
- * lain yang perlu berada di browser kiosk.
+ * **Pencocokannya tidak lagi di sini.** Sampai audit keamanan pra-deploy,
+ * layar kiosk menerima embedding referensi pegawai yang di-tap, mencocokkan
+ * sendiri, lalu mengirimkan skornya — dan server hanya memeriksa ulang angka
+ * itu terhadap ambang Setting Absen.
+ *
+ * Pemeriksaan semacam itu tidak pernah dapat dipercaya. Yang dibandingkan
+ * server adalah angka yang dipilih pengirim dengan angka miliknya sendiri,
+ * bukan wajah dengan wajah; siapa pun yang dapat mengirim satu permintaan
+ * cukup menuliskan skor 100. Dan karena vektor referensinya sudah berada di
+ * peramban, memindahkan perhitungan ke server saja tidak cukup — vektor itu
+ * tinggal dipantulkan kembali sebagai "hasil capture" untuk memperoleh jarak
+ * nol.
+ *
+ * Karena itu embedding referensi kini tidak pernah meninggalkan server.
+ * Peramban hanya menghitung deskriptor wajah yang sedang berdiri di depan
+ * kamera dan mengirimkannya; yang memutuskan cocok atau tidak adalah
+ * `FotoReferensiWajahService::cocokkan()`.
+ *
+ * Deteksi wajah tetap berjalan di klien — itu tidak berubah dan memang
+ * arsitektur yang dipilih (SDD §3). Yang pindah hanyalah keputusannya.
  */
 
 /*
  * Pemetaan jarak Euclidean face-api ke persentase kecocokan.
  *
+ * KEMBAR dengan FotoReferensiWajahService::persenKecocokan() di PHP. Yang di
+ * sini dipakai menggambar angka di layar; yang di sana dipakai memutuskan.
+ * Bila skala ini diubah, UBAH KEDUANYA — server dan peramban yang tidak
+ * sepakat akan menampilkan satu angka lalu menolak dengan angka lain, dan
+ * petugas tidak akan pernah memahami penolakannya.
+ *
  * face-api sendiri tidak mengenal "persen"; ia menghasilkan jarak, dan 0,6
  * adalah batas keputusan bawaannya. Setting Absen menyatakan ambang dalam
  * persen 70–99 (FR-SET-03), jadi keduanya perlu dijembatani.
  *
- * Skala ini dikalibrasi lurus: jarak 0,60 (batas face-api) jatuh tepat pada
- * 70% — ambang paling longgar yang dapat dipilih admin — dan jarak 0,20
- * (kecocokan sangat kuat) jatuh pada 99%. Ambang bawaan 85% dengan demikian
- * menuntut jarak <= ~0,393, yaitu lebih ketat daripada bawaan face-api.
+ * Skala ini dikalibrasi lurus: jarak 0,60 jatuh tepat pada 70% — ambang paling
+ * longgar yang dapat dipilih admin — dan jarak 0,20 jatuh pada 99%. Ambang
+ * bawaan 85% dengan demikian menuntut jarak <= ~0,393, lebih ketat daripada
+ * bawaan face-api.
  *
  * Angkanya persentase kalibrasi, BUKAN probabilitas.
  */
@@ -41,27 +63,18 @@ export function useVerifikasiWajah() {
   const memverifikasi = ref(false)
 
   /**
-   * Bandingkan wajah pada elemen video dengan embedding referensi.
+   * Hitung deskriptor wajah pada elemen video.
    *
-   * Mengembalikan { cocok, skor, jarak } bila wajah terdeteksi, atau
+   * Mengembalikan { embedding } bila tepat satu wajah terdeteksi, atau
    * { galat } berisi pesan siap tampil.
    */
-  async function verifikasi(sumber, embeddingReferensi, ambang) {
-    if (!Array.isArray(embeddingReferensi) || embeddingReferensi.length !== 128) {
-      return { galat: 'Wajah pegawai ini belum terdaftar. Hubungi admin unit kerja.' }
-    }
-
+  async function tangkapEmbedding(sumber) {
     memverifikasi.value = true
 
     try {
       const hasil = await hitungEmbedding(sumber)
 
-      if (hasil.galat) return { galat: hasil.galat }
-
-      const jarak = jarakEuclidean(hasil.embedding, embeddingReferensi)
-      const skor = persenKecocokan(jarak)
-
-      return { cocok: skor >= ambang, skor, jarak, embedding: hasil.embedding }
+      return hasil.galat ? { galat: hasil.galat } : { embedding: hasil.embedding }
     } catch {
       return { galat: 'Modul pengenalan wajah gagal dimuat. Muat ulang layar kiosk.' }
     } finally {
@@ -69,16 +82,5 @@ export function useVerifikasiWajah() {
     }
   }
 
-  return { memuatModel: memuat, siapkanModel: siapkan, memverifikasi, verifikasi }
-}
-
-function jarakEuclidean(a, b) {
-  let jumlah = 0
-
-  for (let i = 0; i < a.length; i++) {
-    const selisih = a[i] - b[i]
-    jumlah += selisih * selisih
-  }
-
-  return Math.sqrt(jumlah)
+  return { memuatModel: memuat, siapkanModel: siapkan, memverifikasi, tangkapEmbedding }
 }

@@ -196,32 +196,35 @@ class AbsenUmumService
     /**
      * Status efektif Absen Umum untuk satu jenis absen (FR-SET-07).
      *
-     * Urutan resolusinya tetap, dan ketiganya harus disebut eksplisit karena
-     * dua di antaranya menghasilkan layar yang terlihat sama persis:
+     * Urutan resolusinya tetap, dan keempatnya harus disebut eksplisit karena
+     * beberapa di antaranya menghasilkan layar yang terlihat sama persis:
      *
      *   1. Absen umum dimatikan pada Setting Absen → tertutup, tanpa kecuali.
      *   2. Sesi hari ini membawa override admin → override menang, apa pun
-     *      kata jadwal.
-     *   3. Selebihnya → di dalam jendela jam bawaan berarti terbuka.
+     *      kata kalender maupun jadwal.
+     *   3. Bukan hari kerja bagi unit ini (akhir pekan atau hari libur
+     *      terdaftar) → tertutup otomatis. Revisi kebijakan S39: sebelum ini,
+     *      hari libur hanya menandai tanpa menutup, dan satu-satunya yang
+     *      membuka jendelanya kembali adalah override di langkah 2 — sengaja
+     *      diperiksa lebih dahulu supaya petugas piket yang memang ditugaskan
+     *      tetap bisa dibukakan.
+     *   4. Selebihnya → di dalam jendela jam bawaan berarti terbuka.
      *
-     * `$sesi` boleh null: sebelum tap pertama, sesi harian memang belum lahir.
-     * Pada keadaan itu tidak mungkin ada override, sehingga jadwalnya yang
-     * berlaku — dan itulah jawaban yang benar, bukan "tertutup".
+     * `$unitKerjaId` diminta eksplisit dari pemanggil, bukan diturunkan dari
+     * `$sesi`: langkah 3 harus berlaku bahkan SEBELUM sesi harian lahir —
+     * sebelum tap pertama, unit sudah diketahui (kiosk tahu unitnya sendiri,
+     * admin sudah memilih unit di layar), sedangkan sesinya belum tentu ada.
      */
-    public function status(JenisAbsen $jenis, ?EventAbsen $sesi = null, ?Carbon $waktu = null): StatusAbsenUmum
-    {
+    public function status(
+        JenisAbsen $jenis,
+        ?int $unitKerjaId,
+        ?EventAbsen $sesi = null,
+        ?Carbon $waktu = null,
+    ): StatusAbsenUmum {
         $setting = $this->setting->ambil();
         $waktu ??= Carbon::now();
 
-        /*
-         * Alasan hari libur dibawa ke SETIAP cabang, bukan menjadi cabang
-         * tersendiri. Hari libur menandai, tidak menutup (FR-SET-08): status
-         * terbuka atau tertutupnya tetap ditentukan Setting, override, dan
-         * jendela jam — persis seperti hari kerja biasa.
-         */
-        $alasanLibur = $sesi === null
-            ? null
-            : $this->kalender->alasanLibur($sesi->unitKerja->first()?->id, $waktu->copy()->startOfDay());
+        $alasanLibur = $this->kalender->alasanLibur($unitKerjaId, $waktu->copy()->startOfDay());
 
         [$buka, $tutup] = $jenis === JenisAbsen::Datang
             ? [$setting['jam_buka_datang'], $setting['jam_tutup_datang']]
@@ -246,13 +249,16 @@ class AbsenUmumService
             );
         }
 
+        if ($alasanLibur !== null) {
+            return new StatusAbsenUmum($jenis, false, 'kalender', $buka, $tutup, alasanLibur: $alasanLibur);
+        }
+
         return new StatusAbsenUmum(
             $jenis,
             $this->didalamJendela($waktu, $buka, $tutup),
             'jadwal',
             $buka,
             $tutup,
-            alasanLibur: $alasanLibur,
         );
     }
 
@@ -261,11 +267,11 @@ class AbsenUmumService
      *
      * @return array<string, StatusAbsenUmum>
      */
-    public function statusSemua(?EventAbsen $sesi = null, ?Carbon $waktu = null): array
+    public function statusSemua(?int $unitKerjaId, ?EventAbsen $sesi = null, ?Carbon $waktu = null): array
     {
         return [
-            JenisAbsen::Datang->value => $this->status(JenisAbsen::Datang, $sesi, $waktu),
-            JenisAbsen::Pulang->value => $this->status(JenisAbsen::Pulang, $sesi, $waktu),
+            JenisAbsen::Datang->value => $this->status(JenisAbsen::Datang, $unitKerjaId, $sesi, $waktu),
+            JenisAbsen::Pulang->value => $this->status(JenisAbsen::Pulang, $unitKerjaId, $sesi, $waktu),
         ];
     }
 

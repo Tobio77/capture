@@ -41,8 +41,10 @@ class KioskFactory extends Factory
      */
     public function menungguAktivasi(string $kode = 'ABCD2345'): static
     {
+        // Yang tersimpan hash-nya, sama seperti device_token: kolomnya tidak
+        // pernah lagi memuat kode yang dapat dibaca (perbaikan L-1).
         return $this->state(fn (array $attributes) => [
-            'kode_aktivasi' => $kode,
+            'kode_aktivasi' => KioskService::hashToken($kode),
             'kode_aktivasi_kedaluwarsa_at' => now()->addHours(KioskService::MASA_KODE_JAM),
         ]);
     }
@@ -53,7 +55,7 @@ class KioskFactory extends Factory
     public function kodeKedaluwarsa(string $kode = 'ABCD2345'): static
     {
         return $this->state(fn (array $attributes) => [
-            'kode_aktivasi' => $kode,
+            'kode_aktivasi' => KioskService::hashToken($kode),
             'kode_aktivasi_kedaluwarsa_at' => now()->subHour(),
         ]);
     }

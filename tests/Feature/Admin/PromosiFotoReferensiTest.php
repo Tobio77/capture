@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Enums\SumberKiosk;
 use App\Models\Absensi;
 use App\Models\EventAbsen;
 use App\Models\Kiosk;
@@ -203,24 +204,75 @@ class PromosiFotoReferensiTest extends TestCase
     public function tidak_ada_promosi_ketika_verifikasi_wajah_menyala(): void
     {
         /*
-         * Saat verifikasi menyala, skor yang menyertai tap berasal dari
-         * pencocokan terhadap foto referensi — dan pegawai ini tidak punya
-         * satu pun. Layar titik absen menolaknya sendiri sebelum mengirim
-         * ("Wajah pegawai ini belum terdaftar"), tetapi server tidak dapat
-         * mengandalkan itu: kiriman yang dirakit sendiri tetap membawa skor
-         * yang tampak sah.
+         * Saat verifikasi menyala, pegawai tanpa foto referensi tidak punya
+         * pembanding — dan sejak perbaikan C-1 absennya DITOLAK di titik itu
+         * juga, bukan dicatat sambil melewatkan promosinya.
          *
-         * Karena itu pagarnya di server bukan skor, melainkan settingnya.
-         * Mempromosikan foto di sini berarti mendaftarkan wajah tanpa seorang
-         * pun — manusia maupun mesin — pernah memastikan itu orang yang benar.
+         * Kiriman di bawah membawa skor 95 yang tampak sah. Dulu angka itu
+         * cukup untuk meloloskan absennya; kini ia diabaikan sepenuhnya, dan
+         * yang menolak adalah ketiadaan embedding referensi.
          */
         $this->aturWajah(true);
 
         $this->tap(['skor' => 95])
+            ->assertStatus(422)
+            ->assertJson(['code' => 'WAJAH_BELUM_DIVERIFIKASI']);
+
+        $this->assertFalse($this->pegawai->fresh()->wajah_terdaftar);
+        $this->assertDatabaseCount('absensi', 0);
+    }
+
+    #[Test]
+    public function perangkat_ad_hoc_tidak_pernah_dapat_mempromosikan_foto(): void
+    {
+        /*
+         * PENJAGA perbaikan H-2 — peracunan foto referensi.
+         *
+         * Perangkat ad-hoc lahir dari Mode Terbuka: siapa pun yang dapat
+         * menjangkau alamat aplikasi menerbitkan device token untuk dirinya
+         * sendiri, tanpa seorang pun meninjaunya. Membiarkannya memasok foto
+         * referensi berarti penyerang dapat menjadikan wajahnya sendiri
+         * sebagai wajah resmi pegawai lain.
+         *
+         * Yang membuatnya berbahaya: kerusakan itu BERTAHAN melewati
+         * penyalaan kembali verifikasi wajah. Menyalakan pengamannya tidak
+         * memperbaiki keadaan — justru pada hari itulah wajah palsunya mulai
+         * dipakai mencocokkan.
+         */
+        $adHoc = Kiosk::factory()->diaktifkan('token-ad-hoc')->create([
+            'unit_kerja_id' => $this->unitKerja->id,
+            'sumber' => SumberKiosk::AdHoc,
+        ]);
+
+        $this->gabungkanKeEvent($this->event, $adHoc);
+
+        $this->withCookie(KioskService::NAMA_COOKIE, 'token-ad-hoc')
+            ->post('/kiosk/event/absen', [
+                'id_card' => '199001012020011001',
+                'jenis' => 'datang',
+                'metode' => 'manual',
+                'foto' => $this->fotoUji(),
+                'embedding' => $this->embedding(),
+            ], ['Accept' => 'application/json'])
             ->assertOk()
             ->assertJson(['data' => ['wajah_didaftarkan' => false]]);
 
+        // Kehadirannya tetap tercatat — yang ditolak hanya pendaftarannya.
+        $this->assertDatabaseCount('absensi', 1);
         $this->assertFalse($this->pegawai->fresh()->wajah_terdaftar);
+    }
+
+    #[Test]
+    public function perangkat_terdaftar_tetap_boleh_mempromosikan(): void
+    {
+        // Sisi lain dari pagar di atas: pembatasannya mengenai perangkat
+        // ad-hoc saja, bukan mematikan fiturnya bagi perangkat yang ditinjau
+        // admin.
+        $this->tap()
+            ->assertOk()
+            ->assertJson(['data' => ['wajah_didaftarkan' => true]]);
+
+        $this->assertTrue($this->pegawai->fresh()->wajah_terdaftar);
     }
 
     #[Test]

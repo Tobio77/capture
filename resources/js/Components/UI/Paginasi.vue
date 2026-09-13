@@ -13,6 +13,28 @@ import Ikon from '@/Components/Ikon.vue'
 defineProps({
   data: { type: Object, required: true },
 })
+
+/**
+ * Label tombol halaman, diterjemahkan dari entitas HTML paginator Laravel.
+ *
+ * Sebelum audit pra-deploy, label ini digambar dengan `v-html` — satu-satunya
+ * di seluruh basis kode. Isinya memang berasal dari paginator, bukan dari
+ * masukan pengguna, sehingga tidak pernah dapat dieksploitasi; yang dihindari
+ * di sini adalah kelas cacatnya, bukan satu kejadian. Begitu kelak seseorang
+ * meneruskan label dari sumber lain, `v-html` menjadi pintu XSS yang tidak
+ * terlihat oleh siapa pun yang menyunting baris itu.
+ *
+ * Yang dibutuhkan hanya tiga bentuk: angka halaman, elipsis, dan panah — dan
+ * panahnya sudah digambar Ikon. Selebihnya dibuang.
+ */
+const label = (mentah) => {
+  const bersih = String(mentah ?? '')
+    .replace(/&laquo;|&raquo;|&hellip;/g, '…')
+    .replace(/<[^>]*>/g, '')
+    .trim()
+
+  return /^\d+$/.test(bersih) ? bersih : '…'
+}
 </script>
 
 <template>
@@ -46,7 +68,7 @@ defineProps({
       >
         <Ikon v-if="urutan === 0" nama="kiri" ukuran="h-4 w-4" />
         <Ikon v-else-if="urutan === data.links.length - 1" nama="kanan" ukuran="h-4 w-4" />
-        <span v-else v-html="tautan.label" />
+        <span v-else>{{ label(tautan.label) }}</span>
       </component>
     </div>
   </div>

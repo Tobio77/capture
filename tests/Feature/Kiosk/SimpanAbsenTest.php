@@ -12,6 +12,7 @@ use App\Models\Pegawai;
 use App\Models\UnitKerja;
 use App\Models\User;
 use App\Services\AbsensiService;
+use App\Services\FotoReferensiWajahService;
 use App\Services\KioskService;
 use App\Services\SettingAbsenService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -79,6 +80,45 @@ class SimpanAbsenTest extends TestCase
             'ambang_kecocokan_wajah' => $ambang,
             'kompresi_foto' => 'sedang',
         ], User::factory()->superadmin()->create());
+    }
+
+    /**
+     * Beri pegawai uji satu embedding referensi yang diketahui isinya.
+     *
+     * Vektor nol dipilih supaya jarak Euclidean ke sebuah capture dapat
+     * ditentukan persis: menaikkan SATU komponen sebesar d menghasilkan jarak
+     * tepat d.
+     *
+     * @return array<int, float>
+     */
+    protected function daftarkanWajah(): array
+    {
+        $referensi = array_fill(0, FotoReferensiWajahService::DIMENSI_EMBEDDING, 0.0);
+
+        $this->pegawai->update([
+            'embedding_wajah' => $referensi,
+            'foto_referensi_path' => 'foto-referensi/uji.jpg',
+            'wajah_terdaftar' => true,
+            'wajah_didaftarkan_at' => now(),
+        ]);
+
+        return $referensi;
+    }
+
+    /**
+     * Deskriptor capture yang berjarak tepat $jarak dari referensi.
+     *
+     * Kalibrasi skalanya: 99 - (jarak - 0,2) x 72,5. Jadi 0,3 menghasilkan
+     * 91,75% (lolos ambang 85) dan 0,5 menghasilkan 77,25% (ditolak).
+     *
+     * @return array<int, float>
+     */
+    protected function captureBerjarak(float $jarak): array
+    {
+        $capture = array_fill(0, FotoReferensiWajahService::DIMENSI_EMBEDDING, 0.0);
+        $capture[0] = $jarak;
+
+        return $capture;
     }
 
     protected function denganToken(): static
@@ -225,26 +265,103 @@ class SimpanAbsenTest extends TestCase
     }
 
     #[Test]
-    public function skor_di_bawah_ambang_ditolak_server_walau_kiosk_mengirimkannya(): void
+    public function skor_kiriman_kiosk_diabaikan_sepenuhnya(): void
     {
-        // Keputusan kiosk tidak dipercaya sendirian (SDD §1.2).
+        /*
+         * PENJAGA UTAMA perbaikan C-1.
+         *
+         * Sebelum audit pra-deploy, server menerima medan `skor` dari peramban
+         * dan hanya membandingkannya dengan ambang — yakni membandingkan angka
+         * yang dipilih pengirim dengan angka milik server, bukan wajah dengan
+         * wajah. Siapa pun yang dapat mengirim satu permintaan cukup menuliskan
+         * `skor: 100` untuk mengabsenkan NIP mana pun.
+         *
+         * Di sini skor sempurna dikirim bersama wajah yang jelas tidak cocok.
+         * Yang harus menang adalah perhitungan server.
+         */
+        $this->daftarkanWajah();
         $this->aturSetting(wajah: true, ambang: 85);
 
-        $this->kirim(['skor' => 80])
+        $jawaban = $this->kirim([
+            'skor' => 100,
+            'embedding' => $this->captureBerjarak(0.5),
+        ])
             ->assertStatus(422)
             ->assertJson(['code' => 'WAJAH_TIDAK_COCOK']);
 
+        // 99 - (0,5 - 0,2) x 72,5 = 77,25
+        $this->assertSame(77.25, $jawaban->json('data.skor'));
         $this->assertDatabaseCount('absensi', 0);
     }
 
     #[Test]
-    public function absen_tanpa_skor_ditolak_saat_verifikasi_wajah_menyala(): void
+    public function wajah_yang_cocok_disimpan_dengan_skor_hitungan_server(): void
     {
+        $this->daftarkanWajah();
+        $this->aturSetting(wajah: true, ambang: 85);
+
+        // Skor kiriman sengaja rendah; yang tercatat harus hitungan server.
+        $this->kirim([
+            'skor' => 1,
+            'embedding' => $this->captureBerjarak(0.3),
+        ])->assertOk();
+
+        // 99 - (0,3 - 0,2) x 72,5 = 91,75
+        $this->assertEqualsWithDelta(
+            91.75,
+            (float) Absensi::query()->sole()->skor_kecocokan_wajah,
+            0.01,
+        );
+    }
+
+    #[Test]
+    public function absen_tanpa_embedding_ditolak_saat_verifikasi_wajah_menyala(): void
+    {
+        $this->daftarkanWajah();
         $this->aturSetting(wajah: true);
 
         $this->kirim()
             ->assertStatus(422)
             ->assertJson(['code' => 'WAJAH_BELUM_DIVERIFIKASI']);
+
+        $this->assertDatabaseCount('absensi', 0);
+    }
+
+    #[Test]
+    public function pegawai_tanpa_foto_referensi_ditolak_saat_verifikasi_menyala(): void
+    {
+        // Tidak ada pembanding, jadi tidak ada yang dapat diputuskan — dan
+        // absen TIDAK boleh lolos begitu saja.
+        $this->aturSetting(wajah: true);
+
+        $this->kirim(['embedding' => $this->captureBerjarak(0.1)])
+            ->assertStatus(422)
+            ->assertJson(['code' => 'WAJAH_BELUM_DIVERIFIKASI']);
+
+        $this->assertDatabaseCount('absensi', 0);
+    }
+
+    #[Test]
+    public function pegawai_di_luar_cakupan_event_tidak_dapat_diabsenkan(): void
+    {
+        /*
+         * Penjaga perbaikan H-1. Sebelumnya `kenali()` mencari ke SELURUH
+         * tabel pegawai dan `catat()` tidak pernah memeriksa cakupan, sehingga
+         * perangkat di satu UPT dapat mencatatkan kehadiran pegawai UPT lain
+         * pada eventnya sendiri.
+         */
+        $unitLain = UnitKerja::factory()->create(['kode' => 'BLK-MJK']);
+
+        Pegawai::factory()->create([
+            'nip' => '199001012020011009',
+            'unit_kerja_id' => $unitLain->id,
+        ]);
+
+        $this->kirim(['id_card' => '199001012020011009'])
+            ->assertForbidden()
+            ->assertJson(['code' => 'DI_LUAR_CAKUPAN']);
+
+        $this->assertDatabaseCount('absensi', 0);
     }
 
     #[Test]

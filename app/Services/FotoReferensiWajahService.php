@@ -31,6 +31,18 @@ class FotoReferensiWajahService
     /** Panjang deskriptor wajah face-api.js. */
     public const int DIMENSI_EMBEDDING = 128;
 
+    /**
+     * Kalibrasi jarak → persen; kembar dengan useVerifikasiWajah.js.
+     * Lihat {@see self::persenKecocokan()}.
+     */
+    public const float JARAK_TERBAIK = 0.2;
+
+    public const float JARAK_BATAS = 0.6;
+
+    public const float PERSEN_TERBAIK = 99;
+
+    public const float PERSEN_BATAS = 70;
+
     public function __construct(protected LogAktivitasService $log) {}
 
     /**
@@ -188,6 +200,102 @@ class FotoReferensiWajahService
         }
 
         return true;
+    }
+
+    /**
+     * Jarak Euclidean antara dua deskriptor wajah.
+     *
+     * Salinan tepat dari `jarakEuclidean()` pada useVerifikasiWajah.js.
+     * Keduanya HARUS menghasilkan angka yang sama: yang di peramban dipakai
+     * menggambar umpan balik di layar, yang di sini dipakai memutuskan.
+     *
+     * @param  array<int, float|int|string>  $a
+     * @param  array<int, float|int|string>  $b
+     */
+    public static function jarak(array $a, array $b): float
+    {
+        $jumlah = 0.0;
+
+        foreach (array_values($a) as $i => $nilai) {
+            $selisih = (float) $nilai - (float) (array_values($b)[$i] ?? 0);
+            $jumlah += $selisih * $selisih;
+        }
+
+        return sqrt($jumlah);
+    }
+
+    /**
+     * Pemetaan jarak Euclidean ke persentase kecocokan.
+     *
+     * Salinan tepat dari `persenKecocokan()` pada useVerifikasiWajah.js,
+     * beserta kalibrasinya: jarak 0,60 (batas keputusan bawaan face-api)
+     * jatuh pada 70% — ambang paling longgar yang dapat dipilih admin — dan
+     * jarak 0,20 jatuh pada 99%.
+     *
+     * Angkanya persentase kalibrasi, BUKAN probabilitas.
+     *
+     * Bila skala ini diubah, UBAH KEDUANYA. Server dan peramban yang tidak
+     * sepakat akan menampilkan satu angka di layar lalu memutuskan dengan
+     * angka lain, dan petugas tidak akan pernah memahami penolakannya.
+     */
+    public static function persenKecocokan(float $jarak): float
+    {
+        $kemiringan = (self::PERSEN_TERBAIK - self::PERSEN_BATAS)
+            / (self::JARAK_BATAS - self::JARAK_TERBAIK);
+
+        $persen = self::PERSEN_TERBAIK - ($jarak - self::JARAK_TERBAIK) * $kemiringan;
+
+        return max(0, min(100, round($persen, 2)));
+    }
+
+    /**
+     * Cocokkan deskriptor hasil capture dengan foto referensi pegawai.
+     *
+     * INI SATU-SATUNYA KEPUTUSAN YANG BERLAKU (perbaikan C-1). Sebelumnya
+     * server menerima medan `skor` dari peramban dan hanya membandingkannya
+     * dengan ambang — yakni membandingkan angka yang dipilih pengirim dengan
+     * angka milik server, bukan wajah dengan wajah. Siapa pun yang dapat
+     * mengirim satu permintaan cukup menuliskan `skor: 100`.
+     *
+     * Embedding referensi TIDAK PERNAH lagi meninggalkan server (lihat
+     * IdentifikasiTapController), sehingga penyerang tidak punya vektor untuk
+     * dipantulkan kembali sebagai "hasil capture"-nya.
+     *
+     * Yang masih dipercaya dari peramban adalah bahwa deskriptor yang dikirim
+     * benar-benar berasal dari kamera yang menyala saat itu. Deteksi wajah
+     * memang berjalan di klien (SDD §3) dan itu tidak berubah; yang pindah ke
+     * server adalah keputusannya.
+     *
+     * @param  mixed  $embeddingCapture  deskriptor dari peramban, belum divalidasi
+     * @return array{cocok: bool, skor: float|null, alasan: string|null}
+     */
+    public static function cocokkan(Pegawai $pegawai, $embeddingCapture, float $ambang): array
+    {
+        if (! $pegawai->wajah_terdaftar || ! self::embeddingSah($pegawai->embedding_wajah)) {
+            return [
+                'cocok' => false,
+                'skor' => null,
+                'alasan' => 'Wajah pegawai ini belum terdaftar. Hubungi admin unit kerja.',
+            ];
+        }
+
+        if (! self::embeddingSah($embeddingCapture)) {
+            return [
+                'cocok' => false,
+                'skor' => null,
+                'alasan' => 'Data wajah tidak sah. Ulangi tap di depan kamera.',
+            ];
+        }
+
+        $skor = self::persenKecocokan(
+            self::jarak($embeddingCapture, $pegawai->embedding_wajah),
+        );
+
+        return [
+            'cocok' => $skor >= $ambang,
+            'skor' => $skor,
+            'alasan' => null,
+        ];
     }
 
     /**

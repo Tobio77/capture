@@ -203,9 +203,20 @@ class IdentifikasiTapTest extends TestCase
     }
 
     #[Test]
-    public function jawaban_tap_membawa_embedding_referensi_pegawai_itu_saja(): void
+    public function jawaban_tap_tidak_pernah_membawa_embedding_siapa_pun(): void
     {
-        // FR-TAP-04: pencocokan bersifat 1:1, jadi cukup satu deskriptor.
+        /*
+         * Pembalikan dari perilaku sebelum audit pra-deploy.
+         *
+         * Dulu deskriptor 128 dimensi milik pegawai yang di-tap dikirim ke
+         * peramban supaya pencocokan 1:1 dapat dilakukan di sana. Itu membuat
+         * pemeriksaan ulang di server mustahil dipercaya: peramban yang sudah
+         * memegang vektor referensinya cukup memantulkannya kembali sebagai
+         * "hasil capture" untuk memperoleh jarak nol dan skor sempurna.
+         *
+         * Kini pencocokan dilakukan server, dan tidak ada satu pun biometrik
+         * yang meninggalkannya.
+         */
         $pegawai = Pegawai::factory()->wajahTerdaftar()->create([
             'nip' => '199001012020011001',
             'unit_kerja_id' => $this->unitKerja->id,
@@ -222,8 +233,16 @@ class IdentifikasiTapTest extends TestCase
 
         $data = $jawaban->json('data');
 
-        $this->assertCount(128, $data['embedding_wajah']);
-        $this->assertSame($pegawai->embedding_wajah, $data['embedding_wajah']);
+        $this->assertArrayNotHasKey('embedding_wajah', $data);
+
+        // Layar tetap tahu pegawai ini sudah difoto, tanpa menerima vektornya.
+        $this->assertTrue($data['wajah_terdaftar']);
+
+        // Tidak satu pun angka deskriptornya muncul di badan jawaban.
+        $this->assertStringNotContainsString(
+            (string) $pegawai->embedding_wajah[0],
+            $jawaban->getContent(),
+        );
 
         // Biometrik pegawai lain tidak ikut terkirim ke browser kiosk.
         $this->assertStringNotContainsString(
@@ -235,8 +254,8 @@ class IdentifikasiTapTest extends TestCase
     #[Test]
     public function pegawai_tanpa_wajah_terdaftar_menjawab_embedding_kosong(): void
     {
-        // Kiosk yang menerima null menampilkan pesan "wajah belum terdaftar",
-        // bukan mencoba mencocokkan dengan data kosong.
+        // Layar memakai penanda ini untuk menampilkan "wajah belum terdaftar"
+        // dan menolak tap sebelum kamera menyala.
         Pegawai::factory()->create([
             'nip' => '199001012020011001',
             'wajah_terdaftar' => false,
@@ -246,7 +265,8 @@ class IdentifikasiTapTest extends TestCase
         $this->denganToken()
             ->post('/kiosk/event/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
             ->assertOk()
-            ->assertJson(['data' => ['wajah_terdaftar' => false, 'embedding_wajah' => null]]);
+            ->assertJson(['data' => ['wajah_terdaftar' => false]])
+            ->assertJsonMissingPath('data.embedding_wajah');
     }
 
     #[Test]
@@ -480,8 +500,17 @@ class IdentifikasiTapTest extends TestCase
     }
 
     #[Test]
-    public function pegawai_dari_unit_lain_ditandai_berbeda_unit(): void
+    public function pegawai_dari_unit_lain_ditandai_berbeda_unit_pada_event_semua_unit(): void
     {
+        /*
+         * Penandanya hanya bermakna pada event yang memang mencakup unit itu.
+         * Cakupan "semua unit" adalah kasus sahnya: pegawai BLK-MJK boleh
+         * absen di perangkat BLK-SBY, dan layar menandainya sebagai peserta
+         * dari luar unit.
+         */
+        $this->event->update(['cakupan' => CakupanEvent::SemuaUnit]);
+        $this->event->unitKerja()->detach();
+
         $unitLain = UnitKerja::factory()->create(['kode' => 'BLK-MJK']);
 
         Pegawai::factory()->create([
@@ -493,6 +522,37 @@ class IdentifikasiTapTest extends TestCase
             ->post('/kiosk/event/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
             ->assertOk()
             ->assertJson(['data' => ['unit_kerja_sama' => false]]);
+    }
+
+    #[Test]
+    public function pegawai_di_luar_cakupan_event_tidak_dapat_diidentifikasi(): void
+    {
+        /*
+         * Perbaikan H-1/M-1. Sebelumnya endpoint ini menjawab nama, NIP,
+         * jabatan, dan unit kerja bagi NIP mana pun yang dikenal sistem —
+         * 120 permintaan per menit per perangkat, dan NIP pegawai negeri
+         * berformat terstruktur sehingga dapat ditelusuri. Satu perangkat
+         * cukup untuk memanen direktori seluruh dinas.
+         *
+         * Jawabannya sengaja sama dengan ID yang tidak dikenal: perangkat
+         * tidak perlu tahu apakah sebuah NIP ada tetapi di luar cakupan, atau
+         * memang tidak ada sama sekali.
+         */
+        $unitLain = UnitKerja::factory()->create(['kode' => 'BLK-MJK']);
+
+        Pegawai::factory()->create([
+            'nip' => '199001012020011001',
+            'nama' => 'Pegawai Unit Seberang',
+            'unit_kerja_id' => $unitLain->id,
+        ]);
+
+        $jawaban = $this->denganToken()
+            ->post('/kiosk/event/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->assertNotFound()
+            ->assertJson(['success' => false, 'code' => 'ID_TIDAK_DIKENAL']);
+
+        // Tidak ada keterangan apa pun tentang orangnya yang ikut bocor.
+        $this->assertStringNotContainsString('Pegawai Unit Seberang', $jawaban->getContent());
     }
 
     #[Test]

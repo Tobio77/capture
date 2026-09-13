@@ -282,13 +282,18 @@ const tanggalPanjang = (iso) =>
         sesi harian, ia memang tidak mungkin terbawa — tetapi admin yang
         memasangnya pagi ini tetap perlu tahu bahwa yang berlaku sekarang
         keputusannya, bukan jadwal.
+
+        Tertutup karena KALENDER memakai rose, bukan amber seperti penutupan
+        lain: keadaan ini berarti tidak seorang pun akan dapat mengabsen hari
+        ini kecuali admin membuka paksa lewat override — lebih mendesak
+        daripada sekadar "di luar jam kerja hari biasa".
       -->
       <div v-if="hariIni" class="mt-5 flex flex-wrap items-center gap-3 border-t border-garis pt-5">
         <div
           v-for="status in status_jendela"
           :key="status.jenis"
           class="flex min-w-0 items-center gap-2.5 rounded-xl px-3 py-2"
-          :class="status.terbuka ? 'nada-emerald' : 'nada-amber'"
+          :class="status.terbuka ? 'nada-emerald' : status.sumber === 'kalender' ? 'nada-rose' : 'nada-amber'"
           :style="{ backgroundColor: 'var(--nada-lembut)' }"
         >
           <span

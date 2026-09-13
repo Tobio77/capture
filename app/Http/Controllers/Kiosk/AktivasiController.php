@@ -75,13 +75,7 @@ class AktivasiController extends Controller
         return redirect()
             ->route('beranda')
             ->with('sukses', 'Perangkat masuk tanpa kode aktivasi (Mode Terbuka).')
-            ->withCookie(Cookie::make(
-                name: KioskService::NAMA_COOKIE,
-                value: $token,
-                minutes: KioskService::MASA_COOKIE_MENIT,
-                httpOnly: true,
-                sameSite: 'lax',
-            ));
+            ->withCookie($this->kiosk->cookieToken($token, $request));
     }
 
     /**
@@ -97,13 +91,7 @@ class AktivasiController extends Controller
         return redirect()
             ->route('beranda')
             ->with('sukses', 'Perangkat berhasil diaktifkan.')
-            ->withCookie(Cookie::make(
-                name: KioskService::NAMA_COOKIE,
-                value: $token,
-                minutes: KioskService::MASA_COOKIE_MENIT,
-                httpOnly: true,
-                sameSite: 'lax',
-            ));
+            ->withCookie($this->kiosk->cookieToken($token, $request));
     }
 
     /**

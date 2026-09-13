@@ -81,6 +81,19 @@ class HandleInertiaRequests extends Middleware
              */
             'mode_terbuka' => fn () => $pengguna !== null
                 && app(SettingAbsenService::class)->modeTerbuka(),
+
+            /*
+             * Pasangan Mode Terbuka, dan yang lebih berat dari keduanya
+             * (perbaikan H-3).
+             *
+             * Sampai audit pra-deploy, verifikasi wajah yang dimatikan tidak
+             * memunculkan peringatan di mana pun — hanya satu sakelar di
+             * halaman Setting yang harus sengaja dibuka untuk dilihat.
+             * Padahal itulah pengaman yang menentukan apakah kehadiran
+             * benar-benar dibuktikan wajah atau cukup dengan menyebut NIP.
+             */
+            'verifikasi_wajah_mati' => fn () => $pengguna !== null
+                && ! app(SettingAbsenService::class)->ambil()['metode_wajah_aktif'],
             'rute_saat_ini' => $request->route()?->getName(),
             'flash' => [
                 'sukses' => fn () => $request->session()->get('sukses'),

@@ -283,4 +283,149 @@ class HariLiburTest extends TestCase
 
         $this->assertDatabaseCount('hari_libur', 1);
     }
+
+    /* ---------------------------------------------------------------------
+     * Impor massal (FR-SET-08). Admin mengisi belasan tanggal sekaligus tiap
+     * tahun — satu-satu terlalu lambat untuk itu.
+     * ------------------------------------------------------------------- */
+
+    #[Test]
+    public function impor_menambahkan_banyak_baris_sekaligus(): void
+    {
+        $teks = <<<'TEKS'
+        2026-01-01;Tahun Baru Masehi
+        2026-03-19;Hari Raya Nyepi
+        2026-12-25;Hari Raya Natal
+        TEKS;
+
+        $jawaban = $this->actingAs($this->superadmin)
+            ->postJson(self::URL.'/impor', ['teks' => $teks])
+            ->assertOk();
+
+        $jawaban->assertJson(['dilewati' => []]);
+        $this->assertCount(3, $jawaban->json('ditambahkan'));
+        $this->assertDatabaseCount('hari_libur', 3);
+        $this->assertSame(
+            'Hari Raya Nyepi',
+            HariLibur::query()->whereDate('tanggal', '2026-03-19')->value('keterangan'),
+        );
+    }
+
+    #[Test]
+    public function impor_melewati_baris_duplikat_tanpa_menggagalkan_baris_lain(): void
+    {
+        // Baris yang salah tidak boleh menggagalkan baris lain di sekitarnya
+        // — "kalender yang gagal diam-diam lebih buruk daripada kalender yang
+        // diisi tangan" (catatan migrasinya sendiri).
+        HariLibur::query()->create(['tanggal' => '2026-03-19', 'keterangan' => 'Sudah ada duluan']);
+
+        $teks = <<<'TEKS'
+        2026-01-01;Tahun Baru Masehi
+        2026-03-19;Hari Raya Nyepi
+        2026-12-25;Hari Raya Natal
+        TEKS;
+
+        $jawaban = $this->actingAs($this->superadmin)
+            ->postJson(self::URL.'/impor', ['teks' => $teks])
+            ->assertOk();
+
+        $this->assertCount(2, $jawaban->json('ditambahkan'));
+        $this->assertCount(1, $jawaban->json('dilewati'));
+        $this->assertSame(2, $jawaban->json('dilewati.0.baris'));
+        $this->assertStringContainsString('sudah terdaftar', $jawaban->json('dilewati.0.alasan'));
+
+        // Baris yang sudah ada sebelum impor tidak ikut tertimpa.
+        $this->assertSame(
+            'Sudah ada duluan',
+            HariLibur::query()->whereDate('tanggal', '2026-03-19')->value('keterangan'),
+        );
+        $this->assertDatabaseCount('hari_libur', 3);
+    }
+
+    #[Test]
+    public function impor_menandai_duplikat_dalam_satu_tempelan_yang_sama(): void
+    {
+        // Dua baris tanggal sama dalam SATU tempelan — bukan bentrok dengan
+        // data lama, melainkan admin yang tidak sadar menempel dua kali.
+        $teks = <<<'TEKS'
+        2026-03-19;Hari Raya Nyepi
+        2026-03-19;Nyepi (salinan)
+        TEKS;
+
+        $jawaban = $this->actingAs($this->superadmin)
+            ->postJson(self::URL.'/impor', ['teks' => $teks])
+            ->assertOk();
+
+        $this->assertCount(1, $jawaban->json('ditambahkan'));
+        $this->assertCount(1, $jawaban->json('dilewati'));
+        $this->assertSame(2, $jawaban->json('dilewati.0.baris'));
+        $this->assertDatabaseCount('hari_libur', 1);
+    }
+
+    #[Test]
+    public function impor_melewati_tanggal_yang_tidak_dikenali(): void
+    {
+        $teks = <<<'TEKS'
+        2026-01-01;Tahun Baru Masehi
+        25 Desember 2026;Hari Raya Natal
+        2026-02-30;Tanggal yang tidak pernah ada
+        TEKS;
+
+        $jawaban = $this->actingAs($this->superadmin)
+            ->postJson(self::URL.'/impor', ['teks' => $teks])
+            ->assertOk();
+
+        $this->assertCount(1, $jawaban->json('ditambahkan'));
+        $this->assertCount(2, $jawaban->json('dilewati'));
+        $this->assertSame(2, $jawaban->json('dilewati.0.baris'));
+        $this->assertSame(3, $jawaban->json('dilewati.1.baris'));
+
+        // "2026-02-30" tidak boleh diam-diam menjadi 2 Maret.
+        $this->assertDatabaseMissing('hari_libur', ['keterangan' => 'Tanggal yang tidak pernah ada']);
+    }
+
+    #[Test]
+    public function impor_melewati_baris_tanpa_keterangan(): void
+    {
+        $jawaban = $this->actingAs($this->superadmin)
+            ->postJson(self::URL.'/impor', ['teks' => '2026-01-01;'])
+            ->assertOk();
+
+        $this->assertCount(0, $jawaban->json('ditambahkan'));
+        $this->assertCount(1, $jawaban->json('dilewati'));
+        $this->assertStringContainsString('tidak boleh kosong', $jawaban->json('dilewati.0.alasan'));
+    }
+
+    #[Test]
+    public function admin_upt_tidak_dapat_mengimpor_sama_sekali(): void
+    {
+        /*
+         * Sama seperti store()/destroy(): rute impor ini pun berada dalam
+         * grup middleware `peran:superadmin,admin_dinas`, sehingga Admin UPT
+         * tidak pernah sampai ke pemeriksaan cakupan di controller — apa pun
+         * unit yang diminta, bahkan unitnya sendiri.
+         */
+        $this->actingAs($this->adminUpt)
+            ->postJson(self::URL.'/impor', [
+                'teks' => '2026-10-01;HUT UPT',
+                'unit_kerja_id' => $this->upt->id,
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseCount('hari_libur', 0);
+    }
+
+    #[Test]
+    public function impor_yang_berhasil_tercatat_pada_audit_trail(): void
+    {
+        // Per baris, sama seperti tambah satu-satu — bukan satu rangkuman
+        // samar yang menyembunyikan tanggal mana saja yang ditambahkan.
+        $this->actingAs($this->superadmin)
+            ->postJson(self::URL.'/impor', ['teks' => '2026-01-01;Tahun Baru Masehi'])
+            ->assertOk();
+
+        $this->assertDatabaseHas('log_aktivitas', [
+            'deskripsi' => 'Menambah hari libur 2026-01-01 — Tahun Baru Masehi (seluruh unit).',
+        ]);
+    }
 }

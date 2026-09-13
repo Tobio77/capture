@@ -10,8 +10,10 @@ use App\Models\UnitKerja;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\Cookie as CookiePeramban;
 
 /**
  * Aktivasi dan autentikasi perangkat kiosk (FR-AUTH-01, FR-USR-03, NFR-03).
@@ -98,8 +100,14 @@ class KioskService
     {
         $kode = $this->kodeAcak();
 
+        /*
+         * Yang disimpan hash-nya (perbaikan L-1); kodenya sendiri hanya ada
+         * pada nilai kembalian ini, ditampilkan sekali kepada admin yang
+         * menerbitkannya. Daftar Perangkat hanya menyatakan berlaku atau
+         * tidak, jadi tidak ada yang perlu membacanya ulang dari basis data.
+         */
         $kiosk->forceFill([
-            'kode_aktivasi' => $kode,
+            'kode_aktivasi' => self::hashToken($kode),
             'kode_aktivasi_kedaluwarsa_at' => Carbon::now()->addHours(self::MASA_KODE_JAM),
         ])->save();
 
@@ -117,7 +125,7 @@ class KioskService
     {
         $kode = self::normalkanKode($kode);
 
-        $kiosk = Kiosk::aktif()->where('kode_aktivasi', $kode)->first();
+        $kiosk = Kiosk::aktif()->where('kode_aktivasi', self::hashToken($kode))->first();
 
         if (! $kiosk || $kiosk->kode_aktivasi_kedaluwarsa) {
             $this->log->catat(
@@ -220,6 +228,38 @@ class KioskService
     }
 
     /**
+     * Cookie penyimpan device token (perbaikan M-3).
+     *
+     * Dirakit di satu tempat, bukan di dua cabang AktivasiController, supaya
+     * aktivasi berkode dan Mode Terbuka tidak dapat berbeda diam-diam.
+     *
+     * `secure` DISEBUT EKSPLISIT, tidak diwariskan dari config/session.php.
+     * Sebelum audit pra-deploy, kedua panggilan `Cookie::make` menyebutkan
+     * `httpOnly` dan `sameSite` tetapi membiarkan `secure` jatuh ke bawaan —
+     * dan bawaannya `SESSION_SECURE_COOKIE`, yang tidak diatur sama sekali di
+     * berkas .env. Token perangkat berumur satu tahun karena itu melintas
+     * dalam keadaan terbaca pada setiap permintaan HTTP polos yang tersisa di
+     * jaringan kantor.
+     *
+     * Nilainya mengikuti sambungan yang sedang dipakai, bukan setelan yang
+     * dapat terlupa: begitu aplikasi berjalan di HTTPS, cookienya bertanda
+     * Secure. Di lingkungan pengembangan yang berjalan di HTTP ia tidak
+     * bertanda — sebab cookie Secure tidak akan pernah dikirim balik ke sana,
+     * dan perangkat ujinya akan gagal masuk tanpa penjelasan.
+     */
+    public function cookieToken(string $token, Request $request): CookiePeramban
+    {
+        return Cookie::make(
+            name: self::NAMA_COOKIE,
+            value: $token,
+            minutes: self::MASA_COOKIE_MENIT,
+            secure: $request->secure(),
+            httpOnly: true,
+            sameSite: 'lax',
+        );
+    }
+
+    /**
      * Kode 8 karakter tanpa huruf/angka yang mudah tertukar (0/O, 1/I).
      */
     protected function kodeAcak(): string
@@ -231,7 +271,7 @@ class KioskService
             for ($i = 0; $i < 8; $i++) {
                 $kode .= $abjad[random_int(0, strlen($abjad) - 1)];
             }
-        } while (Kiosk::where('kode_aktivasi', $kode)->exists());
+        } while (Kiosk::where('kode_aktivasi', self::hashToken($kode))->exists());
 
         return $kode;
     }

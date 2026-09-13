@@ -5,6 +5,7 @@ namespace Tests\Feature\Admin;
 use App\Enums\OverrideAbsenUmum;
 use App\Models\Absensi;
 use App\Models\EventAbsen;
+use App\Models\HariLibur;
 use App\Models\Kiosk;
 use App\Models\Pegawai;
 use App\Models\UnitKerja;
@@ -23,13 +24,23 @@ use Tests\TestCase;
 /**
  * Jendela buka/tutup Absen Umum beserta override manualnya (FR-SET-07).
  *
- * Aturan resolusinya punya tiga cabang, dan ketiganya diuji terpisah karena
- * dua di antaranya menghasilkan layar yang terlihat sama persis — tertutup —
- * padahal menuntut tindakan admin yang berbeda:
+ * Aturan resolusinya punya EMPAT cabang sejak revisi kalender kerja, dan
+ * semuanya diuji terpisah karena beberapa menghasilkan layar yang terlihat
+ * sama persis — tertutup — padahal menuntut tindakan admin yang berbeda:
  *
- *   di luar jam, tanpa override   → tertutup   (sumber: jadwal)
- *   di dalam jam, tanpa override  → terbuka    (sumber: jadwal)
- *   ada override                  → override selalu menang (sumber: override)
+ *   setting absen umum mati        → tertutup, tanpa kecuali (sumber: setting)
+ *   ada override                   → override selalu menang, apa pun kata
+ *                                     kalender maupun jadwal (sumber: override)
+ *   bukan hari kerja (akhir pekan
+ *   atau hari libur terdaftar)     → tertutup otomatis (sumber: kalender)
+ *   selebihnya, di luar/dalam jam  → mengikuti jadwal (sumber: jadwal)
+ *
+ * Cabang kalender adalah REVISI dari kebijakan S39 ("hari libur menandai,
+ * tidak menutup"): sebelum revisi ini, akhir pekan dan tanggal merah tidak
+ * pernah menutup jendela sama sekali. Satu-satunya jalan tetap menerima tap
+ * pada hari itu sekarang adalah override manual — sengaja diperiksa LEBIH
+ * DAHULU daripada kalender, supaya petugas piket yang memang ditugaskan
+ * tetap dapat dibukakan.
  *
  * Ditambah satu jaminan yang tidak dapat dilihat dari layar mana pun: override
  * TIDAK terbawa ke hari berikutnya.
@@ -193,6 +204,111 @@ class JendelaAbsenUmumTest extends TestCase
             ->assertForbidden();
 
         $this->tap()->assertStatus(409);
+    }
+
+    /* ---------------------------------------------------------------------
+     * Cabang baru — kalender: bukan hari kerja menutup otomatis.
+     * ------------------------------------------------------------------- */
+
+    #[Test]
+    public function akhir_pekan_tanpa_override_tertutup_otomatis(): void
+    {
+        // Sabtu, 5 September 2026, 07.35 — di dalam jendela jam datang.
+        $this->travelTo('2026-09-05 07:35:00');
+
+        $jawaban = $this->tap()
+            ->assertStatus(409)
+            ->assertJson(['success' => false, 'code' => 'DI_LUAR_JAM']);
+
+        $this->assertStringContainsString('Sabtu', $jawaban->json('message'));
+        $this->assertStringContainsString('tertutup otomatis', $jawaban->json('message'));
+        $this->assertSame(0, Absensi::query()->count());
+    }
+
+    #[Test]
+    public function tanggal_merah_tanpa_override_tertutup_otomatis(): void
+    {
+        // Rabu, 9 September 2026 — hari kerja biasa, DIJADIKAN tanggal merah.
+        HariLibur::query()->create(['tanggal' => '2026-09-09', 'keterangan' => 'Cuti Bersama']);
+
+        $this->travelTo('2026-09-09 07:35:00');
+
+        $jawaban = $this->tap()
+            ->assertStatus(409)
+            ->assertJson(['success' => false, 'code' => 'DI_LUAR_JAM']);
+
+        $this->assertStringContainsString('Cuti Bersama', $jawaban->json('message'));
+        $this->assertSame(0, Absensi::query()->count());
+    }
+
+    #[Test]
+    public function override_buka_mengalahkan_kalender_dan_tap_tetap_ditandai(): void
+    {
+        /*
+         * Penjaga UTAMA revisi ini: petugas piket akhir pekan masih dapat
+         * mengabsen, asal admin membukanya lewat override — dan absennya
+         * tetap tercatat dengan penanda hari libur, persis seperti sebelum
+         * revisi (kebijakan S39 tidak berubah untuk kasus ini, hanya jalannya
+         * yang kini lewat override, bukan bawaan).
+         */
+        $this->travelTo('2026-09-05 07:35:00');
+
+        $this->actingAs($this->admin)
+            ->post(self::URL.'/override', ['aksi' => 'buka', 'unit_kerja_id' => $this->upt->id])
+            ->assertSessionHas('sukses');
+
+        $this->tap()->assertOk();
+
+        $this->assertSame(1, Absensi::query()->count());
+        $this->assertTrue(Absensi::query()->sole()->hari_libur);
+    }
+
+    #[Test]
+    public function setting_mati_menang_di_atas_kalender_maupun_override(): void
+    {
+        // Sama seperti absen_umum_yang_dimatikan_admin_tidak_dapat_dibuka_paksa,
+        // diulang pada akhir pekan: urutan resolusinya menempatkan Setting
+        // Absen di atas SEMUA cabang lain, termasuk cabang kalender yang baru.
+        $this->travelTo('2026-09-05 07:35:00');
+        $this->matikanAbsenUmum();
+
+        $this->actingAs($this->admin)
+            ->post(self::URL.'/override', ['aksi' => 'buka', 'unit_kerja_id' => $this->upt->id])
+            ->assertForbidden();
+
+        $this->tap()->assertStatus(409);
+        $this->assertSame(0, Absensi::query()->count());
+    }
+
+    #[Test]
+    public function halaman_menyebut_status_tertutup_karena_kalender(): void
+    {
+        $this->travelTo('2026-09-05 07:35:00');
+
+        $this->actingAs($this->admin)
+            ->get(self::URL."?unit_kerja_id={$this->upt->id}")
+            ->assertOk()
+            ->assertInertia(fn (Assert $halaman) => $halaman
+                ->where('status_jendela.datang.terbuka', false)
+                ->where('status_jendela.datang.sumber', 'kalender')
+                ->where('status_jendela.datang.alasan_libur', fn ($alasan) => str_contains($alasan, 'Sabtu'))
+                ->etc());
+    }
+
+    #[Test]
+    public function layar_kiosk_menyebut_status_tertutup_karena_kalender(): void
+    {
+        // Wiring paling rawan pada revisi ini: layar kiosk tidak punya sesi
+        // untuk diturunkan unitnya sebelum tap pertama, sehingga ia harus
+        // memakai unit KIOSK-nya sendiri, bukan unit dari sesi yang belum ada.
+        $this->travelTo('2026-09-05 07:35:00');
+
+        $this->withCookie(KioskService::NAMA_COOKIE, self::TOKEN)
+            ->get('/kiosk/umum')
+            ->assertOk()
+            ->assertInertia(fn (Assert $halaman) => $halaman
+                ->where('status_jendela.datang.sumber', 'kalender')
+                ->etc());
     }
 
     /* ---------------------------------------------------------------------

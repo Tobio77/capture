@@ -81,7 +81,7 @@ const eventAktif = ref(props.event)
 const entryDibuka = computed(() => eventAktif.value !== null)
 const tahap = ref(entryDibuka.value ? 'menunggu_tap' : 'menunggu_event')
 
-const { siapkanModel, verifikasi } = useVerifikasiWajah()
+const { siapkanModel, tangkapEmbedding } = useVerifikasiWajah()
 const { hitungEmbedding } = useFaceApi()
 const { antrian, antrikan, kirimUlang } = useAntrianAbsen()
 
@@ -267,7 +267,6 @@ async function tangkapTap({ id_card, jenis: jenisTap }) {
  * sebagai bukti kehadiran (revisi FR-SET-01, S28a).
  */
 async function verifikasiWajah(data) {
-  let skor = null
   let embedding = null
 
   /*
@@ -293,54 +292,66 @@ async function verifikasiWajah(data) {
     }
   }
 
+  /*
+   * Verifikasi menyala: yang dihitung di sini HANYA deskriptor wajah yang
+   * sedang berdiri di depan kamera. Pencocokannya dilakukan server.
+   *
+   * Sebelumnya layar ini menerima embedding referensi pegawai, mencocokkan
+   * sendiri, lalu mengirim skornya — dan server hanya memeriksa ulang angka
+   * itu terhadap ambang. Pemeriksaan semacam itu tidak pernah dapat dipercaya:
+   * yang dibandingkan adalah angka pilihan pengirim dengan angka milik server.
+   * Kini referensinya tidak pernah meninggalkan server, sehingga tidak ada
+   * yang dapat dipantulkan kembali.
+   *
+   * Yang hilang dari layar adalah umpan balik seketika sebelum pengiriman;
+   * skornya kini datang bersama jawaban server, dan ditampilkan dari sana.
+   */
   if (props.metode.wajah) {
-    const hasilVerifikasi = await verifikasi(
-      panel.value?.elemenVideo(),
-      data.embedding_wajah,
-      props.ambang_kecocokan_wajah,
-    )
-
-    if (hasilVerifikasi.galat) {
-      gagalkan(hasilVerifikasi.galat)
+    if (!data.wajah_terdaftar) {
+      gagalkan('Wajah pegawai ini belum terdaftar. Hubungi admin unit kerja.')
 
       return
     }
 
-    hasil.value = { ...hasil.value, skor: hasilVerifikasi.skor }
+    const hasilDeteksi = await tangkapEmbedding(panel.value?.elemenVideo())
 
-    if (!hasilVerifikasi.cocok) {
-      // FR-TAP-06: kehadiran tidak dicatat, pegawai dipersilakan mengulang tap.
-      gagalkan(
-        `Wajah tidak cocok (${hasilVerifikasi.skor}%, ambang ${props.ambang_kecocokan_wajah}%). Silakan ulangi tap.`,
-      )
+    if (hasilDeteksi.galat) {
+      gagalkan(hasilDeteksi.galat)
 
       return
     }
 
-    skor = hasilVerifikasi.skor
+    embedding = hasilDeteksi.embedding
   }
 
   // Foto hasil capture sudah disusutkan sesuai preset Setting Absen sebelum
   // dikirim, sehingga yang melintasi jaringan sudah berukuran akhir.
-  await simpanAbsen(data, panel.value?.ambilFoto(props.kompresi), skor, embedding)
+  await simpanAbsen(data, panel.value?.ambilFoto(props.kompresi), embedding)
 }
 
 /**
  * Kirim hasil absen ke server (FR-TAP-05).
  *
- * Server memeriksa ulang seluruh syaratnya — event, pegawai, dan ambang skor —
- * sehingga jawaban gagal di sini tetap berarti kehadiran tidak dicatat.
+ * Server memutuskan seluruh syaratnya — event, cakupan unit pegawai, dan
+ * pencocokan wajah — sehingga jawaban gagal di sini tetap berarti kehadiran
+ * tidak dicatat.
+ *
+ * Medan `skor` sudah tidak dikirim: layar ini tidak lagi memutuskan kecocokan,
+ * dan angka apa pun yang dikirimkannya akan diabaikan server.
  */
-async function simpanAbsen(data, foto, skor, embedding = null) {
+async function simpanAbsen(data, foto, embedding = null) {
   const muatan = {
     id_card: data.nip,
     jenis: hasil.value.jenis,
     metode: hasil.value.metode,
-    skor,
     foto,
 
-    // Hanya terisi bagi pegawai yang belum punya foto referensi; server
-    // memeriksa ulang seluruh syarat promosinya (FR-PEG-05).
+    /*
+     * Dua peran, satu medan. Saat verifikasi wajah MENYALA ia berisi
+     * deskriptor yang akan dicocokkan server; saat verifikasi MATI ia berisi
+     * deskriptor bagi pegawai yang belum punya foto referensi, untuk
+     * dipromosikan (FR-PEG-05). Server memeriksa ulang seluruh syaratnya.
+     */
     embedding,
 
     /*
@@ -371,6 +382,12 @@ async function simpanAbsen(data, foto, skor, embedding = null) {
     }
 
     if (!isi.success) {
+      // Skor kecocokan datang dari server bersama penolakannya, sehingga
+      // layar tetap dapat menyebut angkanya kepada pegawai.
+      if (isi.data?.skor != null) {
+        hasil.value = { ...hasil.value, skor: isi.data.skor }
+      }
+
       gagalkan(isi.message ?? 'Absen gagal disimpan.')
 
       return
@@ -381,6 +398,7 @@ async function simpanAbsen(data, foto, skor, embedding = null) {
       ...hasil.value,
       jam: isi.data.waktu,
       ketepatan: isi.data.status_ketepatan,
+      skor: isi.data.skor ?? hasil.value?.skor ?? null,
       wajah_didaftarkan: isi.data.wajah_didaftarkan === true,
     }
 

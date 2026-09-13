@@ -86,6 +86,29 @@ class IdentifikasiTapController extends Controller
             ], 403);
         }
 
+        /*
+         * Pegawai harus termasuk cakupan event ini (perbaikan H-1/M-1).
+         *
+         * Dua hal ditutup sekaligus. Yang pertama, penolakannya terjadi
+         * SEBELUM kamera menyala, bukan sesudah pegawai berdiri menunggu.
+         * Yang kedua lebih penting: tanpa pagar ini endpoint ini menjawab
+         * nama, NIP, jabatan, dan unit kerja bagi NIP mana pun yang dikenal
+         * sistem — 120 permintaan per menit per perangkat, dan NIP pegawai
+         * negeri berformat terstruktur sehingga dapat ditelusuri. Satu
+         * perangkat cukup untuk memanen direktori seluruh dinas.
+         *
+         * Pesannya sengaja sama dengan ID yang tidak dikenal: perangkat tidak
+         * perlu tahu apakah sebuah NIP ada tetapi di luar cakupan, atau memang
+         * tidak ada sama sekali.
+         */
+        if (! in_array($pegawai->unit_kerja_id, $this->event->unitTercakup($event), true)) {
+            return response()->json([
+                'success' => false,
+                'code' => 'ID_TIDAK_DIKENAL',
+                'message' => 'Kartu atau NIP tidak terdaftar dalam sistem.',
+            ], 404);
+        }
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -145,20 +168,25 @@ class IdentifikasiTapController extends Controller
                 'wajah_terdaftar' => $pegawai->wajah_terdaftar,
 
                 /*
-                 * Embedding referensi milik pegawai yang di-tap saja, bukan
-                 * seluruh unit: pencocokan bersifat 1:1 (SDD §3), sehingga
-                 * mengirimkan satu deskriptor sudah cukup dan biometrik
-                 * pegawai lain tidak perlu berada di browser kiosk.
+                 * Embedding referensi TIDAK LAGI DIKIRIM (perbaikan C-1).
                  *
-                 * Tidak dikirim sama sekali ketika admin mematikan verifikasi
-                 * wajah: tidak ada gunanya menaruh data biometrik di perangkat
-                 * yang memang tidak akan memakainya.
+                 * Sebelumnya deskriptor 128 dimensi milik pegawai yang di-tap
+                 * diserahkan ke peramban supaya pencocokan 1:1 dapat dilakukan
+                 * di sana. Itu membuat pemeriksaan ulang di server mustahil
+                 * dipercaya: peramban yang sudah memegang vektor referensinya
+                 * cukup memantulkannya kembali sebagai "hasil capture" miliknya
+                 * untuk memperoleh jarak nol dan skor sempurna.
                  *
-                 * Foto referensinya sendiri tidak pernah ikut dikirim.
+                 * Kini peramban mengirimkan deskriptor hasil capture-nya, dan
+                 * SERVER yang mencocokkan — lihat
+                 * {@see FotoReferensiWajahService::cocokkan()}. Deteksi wajah
+                 * tetap berjalan di klien (SDD §3); yang pindah hanyalah
+                 * keputusannya, dan tidak ada satu pun biometrik yang kini
+                 * meninggalkan server.
+                 *
+                 * `wajah_terdaftar` di atas sudah cukup bagi layar untuk
+                 * memberitahu petugas bahwa pegawai ini belum pernah difoto.
                  */
-                'embedding_wajah' => $this->setting->ambil()['metode_wajah_aktif']
-                    ? $pegawai->embedding_wajah
-                    : null,
             ],
         ]);
     }

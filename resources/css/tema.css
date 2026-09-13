@@ -880,6 +880,25 @@ button:focus-visible {
     }
 
     /*
+     * Rose — GAGAL, bukan sekadar peringatan.
+     *
+     * Ditambahkan pada audit keamanan pra-deploy: panel Perhatian perlu
+     * memisahkan "berlanjut, tetapi catat" (amber — kegiatan lupa ditutup,
+     * perangkat sunyi) dari "sistem sedang tidak membuktikan apa pun"
+     * (verifikasi wajah dimatikan). Keduanya menuntut tindakan yang berbeda
+     * dari orang yang membacanya, dan warna yang sama membuat keduanya
+     * berhenti berarti apa-apa.
+     *
+     * Mengikuti pemisahan yang sudah berlaku pada token galat sejak S34b.
+     */
+    .nada-rose {
+        --nada-lembut: var(--tema-galat-lembut);
+        --nada-teks: var(--tema-galat-teks);
+        --nada-kuat: var(--tema-galat);
+        --nada-cincin: 225 29 72;
+    }
+
+    /*
      * Nilai bawaan diberikan sebagai FALLBACK di dalam `var()`, bukan sebagai
      * blok aturan tersendiri.
      *

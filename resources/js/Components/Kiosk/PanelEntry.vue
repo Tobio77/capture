@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import Ikon from '@/Components/Ikon.vue'
 
 /**
  * Panel Capture Foto & Entry Absen (UIUX §4.2.1).
@@ -39,6 +40,20 @@ const keteranganJendela = (jenisAbsen) => props.status_jendela?.[jenisAbsen]?.ke
 /** Keterangan untuk jenis yang sedang dipilih, bila jendelanya tertutup. */
 const jendelaTertutup = computed(() =>
   terbuka(jenis.value) ? null : keteranganJendela(jenis.value),
+)
+
+/**
+ * Tertutup karena KALENDER, bukan sekadar di luar jam kerja hari biasa.
+ *
+ * Dibedakan dari penutupan lain karena artinya berbeda bagi petugas yang
+ * berdiri di depan layar ini: bukan "coba lagi jam segini", melainkan "tidak
+ * ada yang bisa mengabsen hari ini kecuali admin membuka paksa". Pesan yang
+ * sama warnanya dengan "di luar jam kerja hari Selasa biasa" akan membuat
+ * petugas piket akhir pekan mengira ia hanya perlu menunggu, padahal yang
+ * dibutuhkan adalah menelepon admin.
+ */
+const jendelaTertutupKarenaKalender = computed(
+  () => props.status_jendela?.[jenis.value]?.sumber === 'kalender',
 )
 
 const emit = defineEmits(['tap'])
@@ -379,7 +394,22 @@ defineExpose({ rebutFokus, ambilFoto, elemenVideo: () => video.value })
         </label>
       </div>
 
-      <p v-if="jendelaTertutup" class="mt-2 text-xs text-peringatan-teks">
+      <div
+        v-if="jendelaTertutup && jendelaTertutupKarenaKalender"
+        class="nada-rose mt-2.5 flex items-start gap-2 rounded-lg px-3 py-2"
+        :style="{ backgroundColor: 'var(--nada-lembut)' }"
+      >
+        <Ikon
+          nama="peringatan"
+          ukuran="h-4 w-4 shrink-0"
+          :style="{ color: 'var(--nada-kuat)' }"
+        />
+        <p class="text-xs font-medium" :style="{ color: 'var(--nada-teks)' }">
+          {{ jendelaTertutup }}
+        </p>
+      </div>
+
+      <p v-else-if="jendelaTertutup" class="mt-2 text-xs text-peringatan-teks">
         {{ jendelaTertutup }}
       </p>
     </div>

@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\AutentikasiKiosk;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\HeaderKeamanan;
 use App\Http\Middleware\PastikanPenggunaAktif;
 use App\Http\Middleware\PastikanPeranPengguna;
 use Illuminate\Foundation\Application;
@@ -21,6 +22,37 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
         ]);
+
+        // Header keamanan pada SETIAP jawaban, termasuk galat dan pengalihan
+        // (perbaikan M-2). Lihat App\Http\Middleware\HeaderKeamanan.
+        $middleware->append(HeaderKeamanan::class);
+
+        /*
+         * Proxy tepercaya (perbaikan M-4).
+         *
+         * Tanpa ini, aplikasi di belakang nginx, load balancer, atau Cloudflare
+         * membaca alamat PROXY sebagai alamat pengunjung — satu nilai yang sama
+         * untuk semua orang. Tiga hal ikut rusak sekaligus:
+         *
+         *   1. Penguncian login per-IP ({@see App\Services\AutentikasiService})
+         *      berubah menjadi senjata: 20 percobaan gagal mengunci SELURUH
+         *      admin selama 30 menit, sebab semuanya berbagi satu alamat.
+         *   2. Audit trail mencatat alamat yang keliru pada aktivasi kiosk,
+         *      penggabungan event, dan login — padahal itulah nilai yang dicari
+         *      panitia saat menelusuri absen mencurigakan.
+         *   3. Batas laju cadangan untuk permintaan tanpa perangkat dan tanpa
+         *      admin jatuh ke satu keranjang bersama.
+         *
+         * Alamatnya disebut lewat env, BUKAN '*': mempercayai proxy mana pun
+         * berarti mempercayai header X-Forwarded-For yang dikirim siapa pun,
+         * dan penyerang tinggal menuliskan alamat palsu di sana untuk lolos
+         * dari penguncian sekaligus mengotori audit trail.
+         *
+         * Dikosongkan di lingkungan pengembangan yang tidak memakai proxy.
+         */
+        if (filled($proxy = env('PROXY_TEPERCAYA'))) {
+            $middleware->trustProxies(at: array_map('trim', explode(',', (string) $proxy)));
+        }
 
         $middleware->alias([
             'kiosk' => AutentikasiKiosk::class,
