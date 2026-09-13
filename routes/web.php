@@ -369,4 +369,13 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
      */
     Route::get('laporan', [LaporanController::class, 'index'])->name('laporan.index');
     Route::get('laporan/ekspor', [LaporanController::class, 'ekspor'])->name('laporan.ekspor');
+
+    /*
+     * Generate Laporan Resmi (FR-LAP-04) — dokumen kop surat, terpisah dari
+     * "Unduh Data" di atas. Dibatasi laju: PDF/Word/Excel-nya jauh lebih
+     * berat dirakit daripada CSV/tabel mentah.
+     */
+    Route::get('laporan/generate', [LaporanController::class, 'generate'])
+        ->middleware('throttle:20,1')
+        ->name('laporan.generate');
 });
