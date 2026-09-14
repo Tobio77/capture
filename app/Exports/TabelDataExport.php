@@ -2,6 +2,7 @@
 
 namespace App\Exports;
 
+use App\Services\EksporService;
 use Maatwebsite\Excel\Concerns\Exportable;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
@@ -34,9 +35,18 @@ class TabelDataExport implements FromArray, ShouldAutoSize, WithHeadings, WithSt
         return $this->judul;
     }
 
+    /**
+     * Nilai disaring lewat {@see EksporService::amankanFormula()} sebelum
+     * ditulis — sebagian kolom (nama unit kerja, dst.) berasal dari isian
+     * bebas admin, dan .xlsx sama rentannya terhadap formula injection
+     * seperti CSV begitu dibuka Excel.
+     */
     public function array(): array
     {
-        return $this->baris;
+        return array_map(
+            fn (array $baris) => array_map(EksporService::amankanFormula(...), $baris),
+            $this->baris,
+        );
     }
 
     public function styles(Worksheet $sheet): array

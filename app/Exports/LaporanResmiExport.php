@@ -2,6 +2,7 @@
 
 namespace App\Exports;
 
+use App\Services\EksporService;
 use App\Services\Laporan\LaporanResmiService;
 use Maatwebsite\Excel\Concerns\Exportable;
 use Maatwebsite\Excel\Concerns\FromArray;
@@ -152,8 +153,12 @@ class LaporanResmiExport implements FromArray, ShouldAutoSize, WithEvents, WithT
         $baris++;
 
         foreach ($this->data['per_unit'] as $unit) {
+            // Nama unit kerja disaring lewat amankanFormula(): satu-satunya
+            // teks bebas pada tabel ini — sisanya angka — dan bisa diisi
+            // Admin UPT lewat Setting Unit Kerja, peran yang lebih rendah
+            // daripada superadmin yang kelak membuka berkasnya.
             $nilai = [
-                $unit['nama'],
+                EksporService::amankanFormula($unit['nama']),
                 $unit['pegawai'],
                 $unit['hadir'],
                 $unit['tepat'],
@@ -216,7 +221,7 @@ class LaporanResmiExport implements FromArray, ShouldAutoSize, WithEvents, WithT
         $baris++;
 
         $sheet->mergeCells("A{$baris}:G".($baris + 1));
-        $sheet->setCellValue("A{$baris}", $this->data['kesimpulan']);
+        $sheet->setCellValue("A{$baris}", EksporService::amankanFormula($this->data['kesimpulan']));
         $sheet->getStyle("A{$baris}")->getAlignment()->setWrapText(true)->setVertical(Alignment::VERTICAL_TOP);
         $sheet->getStyle("A{$baris}")->getFont()->setSize(10);
 
@@ -259,7 +264,7 @@ class LaporanResmiExport implements FromArray, ShouldAutoSize, WithEvents, WithT
 
             foreach ($daftar as $r) {
                 $sheet->mergeCells("A{$baris}:G{$baris}");
-                $sheet->setCellValue("A{$baris}", '• '.$r['kalimat']);
+                $sheet->setCellValue("A{$baris}", '• '.EksporService::amankanFormula($r['kalimat']));
                 $sheet->getStyle("A{$baris}")->getAlignment()->setWrapText(true)->setVertical(Alignment::VERTICAL_TOP);
                 $sheet->getStyle("A{$baris}")->getFont()->setSize(9.5);
                 $sheet->getRowDimension($baris)->setRowHeight(28);

@@ -45,9 +45,36 @@ class EksporService
     protected function barisCsv(array $kolom): string
     {
         return implode(';', array_map(
-            fn ($nilai) => '"'.str_replace('"', '""', (string) $nilai).'"',
+            fn ($nilai) => '"'.str_replace('"', '""', (string) self::amankanFormula($nilai)).'"',
             $kolom,
         ));
+    }
+
+    /**
+     * Netralkan nilai yang bisa dibaca Excel/LibreOffice sebagai AWAL FORMULA
+     * ketika berkas CSV/XLSX dibuka (CWE-1236, "CSV/Formula Injection").
+     *
+     * Beberapa kolom yang diekspor berasal dari isian bebas admin — nama unit
+     * kerja, catatan event, keterangan hari libur — termasuk Admin UPT yang
+     * haknya lebih rendah daripada superadmin yang kelak membuka berkasnya.
+     * Tanpa pagar ini, sebuah nilai seperti `=HYPERLINK("http://...","klik")`
+     * akan dieksekusi Excel begitu berkasnya dibuka, bukan tertulis apa
+     * adanya sebagai teks.
+     *
+     * Menulis sel bertipe STRING pada berkasnya (`setCellValueExplicit`)
+     * TIDAK cukup: Excel menentukan sendiri apakah sebuah sel adalah formula
+     * berdasarkan KARAKTER PERTAMANYA saat dibuka, bukan tipe sel yang
+     * ditulis penulisnya. Satu-satunya pagar yang benar-benar berlaku di sisi
+     * pembaca adalah membubuhkan apostrof di depan nilai yang diawali
+     * `=`, `+`, `-`, `@`, atau tab — memaksa Excel membacanya sebagai teks.
+     */
+    public static function amankanFormula(mixed $nilai): mixed
+    {
+        if (! is_string($nilai) || $nilai === '') {
+            return $nilai;
+        }
+
+        return preg_match('/^[=+\-@\t\r]/', $nilai) === 1 ? "'".$nilai : $nilai;
     }
 
     /**

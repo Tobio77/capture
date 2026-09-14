@@ -245,6 +245,38 @@ class LaporanTest extends TestCase
     }
 
     #[Test]
+    public function ekspor_csv_menetralkan_nilai_yang_menyerupai_formula(): void
+    {
+        // CWE-1236 — CSV/Formula Injection: nama pegawai berasal dari
+        // sinkronisasi WORKA, kolom yang tidak sepenuhnya di bawah kendali
+        // aplikasi ini. Nilai yang diawali "=" akan dieksekusi sebagai
+        // formula begitu berkasnya dibuka Excel, kecuali dinetralkan dulu.
+        ['upt' => $upt] = $this->hirarki();
+        Pegawai::factory()->create([
+            'nama' => '=HYPERLINK("http://penyerang.test","klik di sini")',
+            'unit_kerja_id' => $upt->id,
+        ]);
+        $this->eventPada('2026-09-05', $upt);
+
+        $isi = $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL.'/ekspor?dari=2026-09-01&sampai=2026-09-30')
+            ->assertOk()
+            ->streamedContent();
+
+        // Dibubuhi apostrof di depan "=" — Excel membacanya sebagai teks,
+        // bukan formula. Isi kalimatnya sendiri tetap utuh, hanya dijaga
+        // tidak lagi dianggap awal formula.
+        $this->assertStringContainsString(
+            '"\'=HYPERLINK(""http://penyerang.test"",""klik di sini"")"',
+            $isi,
+        );
+        $this->assertStringNotContainsString(
+            '"=HYPERLINK("http://penyerang.test","klik di sini")"',
+            $isi,
+        );
+    }
+
+    #[Test]
     public function ekspor_mengikuti_cakupan_peran(): void
     {
         ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
@@ -444,6 +476,43 @@ class LaporanTest extends TestCase
             ->streamedContent();
 
         $this->assertStringContainsString('"NIP";"Nama"', $isi);
+    }
+
+    #[Test]
+    public function ekspor_excel_menetralkan_nilai_yang_menyerupai_formula(): void
+    {
+        // Perlindungan yang sama seperti CSV (CWE-1236), sisi .xlsx: kolom
+        // ditulis lewat PhpSpreadsheet (TabelDataExport), jalur kode yang
+        // sama sekali berbeda dari perakitan string CSV.
+        ['upt' => $upt] = $this->hirarki();
+        Pegawai::factory()->create(['nama' => '=1+1', 'unit_kerja_id' => $upt->id]);
+        $this->eventPada('2026-09-05', $upt);
+
+        $jawaban = $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL.'/ekspor?format=xlsx&dari=2026-09-01&sampai=2026-09-30')
+            ->assertOk();
+
+        $sementara = tempnam(sys_get_temp_dir(), 'laporan-uji').'.xlsx';
+        file_put_contents($sementara, $this->isiBerkasUnduhan($jawaban));
+        $sheet = IOFactory::load($sementara)->getActiveSheet();
+        unlink($sementara);
+
+        $ditemukan = false;
+
+        for ($baris = 1; $baris <= $sheet->getHighestRow() && ! $ditemukan; $baris++) {
+            for ($kolom = 'A'; $kolom <= $sheet->getHighestColumn(); $kolom++) {
+                $nilai = $sheet->getCell("{$kolom}{$baris}")->getValue();
+
+                if (is_string($nilai) && str_contains($nilai, '1+1')) {
+                    // Dibubuhi apostrof di depan, bukan tersimpan sebagai
+                    // formula yang akan dihitung ulang Excel saat dibuka.
+                    $this->assertSame("'=1+1", $nilai);
+                    $ditemukan = true;
+                }
+            }
+        }
+
+        $this->assertTrue($ditemukan, 'Nilai nama pegawai tidak ditemukan pada sheet.');
     }
 
     #[Test]

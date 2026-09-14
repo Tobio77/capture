@@ -170,7 +170,12 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
         Route::get('event', [EventController::class, 'index'])->name('event.index');
         Route::post('event', [EventController::class, 'store'])->name('event.store');
         Route::patch('event/{event}', [EventController::class, 'update'])->name('event.update');
-        Route::get('event/ekspor', [EventController::class, 'ekspor'])->name('event.ekspor');
+        // Dibatasi laju (perbaikan audit lanjutan): merakit CSV/PDF/Excel atas
+        // rentang sampai setahun bukan pekerjaan murah, dan endpoint ini
+        // sebelumnya satu-satunya di antara unduhan berat yang tidak dijaga.
+        Route::get('event/ekspor', [EventController::class, 'ekspor'])
+            ->middleware('throttle:20,1')
+            ->name('event.ekspor');
         Route::get('event/{event}/detail', [EventController::class, 'detail'])->name('event.detail');
         Route::post('event/{event}/tutup', [EventController::class, 'tutup'])->name('event.tutup');
 
@@ -206,7 +211,10 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
         // Override buka/tutup harian (FR-SET-07); berlaku sampai hari berganti.
         Route::post('absen-umum/override', [AbsenUmumController::class, 'override'])
             ->name('absen-umum.override');
-        Route::get('absen-umum/ekspor', [AbsenUmumController::class, 'ekspor'])->name('absen-umum.ekspor');
+        // Dibatasi laju — lihat catatan pada event/ekspor di atas.
+        Route::get('absen-umum/ekspor', [AbsenUmumController::class, 'ekspor'])
+            ->middleware('throttle:20,1')
+            ->name('absen-umum.ekspor');
         Route::get('absen-umum/data', [AbsenUmumController::class, 'data'])
             ->middleware('throttle:60,1')
             ->name('absen-umum.data');
@@ -235,7 +243,10 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
         });
 
         Route::get('rekap', [RekapController::class, 'index'])->name('rekap.index');
-        Route::get('rekap/{event}/ekspor', [RekapController::class, 'ekspor'])->name('rekap.ekspor');
+        // Dibatasi laju — lihat catatan pada event/ekspor di atas.
+        Route::get('rekap/{event}/ekspor', [RekapController::class, 'ekspor'])
+            ->middleware('throttle:20,1')
+            ->name('rekap.ekspor');
         Route::get('rekap/{event}/data', [RekapController::class, 'data'])
             ->middleware('throttle:60,1')
             ->name('rekap.data');
@@ -368,7 +379,10 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
      * peran, sama seperti rekap.
      */
     Route::get('laporan', [LaporanController::class, 'index'])->name('laporan.index');
-    Route::get('laporan/ekspor', [LaporanController::class, 'ekspor'])->name('laporan.ekspor');
+    // Dibatasi laju — lihat catatan pada event/ekspor di atas.
+    Route::get('laporan/ekspor', [LaporanController::class, 'ekspor'])
+        ->middleware('throttle:20,1')
+        ->name('laporan.ekspor');
 
     /*
      * Generate Laporan Resmi (FR-LAP-04) — dokumen kop surat, terpisah dari
