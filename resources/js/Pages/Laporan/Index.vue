@@ -8,10 +8,12 @@ import KolomCari from '@/Components/UI/KolomCari.vue'
 import Pilihan from '@/Components/UI/Pilihan.vue'
 import PilihanKolom from '@/Components/UI/PilihanKolom.vue'
 import RentangTanggal from '@/Components/UI/RentangTanggal.vue'
+import RiwayatLaporan from '@/Components/Laporan/RiwayatLaporan.vue'
 import { keQueryString } from '@/lib/kueri'
 
 /**
- * Laporan kehadiran per pegawai (FR-LAP-01 s.d. FR-LAP-03).
+ * Laporan kehadiran per pegawai (FR-LAP-01 s.d. FR-LAP-03) dan Generate
+ * Laporan Resmi (FR-LAP-04, revisi antrian — lihat RiwayatLaporan.vue).
  */
 
 const props = defineProps({
@@ -20,6 +22,7 @@ const props = defineProps({
   jumlah_event: { type: Number, required: true },
   unit_kerja: { type: Array, required: true },
   filter: { type: Object, required: true },
+  riwayat: { type: Array, required: true },
 })
 
 const filter = reactive({ ...props.filter })
@@ -76,11 +79,34 @@ function unduh(format) {
  * filter periode/unit yang sama tetapi tidak pernah menyertakan `cari`
  * (dokumen ini ringkasan per unit, bukan daftar pegawai yang disaring) atau
  * `kolom` (bentuknya tetap, bukan tabel untuk diolah lanjut).
+ *
+ * Sekarang mengantre, bukan langsung mengunduh: permintaannya dikirim lewat
+ * POST dan dijawab seketika dengan baris Riwayat Laporan baru berstatus
+ * antre — Inertia menyegarkan prop `riwayat` dari jawabannya sendiri, jadi
+ * baris barunya langsung terlihat tanpa memuat ulang halaman.
  */
+const memproses = ref(null)
+
 function generate(format) {
   const { cari: _cari, ...kueriResmi } = kueri.value
 
-  window.location.href = '/admin/laporan/generate?' + keQueryString({ ...kueriResmi, format })
+  memproses.value = format
+  router.post(
+    '/admin/laporan/generate',
+    { ...kueriResmi, format },
+    { preserveScroll: true, preserveState: true, onFinish: () => (memproses.value = null) },
+  )
+}
+
+/**
+ * Pratinjau — membuka PDF apa adanya di tab baru, sebelum diproses/diantre.
+ * Selalu PDF (lihat docblock LaporanController::preview()) apa pun format
+ * yang akhirnya dipilih, dan tidak membuat baris Riwayat Laporan sama sekali.
+ */
+function preview() {
+  const { cari: _cari, ...kueriResmi } = kueri.value
+
+  window.open('/admin/laporan/preview?' + keQueryString(kueriResmi), '_blank')
 }
 
 function cetak() {
@@ -176,14 +202,32 @@ const kolom = [
           <span class="text-xs font-medium uppercase tracking-wider text-redup">
             Generate Laporan
           </span>
-          <button type="button" class="tombol tombol-garis" @click="generate('docx')">
-            <Ikon nama="unduh" ukuran="h-4 w-4" /> Word
+          <button type="button" class="tombol tombol-garis" @click="preview">
+            <Ikon nama="detail" ukuran="h-4 w-4" /> Pratinjau
           </button>
-          <button type="button" class="tombol tombol-garis" @click="generate('xlsx')">
-            <Ikon nama="unduh" ukuran="h-4 w-4" /> Excel
+          <button
+            type="button"
+            class="tombol tombol-garis"
+            :disabled="memproses !== null"
+            @click="generate('docx')"
+          >
+            <Ikon nama="unduh" ukuran="h-4 w-4" /> {{ memproses === 'docx' ? 'Mengantre…' : 'Word' }}
           </button>
-          <button type="button" class="tombol tombol-utama" @click="generate('pdf')">
-            <Ikon nama="unduh" ukuran="h-4 w-4" /> PDF
+          <button
+            type="button"
+            class="tombol tombol-garis"
+            :disabled="memproses !== null"
+            @click="generate('xlsx')"
+          >
+            <Ikon nama="unduh" ukuran="h-4 w-4" /> {{ memproses === 'xlsx' ? 'Mengantre…' : 'Excel' }}
+          </button>
+          <button
+            type="button"
+            class="tombol tombol-utama"
+            :disabled="memproses !== null"
+            @click="generate('pdf')"
+          >
+            <Ikon nama="unduh" ukuran="h-4 w-4" /> {{ memproses === 'pdf' ? 'Mengantre…' : 'PDF' }}
           </button>
         </div>
       </div>
@@ -303,6 +347,8 @@ const kolom = [
         </td>
       </template>
     </TabelData>
+
+    <RiwayatLaporan :riwayat="riwayat" />
   </AdminLayout>
 </template>
 

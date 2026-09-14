@@ -31,30 +31,39 @@ class LaporanWordService
 
     public function unduh(array $data, string $namaBerkas): StreamedResponse
     {
-        /*
-         * PhpWord menulis .docx sementara ke direktori temp SISTEM
-         * (`sys_get_temp_dir()`) sebelum menstriminya ke peramban. Itu
-         * bergantung pada variabel lingkungan `TMP`/`TEMP` proses PHP yang
-         * sedang berjalan — pada sebagian server Windows (termasuk PHP
-         * built-in server tanpa variabel itu diteruskan) nilainya jatuh
-         * kembali ke direktori sistem yang tidak boleh ditulis akun aplikasi,
-         * dan `Settings::setTempDir()`-lah yang mengambil alih keputusan itu
-         * daripada bergantung pada lingkungan yang tidak selalu terjamin.
-         * Dipakai direktori storage aplikasi sendiri, yang sudah pasti dapat
-         * ditulis di lingkungan mana pun aplikasi ini berjalan.
-         *
-         * Dibuat lebih dulu di sini, bukan diserahkan ke PhpWord: subdirektori
-         * ACAK yang dibuatnya sendiri di bawah nilai ini (lihat
-         * `AbstractWriter::getTempFile()`) memakai `mkdir()` TANPA opsi
-         * rekursif, sehingga gagal begitu saja bila induknya belum ada.
-         */
-        $direktoriSementara = storage_path('app/phpword-tmp');
+        $phpWord = $this->rakit($data);
 
-        if (! is_dir($direktoriSementara)) {
-            mkdir($direktoriSementara, recursive: true);
-        }
+        return response()->streamDownload(function () use ($phpWord) {
+            IOFactory::createWriter($phpWord, 'Word2007')->save('php://output');
+        }, $namaBerkas, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ]);
+    }
 
-        Settings::setTempDir($direktoriSementara);
+    /**
+     * Bytes .docx mentah — dipakai BuatLaporanResmiJob untuk menyimpan
+     * berkasnya ke disk (Riwayat Laporan), bukan menstrimnya langsung ke
+     * peramban seperti {@see self::unduh()}.
+     */
+    public function bytes(array $data): string
+    {
+        $phpWord = $this->rakit($data);
+
+        $sementara = tempnam($this->direktoriSementara(), 'laporan-resmi-docx');
+        IOFactory::createWriter($phpWord, 'Word2007')->save($sementara);
+        $isi = file_get_contents($sementara);
+        unlink($sementara);
+
+        return $isi;
+    }
+
+    /**
+     * Susun dokumennya, tanpa memutuskan apa yang terjadi sesudahnya
+     * (distream ke peramban, atau ditulis ke disk sebagai berkas).
+     */
+    protected function rakit(array $data): PhpWord
+    {
+        Settings::setTempDir($this->direktoriSementara());
 
         $phpWord = new PhpWord;
         $phpWord->setDefaultFontName('DejaVu Sans');
@@ -76,11 +85,35 @@ class LaporanWordService
         $this->tulisPengesahan($section, $data);
         $this->tulisKaki($section, $data);
 
-        return response()->streamDownload(function () use ($phpWord) {
-            IOFactory::createWriter($phpWord, 'Word2007')->save('php://output');
-        }, $namaBerkas, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        ]);
+        return $phpWord;
+    }
+
+    /**
+     * PhpWord menulis .docx sementara ke direktori temp SISTEM
+     * (`sys_get_temp_dir()`) sebelum menstriminya ke peramban. Itu bergantung
+     * pada variabel lingkungan `TMP`/`TEMP` proses PHP yang sedang berjalan —
+     * pada sebagian server Windows (termasuk PHP built-in server tanpa
+     * variabel itu diteruskan) nilainya jatuh kembali ke direktori sistem
+     * yang tidak boleh ditulis akun aplikasi, dan `Settings::setTempDir()`-
+     * lah yang mengambil alih keputusan itu daripada bergantung pada
+     * lingkungan yang tidak selalu terjamin. Dipakai direktori storage
+     * aplikasi sendiri, yang sudah pasti dapat ditulis di lingkungan mana
+     * pun aplikasi ini berjalan.
+     *
+     * Dibuat lebih dulu di sini, bukan diserahkan ke PhpWord: subdirektori
+     * ACAK yang dibuatnya sendiri di bawah nilai ini (lihat
+     * `AbstractWriter::getTempFile()`) memakai `mkdir()` TANPA opsi
+     * rekursif, sehingga gagal begitu saja bila induknya belum ada.
+     */
+    protected function direktoriSementara(): string
+    {
+        $direktori = storage_path('app/phpword-tmp');
+
+        if (! is_dir($direktori)) {
+            mkdir($direktori, recursive: true);
+        }
+
+        return $direktori;
     }
 
     protected function tulisKop(Section $section): void

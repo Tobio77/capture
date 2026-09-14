@@ -32,6 +32,20 @@ class FilterLaporanRequest extends FormRequest
              */
             'sampai' => ['nullable', 'date'],
             'unit_kerja_id' => ['nullable', 'integer', 'exists:unit_kerja,id'],
+
+            /*
+             * Daftar tetap, bukan sekadar "string": `ekspor()` memakainya
+             * lewat perbandingan `===` (aman terhadap nilai apa pun), tetapi
+             * `generate()` MENYUSUN nama berkas dari nilai ini
+             * (`laporan-resmi-...-sd-....{format}`) yang lalu menjadi bagian
+             * path penyimpanan lewat BuatLaporanResmiJob — nilai bebas di
+             * sana berarti jalur traversal (`../../…`) pada nama berkas yang
+             * ditulis Storage::disk('local')->put(). Flysystem menolak path
+             * yang keluar dari root-nya sendiri, tetapi pagar itu seharusnya
+             * berdiri di sini, di titik masuknya, bukan digantungkan pada
+             * pustaka pihak ketiga.
+             */
+            'format' => ['nullable', 'string', 'in:csv,xlsx,pdf,docx'],
         ];
     }
 

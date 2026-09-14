@@ -6,9 +6,12 @@ use App\Enums\PeranPengguna;
 use App\Models\Absensi;
 use App\Models\EventAbsen;
 use App\Models\Pegawai;
+use App\Models\RiwayatLaporan;
 use App\Models\UnitKerja;
 use App\Models\User;
+use App\Services\Laporan\LaporanResmiService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia as Assert;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -532,58 +535,103 @@ class LaporanTest extends TestCase
     }
 
     /* ---------------------------------------------------------------------
-     * Bagian B — Generate Laporan Resmi (FR-LAP-04).
+     * Bagian B — Generate Laporan Resmi (FR-LAP-04, revisi antrian).
+     *
+     * generate() tidak lagi mengembalikan berkas: ia membuat baris Riwayat
+     * Laporan lalu mengantrekan BuatLaporanResmiJob lewat afterResponse().
+     * Dalam pengujian, Illuminate\Foundation\Testing\Concerns\MakesHttpRequests
+     * memanggil $kernel->terminate() secara sinkron sesudah setiap request
+     * (lihat call()), sehingga job afterResponse() ini betul-betul berjalan
+     * di sini — bukan cuma tersimpan sebagai baris "antre" selamanya seperti
+     * yang semula dikeluhkan pengguna di lingkungan tanpa queue worker.
      * ------------------------------------------------------------------- */
 
     #[Test]
-    public function generate_pdf_menghasilkan_berkas_pdf_potret(): void
+    public function format_di_luar_daftar_yang_dikenal_ditolak_bukan_ikut_dijadikan_nama_berkas(): void
     {
+        // generate() menyusun nama_berkas dari nilai "format" mentah
+        // (laporan-resmi-...-sd-....{format}), yang lalu menjadi bagian PATH
+        // penyimpanan di BuatLaporanResmiJob — nilai bebas di sini berarti
+        // jalur traversal pada berkas yang ditulis. Ditolak di FormRequest,
+        // sebelum sempat menyentuh baris riwayat maupun job sama sekali.
+        Storage::fake('local');
+
+        ['upt' => $upt] = $this->hirarki();
+        Pegawai::factory()->create(['unit_kerja_id' => $upt->id]);
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->post('/admin/laporan/generate', [
+                'dari' => '2026-09-01',
+                'sampai' => '2026-09-30',
+                'format' => '../../../../etc/passwd',
+            ])
+            ->assertSessionHasErrors('format');
+
+        $this->assertSame(0, RiwayatLaporan::query()->count());
+    }
+
+    #[Test]
+    public function generate_pdf_mengantre_lalu_selesai_dengan_berkas_pdf_potret(): void
+    {
+        Storage::fake('local');
+
         ['upt' => $upt] = $this->hirarki();
         Pegawai::factory()->create(['nama' => 'Ahmad Fauzi', 'unit_kerja_id' => $upt->id]);
         $this->eventPada('2026-09-05', $upt);
 
-        $jawaban = $this->actingAs(User::factory()->superadmin()->create())
-            ->get('/admin/laporan/generate?dari=2026-09-01&sampai=2026-09-30')
-            ->assertOk()
-            ->assertDownload('laporan-resmi-20260901-sd-20260930.pdf');
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->post('/admin/laporan/generate', ['dari' => '2026-09-01', 'sampai' => '2026-09-30', 'format' => 'pdf'])
+            ->assertRedirect()
+            ->assertSessionHas('sukses');
 
-        $this->assertStringStartsWith('%PDF-', $jawaban->getContent());
+        $riwayat = RiwayatLaporan::query()->sole();
+        $this->assertSame('selesai', $riwayat->status->value);
+        $this->assertSame('laporan-resmi-20260901-sd-20260930.pdf', $riwayat->nama_berkas);
+        $this->assertStringStartsWith('%PDF-', Storage::disk('local')->get($riwayat->path));
     }
 
     #[Test]
-    public function generate_word_menghasilkan_docx_sungguhan(): void
+    public function generate_word_mengantre_lalu_selesai_dengan_docx_sungguhan(): void
     {
+        Storage::fake('local');
+
         ['upt' => $upt] = $this->hirarki();
         Pegawai::factory()->create(['unit_kerja_id' => $upt->id]);
 
-        $jawaban = $this->actingAs(User::factory()->superadmin()->create())
-            ->get('/admin/laporan/generate?format=docx&dari=2026-09-01&sampai=2026-09-30')
-            ->assertOk()
-            ->assertDownload('laporan-resmi-20260901-sd-20260930.docx');
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->post('/admin/laporan/generate', ['dari' => '2026-09-01', 'sampai' => '2026-09-30', 'format' => 'docx'])
+            ->assertRedirect();
 
-        $this->assertStringStartsWith("PK\x03\x04", $jawaban->streamedContent());
+        $riwayat = RiwayatLaporan::query()->sole();
+        $this->assertSame('selesai', $riwayat->status->value);
+        $this->assertStringStartsWith("PK\x03\x04", Storage::disk('local')->get($riwayat->path));
     }
 
     #[Test]
-    public function generate_excel_menghasilkan_xlsx_sungguhan(): void
+    public function generate_excel_mengantre_lalu_selesai_dengan_xlsx_sungguhan(): void
     {
+        Storage::fake('local');
+
         ['upt' => $upt] = $this->hirarki();
         Pegawai::factory()->create(['unit_kerja_id' => $upt->id]);
 
-        $jawaban = $this->actingAs(User::factory()->superadmin()->create())
-            ->get('/admin/laporan/generate?format=xlsx&dari=2026-09-01&sampai=2026-09-30')
-            ->assertOk()
-            ->assertDownload('laporan-resmi-20260901-sd-20260930.xlsx');
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->post('/admin/laporan/generate', ['dari' => '2026-09-01', 'sampai' => '2026-09-30', 'format' => 'xlsx'])
+            ->assertRedirect();
 
-        $this->assertStringStartsWith("PK\x03\x04", $this->isiBerkasUnduhan($jawaban));
+        $riwayat = RiwayatLaporan::query()->sole();
+        $this->assertSame('selesai', $riwayat->status->value);
+        $this->assertStringStartsWith("PK\x03\x04", Storage::disk('local')->get($riwayat->path));
     }
 
     #[Test]
     public function generate_mengikuti_cakupan_peran_yang_sama_dengan_unduh_data(): void
     {
+        Storage::fake('local');
+
         // Admin UPT hanya boleh melihat unitnya sendiri — jaminan yang sama
-        // dengan "Unduh Data", sebab generate() memakai LaporanService::rekap()
-        // yang sama persis.
+        // dengan "Unduh Data", sebab generate() memakai LaporanResmiService
+        // yang menghormati cakupan peran yang sama.
         ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
         Pegawai::factory()->create(['nama' => 'Punya UPT', 'unit_kerja_id' => $upt->id]);
         Pegawai::factory()->create(['nama' => 'Punya Unit Lain', 'unit_kerja_id' => $lain->id]);
@@ -592,12 +640,15 @@ class LaporanTest extends TestCase
 
         $adminUpt = User::factory()->create(['role' => PeranPengguna::AdminUpt, 'unit_kerja_id' => $upt->id]);
 
-        $jawaban = $this->actingAs($adminUpt)
-            ->get('/admin/laporan/generate?format=xlsx&dari=2026-09-01&sampai=2026-09-30')
-            ->assertOk();
+        $this->actingAs($adminUpt)
+            ->post('/admin/laporan/generate', ['dari' => '2026-09-01', 'sampai' => '2026-09-30', 'format' => 'xlsx'])
+            ->assertRedirect();
+
+        $riwayat = RiwayatLaporan::query()->sole();
+        $this->assertSame('selesai', $riwayat->status->value);
 
         $sementara = tempnam(sys_get_temp_dir(), 'laporan-resmi-uji').'.xlsx';
-        file_put_contents($sementara, $this->isiBerkasUnduhan($jawaban));
+        file_put_contents($sementara, Storage::disk('local')->get($riwayat->path));
 
         $sheet = IOFactory::load($sementara)->getActiveSheet();
         $isiSheet = '';
@@ -610,6 +661,49 @@ class LaporanTest extends TestCase
 
         $this->assertStringContainsString($upt->nama, $isiSheet);
         $this->assertStringNotContainsString($lain->nama, $isiSheet);
+    }
+
+    #[Test]
+    public function generate_menyimpan_pesan_galat_generik_ketika_perakitan_gagal(): void
+    {
+        // Kesalahan internal tidak boleh bocor ke pengguna sebagai pesan
+        // mentah — lihat BuatLaporanResmiJob::handle(). Dipaksa gagal lewat
+        // mock LaporanResmiService, sebab lewat masukan biasa susun() selalu
+        // berhasil (unit_kerja_id tak dikenal sekalipun sudah ditolak lebih
+        // dulu oleh validasi FilterLaporanRequest).
+        Storage::fake('local');
+
+        ['upt' => $upt] = $this->hirarki();
+        Pegawai::factory()->create(['unit_kerja_id' => $upt->id]);
+
+        $this->mock(LaporanResmiService::class, function ($mock) {
+            $mock->shouldReceive('susun')->andThrow(new \RuntimeException('kegagalan internal seharusnya tidak terlihat pengguna'));
+        });
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->post('/admin/laporan/generate', ['dari' => '2026-09-01', 'sampai' => '2026-09-30', 'format' => 'pdf'])
+            ->assertRedirect();
+
+        $riwayat = RiwayatLaporan::query()->sole();
+        $this->assertSame('gagal', $riwayat->status->value);
+        $this->assertNotNull($riwayat->pesan_galat);
+        $this->assertStringNotContainsString('kegagalan internal', $riwayat->pesan_galat);
+    }
+
+    #[Test]
+    public function preview_menampilkan_pdf_inline_tanpa_membuat_riwayat(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+        Pegawai::factory()->create(['unit_kerja_id' => $upt->id]);
+        $this->eventPada('2026-09-05', $upt);
+
+        $jawaban = $this->actingAs(User::factory()->superadmin()->create())
+            ->get('/admin/laporan/preview?dari=2026-09-01&sampai=2026-09-30')
+            ->assertOk();
+
+        $this->assertStringContainsString('inline', $jawaban->headers->get('Content-Disposition'));
+        $this->assertStringStartsWith('%PDF-', $jawaban->getContent());
+        $this->assertSame(0, RiwayatLaporan::query()->count());
     }
 
     /**

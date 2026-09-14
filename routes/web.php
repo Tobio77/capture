@@ -16,6 +16,7 @@ use App\Http\Controllers\Admin\PegawaiController;
 use App\Http\Controllers\Admin\PenggunaController;
 use App\Http\Controllers\Admin\PerangkatAbsenController;
 use App\Http\Controllers\Admin\RekapController;
+use App\Http\Controllers\Admin\RiwayatLaporanController;
 use App\Http\Controllers\Admin\SettingAbsenController;
 use App\Http\Controllers\Admin\SettingWorkaController;
 use App\Http\Controllers\Admin\UnitKerjaController;
@@ -385,11 +386,37 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
         ->name('laporan.ekspor');
 
     /*
-     * Generate Laporan Resmi (FR-LAP-04) — dokumen kop surat, terpisah dari
-     * "Unduh Data" di atas. Dibatasi laju: PDF/Word/Excel-nya jauh lebih
-     * berat dirakit daripada CSV/tabel mentah.
+     * Pratinjau PDF Laporan Resmi — dilihat dulu isinya sebelum benar-benar
+     * diproses lewat Riwayat Laporan di bawah. Dibatasi laju sama seperti
+     * generate: dua-duanya sama beratnya untuk dirakit, PDF dulu atau
+     * belakangan.
      */
-    Route::get('laporan/generate', [LaporanController::class, 'generate'])
+    Route::get('laporan/preview', [LaporanController::class, 'preview'])
+        ->middleware('throttle:20,1')
+        ->name('laporan.preview');
+
+    /*
+     * Generate Laporan Resmi (FR-LAP-04) — dokumen kop surat, terpisah dari
+     * "Unduh Data" di atas. POST karena mengantrekan pekerjaan (menulis satu
+     * baris Riwayat Laporan), bukan sekadar membaca. Dibatasi laju: PDF/
+     * Word/Excel-nya jauh lebih berat dirakit daripada CSV/tabel mentah.
+     */
+    Route::post('laporan/generate', [LaporanController::class, 'generate'])
         ->middleware('throttle:20,1')
         ->name('laporan.generate');
+
+    /*
+     * Riwayat Generate Laporan Resmi — status antre/diproses/selesai/gagal,
+     * unduh berkas yang sudah selesai, hapus baris riwayat. Cakupannya
+     * BUKAN cakupan unit kerja biasa (lihat RiwayatLaporanService): admin
+     * biasa hanya melihat miliknya sendiri, superadmin melihat semua.
+     */
+    Route::get('laporan/riwayat', [RiwayatLaporanController::class, 'data'])
+        ->middleware('throttle:60,1')
+        ->name('laporan.riwayat.data');
+    Route::get('laporan/riwayat/{riwayatLaporan}/unduh', [RiwayatLaporanController::class, 'unduh'])
+        ->middleware('throttle:30,1')
+        ->name('laporan.riwayat.unduh');
+    Route::delete('laporan/riwayat/{riwayatLaporan}', [RiwayatLaporanController::class, 'hapus'])
+        ->name('laporan.riwayat.hapus');
 });

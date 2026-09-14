@@ -126,6 +126,23 @@ class EksporService
     }
 
     /**
+     * Sama seperti {@see self::unduhPdf()}, tetapi ditampilkan LANGSUNG di
+     * tab peramban (pratinjau), bukan diunduh sebagai berkas. Dipakai
+     * tombol "Preview" Generate Laporan — melihat isinya dulu sebelum
+     * benar-benar memprosesnya lewat Riwayat Laporan.
+     */
+    public function tampilkanPdf(
+        string $tampilan,
+        array $data,
+        string $namaBerkas,
+        string $orientasi = 'landscape',
+    ): Response {
+        return Pdf::loadView($tampilan, $data + $this->jejakCetak())
+            ->setPaper('a4', $orientasi)
+            ->stream($namaBerkas);
+    }
+
+    /**
      * Jejak siapa mencetak dan kapan — lembar rekap dan laporan dipakai
      * sebagai lampiran administratif, sehingga asal-usulnya perlu terbaca.
      *

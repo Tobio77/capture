@@ -2,18 +2,17 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Exports\LaporanResmiExport;
 use App\Exports\TabelDataExport;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\FilterLaporanRequest;
+use App\Jobs\BuatLaporanResmiJob;
 use App\Services\EksporService;
 use App\Services\Laporan\LaporanResmiService;
-use App\Services\Laporan\LaporanWordService;
+use App\Services\Laporan\RiwayatLaporanService;
 use App\Services\LaporanService;
-use Illuminate\Support\Carbon;
+use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
-use Maatwebsite\Excel\Excel as ExcelWriter;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -23,10 +22,16 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * Dua konsep yang berbeda tujuannya, dan sengaja dijaga tetap berbeda di
  * kode: `ekspor()` (dan `index()`) adalah "Unduh Data" — tabel mentah, cepat,
- * tanpa narasi — sementara `generate()` adalah "Generate Laporan": dokumen
- * kop surat siap cetak dengan kesimpulan dan rekomendasi bertemplat. Label
- * tombolnya di layar pun sengaja dibedakan, bukan varian dari tombol yang
- * sama.
+ * tanpa narasi — sementara `generate()`/`preview()` adalah "Generate
+ * Laporan": dokumen kop surat siap cetak dengan kesimpulan dan rekomendasi
+ * bertemplat. Label tombolnya di layar pun sengaja dibedakan, bukan varian
+ * dari tombol yang sama.
+ *
+ * `generate()` TIDAK LAGI langsung mengembalikan berkas (revisi antrian):
+ * ia membuat satu baris Riwayat Laporan dan mengantrekan pembuatannya lewat
+ * {@see BuatLaporanResmiJob}, lalu kembali seketika. Berkasnya
+ * diunduh belakangan dari Riwayat Laporan, lewat
+ * {@see RiwayatLaporanController}.
  */
 class LaporanController extends Controller
 {
@@ -53,7 +58,7 @@ class LaporanController extends Controller
         protected LaporanService $laporan,
         protected EksporService $ekspor,
         protected LaporanResmiService $laporanResmi,
-        protected LaporanWordService $laporanWord,
+        protected RiwayatLaporanService $riwayat,
     ) {}
 
     public function index(FilterLaporanRequest $request): InertiaResponse
@@ -81,6 +86,7 @@ class LaporanController extends Controller
                 'unit_kerja_id' => $unitKerjaId ?? '',
                 'cari' => $cari,
             ],
+            'riwayat' => $this->riwayat->untukLayar($request->user()),
         ]);
     }
 
@@ -124,50 +130,51 @@ class LaporanController extends Controller
     }
 
     /**
-     * Generate Laporan Resmi: dokumen kop surat dengan kesimpulan dan
-     * rekomendasi bertemplat, tersedia PDF/Word/Excel (FR-LAP-04).
+     * Antrekan pembuatan Laporan Resmi: dokumen kop surat dengan kesimpulan
+     * dan rekomendasi bertemplat, tersedia PDF/Word/Excel (FR-LAP-04).
      *
      * Memakai filter aktif yang SAMA dengan "Unduh Data" ({@see
      * FilterLaporanRequest::rentang()}) — periode dan unit yang sedang
      * dilihat di layar itulah yang tercetak, tanpa formulir filter kedua.
      * Pencarian nama/NIP (`cari`) sengaja TIDAK ikut: dokumen resmi ini
      * berisi ringkasan per unit, bukan daftar pegawai yang dapat disaring.
+     *
+     * TIDAK langsung mengembalikan berkas (revisi antrian, lihat docblock
+     * kelas ini) — berkasnya dirakit BuatLaporanResmiJob sesaat setelah
+     * jawaban ini terkirim, dan diunduh belakangan dari Riwayat Laporan.
      */
-    public function generate(FilterLaporanRequest $request): Response
+    public function generate(FilterLaporanRequest $request): RedirectResponse
+    {
+        [$dari, $sampai, $unitKerjaId] = $request->rentang();
+        $format = $request->string('format')->toString();
+        $nama = sprintf('laporan-resmi-%s-sd-%s.%s', $dari->format('Ymd'), $sampai->format('Ymd'), $format);
+
+        $this->riwayat->buat($request->user(), $format, $dari, $sampai, $unitKerjaId, $nama);
+
+        return back()->with('sukses', 'Laporan sedang diproses. Lihat progresnya di Riwayat Laporan di bawah.');
+    }
+
+    /**
+     * Pratinjau PDF Laporan Resmi — ditampilkan langsung di tab peramban,
+     * BUKAN diunduh maupun diantrekan lewat Riwayat Laporan. Selalu PDF apa
+     * pun format yang akan dipilih admin nantinya: satu-satunya format yang
+     * bisa ditampilkan langsung di peramban tanpa aplikasi tambahan, dan
+     * isinya (ringkasan, kesimpulan, rekomendasi) sama persis di ketiga
+     * format — yang beda hanya cara menuliskannya.
+     */
+    public function preview(FilterLaporanRequest $request): Response
     {
         [$dari, $sampai, $unitKerjaId] = $request->rentang();
 
         $data = $this->laporanResmi->susun($request->user(), $dari, $sampai, $unitKerjaId);
-        $nama = sprintf('laporan-resmi-%s-sd-%s', $dari->format('Ymd'), $sampai->format('Ymd'));
-        $format = $request->string('format')->toString();
+        $nama = sprintf('pratinjau-laporan-resmi-%s-sd-%s.pdf', $dari->format('Ymd'), $sampai->format('Ymd'));
 
-        return match ($format) {
-            'docx' => $this->laporanWord->unduh($data + $this->jejakCetak(), "{$nama}.docx"),
-            'xlsx' => Excel::download(new LaporanResmiExport($data), "{$nama}.xlsx", ExcelWriter::XLSX),
-            // EksporService::unduhPdf() sudah menambahkan jejak cetaknya
-            // sendiri (dicetak/oleh); tidak perlu diulang di sini.
-            default => $this->ekspor->unduhPdf(
-                'cetak.laporan-resmi',
-                ['data' => $data, 'formatPersen' => fn (?float $n) => LaporanResmiService::formatPersen($n)],
-                "{$nama}.pdf",
-                'portrait',
-            ),
-        };
-    }
-
-    /**
-     * Sama persis dengan EksporService::jejakCetak(), disalin kecil di sini
-     * karena renderer Word butuh bentuk array datar (dicetak/oleh), bukan
-     * ikut menumpang parameter `$data` milik view PDF.
-     *
-     * @return array<string, string>
-     */
-    protected function jejakCetak(): array
-    {
-        return [
-            'dicetak' => Carbon::now()->translatedFormat('d F Y H:i'),
-            'oleh' => auth()->user()?->nama ?? 'sistem',
-        ];
+        return $this->ekspor->tampilkanPdf(
+            'cetak.laporan-resmi',
+            ['data' => $data, 'formatPersen' => fn (?float $n) => LaporanResmiService::formatPersen($n)],
+            $nama,
+            'portrait',
+        );
     }
 
     protected function namaCakupan(FilterLaporanRequest $request): string
