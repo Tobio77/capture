@@ -216,18 +216,32 @@ class CakupanWilayahDanDefaultUnitTest extends TestCase
     }
 
     #[Test]
-    public function sesi_absen_umum_opd_mencakup_seluruh_pegawai_dinas(): void
+    public function sesi_absen_umum_opd_menyebar_ke_seluruh_unit_bukan_satu_sesi_ganjil(): void
     {
+        /*
+         * Revisi lanjutan: memanggil buka() langsung dengan id OPD dahulu
+         * diam-diam membuat SATU sesi ganjil berkunci OPD yang tidak akan
+         * pernah ditemukan kiosk mana pun (kiosk selalu menaut ke UPT/bidang
+         * di bawahnya, tidak pernah ke OPD sendiri) — persis bug yang membuat
+         * panel admin terlihat "terbuka" sementara setiap kiosk sungguhan
+         * ditolak. Yang benar bagi OPD adalah bukaSemua(): SATU sesi PER
+         * UNIT level teratas, bukan satu sesi yang berpura-pura mewakili
+         * semuanya.
+         */
         $this->unitWilayah();
+        $absenUmum = app(AbsenUmumService::class);
 
-        $sesi = app(AbsenUmumService::class)->buka($this->opd->id);
+        $this->assertNull($absenUmum->buka($this->opd->id));
 
-        $this->assertNotNull($sesi);
-        $this->assertSame([$this->opd->id], $sesi->unitKerja->pluck('id')->all());
+        $absenUmum->bukaSemua();
 
-        // Cakupannya meliputi seluruh unit di bawahnya — lima UPT pada
-        // penyiapan ini, ditambah simpul OPD sendiri.
-        $this->assertCount(6, UnitKerja::idsDenganTurunan($this->opd->id));
+        // Lima UPT pada penyiapan ini, masing-masing sesi sendiri — bukan
+        // satu sesi bernaung pada OPD.
+        $this->assertSame(5, EventAbsen::query()->umum()->count());
+
+        foreach (UnitKerja::query()->levelTeratas()->pluck('id') as $id) {
+            $this->assertNotNull($absenUmum->sesi($id));
+        }
     }
 
     #[Test]

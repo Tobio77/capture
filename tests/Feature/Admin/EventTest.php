@@ -83,6 +83,58 @@ class EventTest extends TestCase
     }
 
     #[Test]
+    public function pemilih_unit_menawarkan_simpul_opd_bagi_peran_lintas_unit(): void
+    {
+        // Sama seperti pemilih unit Absen Umum: peran lintas unit boleh
+        // memilih simpul OPD sendiri, berarti SELURUH unit kerja sekaligus
+        // (revisi terkini) — bukan salah satu UPT/bidang.
+        ['opd' => $opd] = $this->hirarki();
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL)
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('unit_kerja.0.id', $opd->id)
+                ->etc());
+    }
+
+    #[Test]
+    public function admin_upt_tidak_ditawari_simpul_opd(): void
+    {
+        ['upt' => $upt] = $this->hirarki();
+
+        $this->actingAs(User::factory()->adminUpt($upt)->create())
+            ->get(self::URL)
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('unit_kerja', 1)
+                ->where('unit_kerja.0.id', $upt->id)
+                ->etc());
+    }
+
+    #[Test]
+    public function event_yang_mencakup_simpul_opd_berlaku_bagi_seluruh_unit_kerja(): void
+    {
+        // Memilih "Dinas Tenaga Kerja dan Transmigrasi" pada daftar unit
+        // (bukan cakupan "Semua Unit") harus tetap mencakup SELURUH unit
+        // kerja — termasuk unit yang bukan turunan langsungnya yang dipilih
+        // panitia — sebab idsDenganTurunan() dari akar OPD memang mencakup
+        // semuanya.
+        ['opd' => $opd, 'upt' => $upt, 'lain' => $lain] = $this->hirarki();
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->post(self::URL, $this->isian(['unit_kerja_id' => [$opd->id]]))
+            ->assertSessionHas('sukses');
+
+        $event = EventAbsen::sole();
+
+        $this->assertSame(CakupanEvent::Unit, $event->cakupan);
+
+        $tercakup = app(EventAbsenService::class)->unitTercakup($event);
+
+        $this->assertContains($upt->id, $tercakup);
+        $this->assertContains($lain->id, $tercakup);
+    }
+
+    #[Test]
     public function cakupan_semua_unit_tidak_menyimpan_baris_pivot(): void
     {
         ['upt' => $upt] = $this->hirarki();

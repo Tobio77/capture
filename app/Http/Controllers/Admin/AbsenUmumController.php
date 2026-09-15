@@ -194,6 +194,17 @@ class AbsenUmumController extends Controller
 
         abort_if($unitId === null, 404, 'Unit kerja tidak dikenali.');
 
+        /*
+         * Simpul OPD ("Disnaker") dipilih berarti SELURUH unit kerja, bukan
+         * satu sesi tersendiri bernama OPD yang tidak akan pernah ditemukan
+         * kiosk mana pun — lihat catatan pada AbsenUmumService::sesi().
+         */
+        if ($this->absenUmum->adalahOpd($unitId)) {
+            $this->absenUmum->bukaSemua();
+
+            return back()->with('sukses', 'Sesi absen umum hari ini berhasil dibuka untuk seluruh unit kerja.');
+        }
+
         $this->absenUmum->buka($unitId);
 
         return back()->with('sukses', 'Sesi absen umum hari ini berhasil dibuka.');
@@ -218,6 +229,16 @@ class AbsenUmumController extends Controller
         $override = $data['aksi'] === 'cabut'
             ? null
             : OverrideAbsenUmum::from($data['aksi']);
+
+        // Simpul OPD ("Disnaker") berarti SELURUH unit kerja sekaligus —
+        // lihat catatan pada AbsenUmumController::buka().
+        if ($this->absenUmum->adalahOpd($unitId)) {
+            $this->absenUmum->aturOverrideSemua($override, $request->user());
+
+            return back()->with('sukses', $override === null
+                ? 'Override dicabut untuk seluruh unit kerja. Absen umum kembali mengikuti jadwal.'
+                : "{$override->label()} untuk seluruh unit kerja hari ini. Jadwal kembali berlaku besok.");
+        }
 
         $sesi = $this->absenUmum->aturOverride($unitId, $override, $request->user());
 

@@ -3,6 +3,7 @@
 namespace Tests\Feature\Admin;
 
 use App\Enums\JenisEvent;
+use App\Enums\OverrideAbsenUmum;
 use App\Enums\StatusEvent;
 use App\Models\Absensi;
 use App\Models\EventAbsen;
@@ -36,7 +37,7 @@ class AbsenUmumTest extends TestCase
     protected const URL = '/admin/kelola-absen/absen-umum';
 
     /**
-     * @return array{upt: UnitKerja, lain: UnitKerja, seksi: UnitKerja}
+     * @return array{opd: UnitKerja, upt: UnitKerja, lain: UnitKerja, seksi: UnitKerja}
      */
     protected function hirarki(): array
     {
@@ -45,7 +46,7 @@ class AbsenUmumTest extends TestCase
         $lain = UnitKerja::factory()->create(['kode' => 'BLK-SBY', 'induk_id' => $opd->id]);
         $seksi = UnitKerja::factory()->create(['kode' => 'BLK-SGS-TU', 'induk_id' => $upt->id]);
 
-        return compact('upt', 'lain', 'seksi');
+        return compact('opd', 'upt', 'lain', 'seksi');
     }
 
     /* ---------------------------------------------------------------------
@@ -136,6 +137,147 @@ class AbsenUmumTest extends TestCase
         $sesi = app(AbsenUmumService::class)->buka($seksi->id);
 
         $this->assertSame([$upt->id], $sesi->unitKerja->pluck('id')->all());
+    }
+
+    /* ---------------------------------------------------------------------
+     * Simpul OPD ("Dinas Tenaga Kerja") — berarti SELURUH unit kerja.
+     * ------------------------------------------------------------------- */
+
+    #[Test]
+    public function simpul_opd_tidak_pernah_membuat_sesi_hantu(): void
+    {
+        // Sebelum perbaikan ini, memanggil sesi() dengan id OPD sendiri
+        // (idTeratasUntuk() kembali null untuk id ancestor, jatuh ke
+        // `?? $unitKerjaId` mentah) diam-diam membuat SATU sesi ganjil
+        // berkunci OPD yang tidak akan pernah ditemukan kiosk mana pun —
+        // panel admin terlihat "terbuka" sementara setiap kiosk sungguhan
+        // menolak tap.
+        ['opd' => $opd] = $this->hirarki();
+
+        $this->assertTrue(app(AbsenUmumService::class)->adalahOpd($opd->id));
+        $this->assertNull(app(AbsenUmumService::class)->sesi($opd->id, buat: true));
+        $this->assertDatabaseCount('event_absen', 0);
+    }
+
+    #[Test]
+    public function membuka_absen_umum_lewat_opd_membuka_seluruh_unit_kerja(): void
+    {
+        ['opd' => $opd, 'upt' => $upt, 'lain' => $lain] = $this->hirarki();
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->post(self::URL.'/buka', ['unit_kerja_id' => $opd->id])
+            ->assertSessionHas('sukses');
+
+        $this->assertSame(2, EventAbsen::query()->umum()->count());
+        $this->assertNotNull(app(AbsenUmumService::class)->sesi($upt->id));
+        $this->assertNotNull(app(AbsenUmumService::class)->sesi($lain->id));
+    }
+
+    #[Test]
+    public function kiosk_unit_sungguhan_dapat_mengabsen_setelah_opd_dibuka(): void
+    {
+        // Inilah keluhan sebenarnya (item 2): panel admin menampilkan
+        // "terbuka" pada tampilan OPD sementara kiosk milik unit sungguhan
+        // ditolak, sebab keduanya mengacu pada sesi yang berbeda. Setelah
+        // perbaikan, membuka lewat OPD harus benar-benar membuka sesi milik
+        // unit yang dipakai kiosk.
+        ['opd' => $opd, 'upt' => $upt] = $this->hirarki();
+        $admin = User::factory()->superadmin()->create();
+
+        Pegawai::factory()->create([
+            'nip' => '199001012020011001',
+            'nama' => 'Ahmad Fauzi',
+            'unit_kerja_id' => $upt->id,
+        ]);
+
+        app(PengaturanRepository::class)->simpan(SettingAbsenService::KUNCI_WAJAH, '0');
+        $this->travelTo('2026-09-07 07:35:00');
+
+        $this->actingAs($admin)
+            ->post(self::URL.'/buka', ['unit_kerja_id' => $opd->id])
+            ->assertSessionHas('sukses');
+
+        $this->actingAs($admin)
+            ->post(self::URL."/absen?unit_kerja_id={$upt->id}", [
+                'id_card' => '199001012020011001',
+                'jenis' => 'datang',
+                'metode' => 'manual',
+            ], ['Accept' => 'application/json'])
+            ->assertOk()
+            ->assertJson(['success' => true]);
+    }
+
+    #[Test]
+    public function override_lewat_opd_berlaku_untuk_seluruh_unit_kerja(): void
+    {
+        ['opd' => $opd, 'upt' => $upt, 'lain' => $lain] = $this->hirarki();
+        $admin = User::factory()->superadmin()->create();
+
+        $this->actingAs($admin)
+            ->post(self::URL.'/override', ['aksi' => 'tutup', 'unit_kerja_id' => $opd->id])
+            ->assertSessionHas('sukses');
+
+        $sesiUpt = app(AbsenUmumService::class)->sesi($upt->id);
+        $sesiLain = app(AbsenUmumService::class)->sesi($lain->id);
+
+        $this->assertSame(OverrideAbsenUmum::Tutup, $sesiUpt->override_absen);
+        $this->assertSame(OverrideAbsenUmum::Tutup, $sesiLain->override_absen);
+
+        // Buka paksa lagi lewat OPD — pegawai dapat melanjutkan absennya
+        // (item 1: tombol buka/tutup manual, lintas unit sekaligus).
+        $this->actingAs($admin)
+            ->post(self::URL.'/override', ['aksi' => 'buka', 'unit_kerja_id' => $opd->id])
+            ->assertSessionHas('sukses');
+
+        $this->assertSame(OverrideAbsenUmum::Buka, $sesiUpt->fresh()->override_absen);
+        $this->assertSame(OverrideAbsenUmum::Buka, $sesiLain->fresh()->override_absen);
+    }
+
+    #[Test]
+    public function rekap_lewat_opd_menggabungkan_seluruh_unit_kerja(): void
+    {
+        ['opd' => $opd, 'upt' => $upt, 'lain' => $lain] = $this->hirarki();
+
+        $sesiUpt = app(AbsenUmumService::class)->buka($upt->id);
+        $sesiLain = app(AbsenUmumService::class)->buka($lain->id);
+
+        Absensi::factory()->create([
+            'event_absen_id' => $sesiUpt->id,
+            'pegawai_id' => Pegawai::factory()->create([
+                'nama' => 'Ahmad Fauzi',
+                'unit_kerja_id' => $upt->id,
+            ])->id,
+        ]);
+        Absensi::factory()->create([
+            'event_absen_id' => $sesiLain->id,
+            'pegawai_id' => Pegawai::factory()->create([
+                'nama' => 'Citra Lestari',
+                'unit_kerja_id' => $lain->id,
+            ])->id,
+        ]);
+        Pegawai::factory()->create(['nama' => 'Belum Datang', 'unit_kerja_id' => $upt->id]);
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL."?unit_kerja_id={$opd->id}")
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('sesi', null)
+                ->has('baris', 2)
+                ->where('ringkasan.hadir', 2)
+                ->where('ringkasan.pegawai', 3)
+                ->etc());
+    }
+
+    #[Test]
+    public function pemantauan_menawarkan_simpul_opd_bagi_peran_lintas_unit(): void
+    {
+        ['opd' => $opd] = $this->hirarki();
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL)
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('unit_kerja.0.id', $opd->id)
+                ->etc());
     }
 
     /* ---------------------------------------------------------------------

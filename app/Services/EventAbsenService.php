@@ -495,6 +495,15 @@ class EventAbsenService
      *
      * Admin UPT terbatas pada unit level teratas yang menaunginya (FR-EVT-02).
      *
+     * Peran lintas unit (Superadmin, Admin Dinas) juga menawarkan simpul OPD
+     * sendiri — "Dinas Tenaga Kerja dan Transmigrasi" — di depan daftar,
+     * sama seperti pemilih unit Absen Umum (lihat
+     * {@see AbsenUmumService::unitTersedia()}): memilihnya berarti event
+     * berlaku bagi SELURUH unit kerja, bukan cuma satu unit level teratas.
+     * Tidak perlu penanganan khusus di tempat lain — `unitTercakup()` sudah
+     * menelusuri turunan lewat `UnitKerja::idsDenganTurunan()`, dan simpul
+     * OPD sebagai akar pohon otomatis mencakup semuanya.
+     *
      * @return Collection<int, UnitKerja>
      */
     public function unitKerjaTersedia(User $pelaku): Collection
@@ -505,17 +514,21 @@ class EventAbsenService
             ->orderBy('nama')
             ->get(['id', 'kode', 'nama']);
 
-        if ($pelaku->lintasUnit()) {
-            return $teratas;
+        if (! $pelaku->lintasUnit()) {
+            return $teratas
+                ->filter(fn (UnitKerja $unit) => in_array(
+                    $pelaku->unit_kerja_id,
+                    UnitKerja::idsDenganTurunan($unit->id),
+                    true,
+                ))
+                ->values();
         }
 
-        return $teratas
-            ->filter(fn (UnitKerja $unit) => in_array(
-                $pelaku->unit_kerja_id,
-                UnitKerja::idsDenganTurunan($unit->id),
-                true,
-            ))
-            ->values();
+        $opd = UnitKerja::query()->whereKey(UnitKerja::idOpd())->first(['id', 'kode', 'nama']);
+
+        // Instalasi yang belum pernah menyinkronkan WORKA belum punya simpul
+        // OPD; daftarnya tetap terisi unit level teratas apa adanya.
+        return $opd === null ? $teratas : $teratas->prepend($opd)->values();
     }
 
     /**

@@ -56,6 +56,30 @@ class AbsenUmumService
     }
 
     /**
+     * Apakah id ini simpul OPD sendiri — pilihan bawaan admin lintas unit
+     * pada layar Absen Umum (lihat unitTersedia()), yang berarti "SELURUH
+     * unit kerja", bukan satu unit tersendiri.
+     */
+    public function adalahOpd(?int $unitKerjaId): bool
+    {
+        return $unitKerjaId !== null && $unitKerjaId === UnitKerja::idOpd();
+    }
+
+    /**
+     * Id seluruh unit level teratas yang aktif — target "sebar" ketika
+     * admin memilih simpul OPD: buka paksa/tutup paksa/rekap berlaku bagi
+     * SETIAP unit ini satu-satu, bukan satu sesi ganjil berkunci OPD yang
+     * tidak akan pernah ditemukan kiosk mana pun (lihat catatan pada
+     * sesi()).
+     *
+     * @return Collection<int, int>
+     */
+    protected function unitSemuaId(): Collection
+    {
+        return UnitKerja::query()->levelTeratas()->aktif()->pluck('id');
+    }
+
+    /**
      * Sesi absen umum sebuah unit kerja pada satu tanggal.
      *
      * `$buat` sengaja tidak default true: layar dan pemantauan hanya membaca,
@@ -64,6 +88,24 @@ class AbsenUmumService
      */
     public function sesi(int $unitKerjaId, ?Carbon $tanggal = null, bool $buat = false): ?EventAbsen
     {
+        /*
+         * Simpul OPD sendiri BUKAN unit tempat sesi macam apa pun berdiri —
+         * tidak ada satu pun perangkat yang pernah menaut langsung ke OPD,
+         * hanya ke UPT/bidang di bawahnya. Sebelum pagar ini, memanggil
+         * fungsi ini dengan id OPD (idTeratasUntuk() kembali null untuk
+         * ancestor, jatuh ke `?? $unitKerjaId` mentah) diam-diam membuat
+         * SATU sesi ganjil berkunci OPD yang tidak akan pernah ditemukan
+         * kiosk mana pun — persis bug yang membuat panel admin terlihat
+         * "terbuka" sementara setiap kiosk sungguhan menolak tap (lihat
+         * unitTersedia(): OPD adalah PILIHAN BAWAAN admin lintas unit).
+         * Yang benar bagi OPD adalah rekapSemuaUnit()/bukaSemua()/
+         * aturOverrideSemua() — SATU sesi PER UNIT, bukan satu sesi ganjil
+         * yang berpura-pura mewakili semuanya.
+         */
+        if ($this->adalahOpd($unitKerjaId)) {
+            return null;
+        }
+
         $tanggal ??= Carbon::today();
         $unitTeratas = UnitKerja::idTeratasUntuk($unitKerjaId) ?? $unitKerjaId;
 
@@ -342,6 +384,21 @@ class AbsenUmumService
     }
 
     /**
+     * Sama seperti aturOverride(), tetapi bagi SELURUH unit kerja sekaligus
+     * — dipakai ketika admin lintas unit memilih simpul OPD (lihat catatan
+     * pada sesi()). Satu baris log per unit, sebab masing-masing memang
+     * sesi yang berbeda — audit trail yang menyebut satu "sesi gabungan"
+     * palsu tidak akan bisa ditelusuri ke sesi mana yang sesungguhnya
+     * berubah.
+     */
+    public function aturOverrideSemua(?OverrideAbsenUmum $override, User $pelaku): void
+    {
+        foreach ($this->unitSemuaId() as $id) {
+            $this->aturOverride($id, $override, $pelaku);
+        }
+    }
+
+    /**
      * Rekap sebuah sesi absen umum, lengkap dengan ringkasannya.
      *
      * Satu-satunya tempat pertanyaan "siapa saja yang absen umum pada tanggal
@@ -363,6 +420,10 @@ class AbsenUmumService
         ?Carbon $tanggal = null,
         string $cari = '',
     ): array {
+        if ($this->adalahOpd($unitKerjaId)) {
+            return $this->rekapSemuaUnit($pelaku, $tanggal, $cari);
+        }
+
         $sesi = $unitKerjaId === null ? null : $this->sesi($unitKerjaId, $tanggal);
 
         $baris = $sesi === null
@@ -373,6 +434,36 @@ class AbsenUmumService
             'sesi' => $sesi,
             'baris' => $baris,
             'ringkasan' => $this->ringkasan($baris, $unitKerjaId),
+        ];
+    }
+
+    /**
+     * Rekap Absen Umum lintas SELURUH unit kerja sekaligus, satu tanggal —
+     * dipakai ketika admin lintas unit memilih simpul OPD (lihat catatan
+     * pada sesi() dan unitTersedia()). `sesi` selalu null pada hasilnya:
+     * tidak ada satu sesi tunggal yang mewakili semuanya, hanya kumpulan
+     * sesi per unit yang digabung jadi satu tabel — kolom `unit_kerja` pada
+     * tiap baris (sudah disertakan AbsensiService::rekap()) sudah cukup
+     * membedakan asalnya, tidak perlu kolom tambahan seperti rekapRentang().
+     *
+     * @return array{sesi: null, baris: Collection<int, array<string, mixed>>, ringkasan: array<string, mixed>}
+     */
+    public function rekapSemuaUnit(User $pelaku, ?Carbon $tanggal = null, string $cari = ''): array
+    {
+        $tanggal ??= Carbon::today();
+        $cakupan = $this->cakupan($pelaku);
+
+        $kunciSemua = $this->unitSemuaId()->map(fn (int $id) => self::kunci($id, $tanggal))->all();
+
+        $sesiSemua = EventAbsen::query()->umum()->whereIn('kunci_sesi', $kunciSemua)->get();
+
+        $baris = $sesiSemua->flatMap(fn (EventAbsen $sesi) => $this->absensi->rekap($sesi, $cakupan));
+        $baris = $this->saring($baris, $cari);
+
+        return [
+            'sesi' => null,
+            'baris' => $baris,
+            'ringkasan' => $this->ringkasanSemuaUnit($baris),
         ];
     }
 
@@ -482,6 +573,23 @@ class AbsenUmumService
     }
 
     /**
+     * Sama seperti ringkasan(), tetapi lintas SELURUH unit kerja — dipakai
+     * rekapSemuaUnit(). "Pegawai aktif" di sini berarti pegawai aktif
+     * mana pun di seluruh dinas, bukan cakupan satu unit.
+     */
+    protected function ringkasanSemuaUnit(Collection $baris): array
+    {
+        $ringkasan = $this->absensi->ringkasanRekap($baris);
+
+        $jumlahPegawai = Pegawai::query()->where('aktif', true)->count();
+
+        $ringkasan['pegawai'] = $jumlahPegawai;
+        $ringkasan['belum_absen'] = max(0, $jumlahPegawai - $ringkasan['hadir']);
+
+        return $ringkasan;
+    }
+
+    /**
      * Riwayat sesi absen umum sebuah unit, terbaru lebih dahulu.
      *
      * @return Collection<int, array<string, mixed>>
@@ -511,6 +619,18 @@ class AbsenUmumService
     public function buka(int $unitKerjaId, ?Carbon $tanggal = null): ?EventAbsen
     {
         return $this->sesi($unitKerjaId, $tanggal, buat: true);
+    }
+
+    /**
+     * Sama seperti buka(), tetapi bagi SELURUH unit kerja sekaligus — dipakai
+     * ketika admin lintas unit memilih simpul OPD (lihat catatan pada
+     * sesi()).
+     */
+    public function bukaSemua(?Carbon $tanggal = null): void
+    {
+        foreach ($this->unitSemuaId() as $id) {
+            $this->buka($id, $tanggal);
+        }
     }
 
     /**
