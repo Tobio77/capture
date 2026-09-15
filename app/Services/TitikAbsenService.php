@@ -102,6 +102,30 @@ class TitikAbsenService
     }
 
     /**
+     * Pesan penolakan yang tepat saat {@see self::untuk()} mengembalikan
+     * `event: null` — dipakai IdentifikasiTapController dan
+     * SimpanAbsenController.
+     *
+     * Kode kegagalan `EVENT_TIDAK_AKTIF` dipakai KEDUA mode, tetapi akar
+     * masalahnya berbeda sama sekali di antara keduanya — dan sebelum
+     * perbaikan ini, kedua controller memberi pesan yang sama persis
+     * ("Tidak ada event yang sedang dibuka"/"Entry event sudah ditutup") pada
+     * KEDUA mode. Itu benar untuk mode event, tetapi MENYESATKAN untuk mode
+     * umum: Absen Umum tidak pernah bergantung pada event kegiatan sama
+     * sekali (lihat docblock kelas ini), sehingga operator yang membaca
+     * pesan itu di layar Absen Umum wajar mengira sebaliknya — persis
+     * laporan yang mendorong perbaikan ini. Untuk mode umum, satu-satunya
+     * alasan {@see AbsenUmumService::sesi()} menolak membuka sesi baru
+     * adalah sakelar Absen Umum yang sedang dimatikan admin.
+     */
+    public function pesanTidakAda(Request $request): string
+    {
+        return $this->mode($request) === self::MODE_UMUM
+            ? 'Absen Umum sedang dimatikan oleh admin pada Setting Absen.'
+            : 'Tidak ada event yang sedang dibuka untuk unit kerja ini.';
+    }
+
+    /**
      * URL foto pegawai yang sesuai dengan titik absen pemanggil.
      *
      * Layar yang sama dipakai beberapa konteks dengan pagar autentikasi

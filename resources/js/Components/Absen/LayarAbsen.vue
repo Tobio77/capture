@@ -588,7 +588,7 @@ function pulihkan() {
         @tap="tangkapTap"
       />
 
-      <PanelPresensi :daftar="presensi" :event="eventAktif" />
+      <PanelPresensi :daftar="presensi" :event="eventAktif" :keterangan-kosong="props.judul_kosong" />
     </main>
   </div>
 </template>

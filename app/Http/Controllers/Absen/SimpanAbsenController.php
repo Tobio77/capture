@@ -43,7 +43,7 @@ class SimpanAbsenController extends Controller
 
         // FR-EVT-04: entry yang sudah ditutup menolak tap baru.
         if ($event === null) {
-            return $this->gagal('EVENT_TIDAK_AKTIF', 'Entry event sudah ditutup. Absen tidak dicatat.', 409);
+            return $this->gagal('EVENT_TIDAK_AKTIF', $this->titik->pesanTidakAda($request), 409);
         }
 
         /*

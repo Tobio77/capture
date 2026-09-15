@@ -19,6 +19,17 @@ import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
 const props = defineProps({
   daftar: { type: Array, required: true },
   event: { type: Object, default: null },
+
+  /*
+   * Keterangan keadaan kosong ketika belum ada event/sesi (`event === null`).
+   * Diserahkan pemanggil, BUKAN dipatok di sini: Absen Umum dan Absen Event
+   * sama-sama bisa mencapai keadaan ini tetapi karena alasan yang berbeda
+   * sama sekali (lihat komentar `judulKosong` di Kiosk/Utama.vue) — menulis
+   * satu kalimat tetap di sini pernah membuat Absen Umum menampilkan
+   * "Tidak ada event yang sedang dibuka", padahal Absen Umum tidak pernah
+   * bergantung pada event kegiatan sama sekali.
+   */
+  keteranganKosong: { type: String, default: 'Tidak ada event yang sedang dibuka untuk unit kerja ini.' },
 })
 
 /*
@@ -189,7 +200,7 @@ watch(
       :keterangan="
         event
           ? 'Daftar bertambah sendiri setiap tap berhasil, termasuk dari titik absen lain pada event yang sama.'
-          : 'Tidak ada event yang sedang dibuka untuk unit kerja ini.'
+          : keteranganKosong
       "
     />
 

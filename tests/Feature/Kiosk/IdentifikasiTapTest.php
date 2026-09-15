@@ -439,6 +439,31 @@ class IdentifikasiTapTest extends TestCase
     }
 
     #[Test]
+    public function tap_absen_umum_yang_dimatikan_menyebut_setting_bukan_event(): void
+    {
+        // Bugfix: Absen Umum tidak pernah bergantung pada event kegiatan sama
+        // sekali, tetapi sebelumnya kode EVENT_TIDAK_AKTIF pada mode umum
+        // membawa pesan "Tidak ada event yang sedang dibuka" apa adanya —
+        // sama seperti mode event — sehingga operator yang membacanya di
+        // layar Absen Umum wajar mengira absen umum butuh event kegiatan.
+        $this->matikanAbsenUmum();
+
+        Pegawai::factory()->create([
+            'nip' => '199001012020011001',
+            'unit_kerja_id' => $this->unitKerja->id,
+        ]);
+
+        $this->denganToken()
+            ->post('/kiosk/umum/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
+            ->assertStatus(409)
+            ->assertJson([
+                'success' => false,
+                'code' => 'EVENT_TIDAK_AKTIF',
+                'message' => 'Absen Umum sedang dimatikan oleh admin pada Setting Absen.',
+            ]);
+    }
+
+    #[Test]
     public function event_semua_unit_melayani_kiosk_unit_mana_pun(): void
     {
         Pegawai::factory()->create([

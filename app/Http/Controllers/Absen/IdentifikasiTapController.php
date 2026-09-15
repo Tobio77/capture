@@ -53,7 +53,7 @@ class IdentifikasiTapController extends Controller
             return response()->json([
                 'success' => false,
                 'code' => 'EVENT_TIDAK_AKTIF',
-                'message' => 'Tidak ada event yang sedang dibuka untuk unit kerja ini.',
+                'message' => $this->titik->pesanTidakAda($request),
             ], 409);
         }
 
