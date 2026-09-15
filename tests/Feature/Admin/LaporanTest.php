@@ -14,6 +14,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia as Assert;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PHPUnit\Framework\Attributes\Test;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -532,6 +533,57 @@ class LaporanTest extends TestCase
 
         // Tanda tangan ZIP: .xlsx adalah arsip ZIP, bukan CSV berlabel palsu.
         $this->assertStringStartsWith("PK\x03\x04", $this->isiBerkasUnduhan($jawaban));
+    }
+
+    #[Test]
+    public function ekspor_excel_menulis_nip_sebagai_teks_bukan_notasi_ilmiah(): void
+    {
+        // NIP 18 digit yang dibiarkan tertebak sendiri oleh PhpSpreadsheet
+        // ditulis sebagai sel NUMERIK — Excel menampilkannya sebagai
+        // "1,98E+17", dan nilai float yang tersimpan sungguhan kehilangan
+        // digit di belakang (presisi float hanya ~15-17 digit signifikan).
+        // Bukan cuma salah tampil: NIP-nya sendiri berubah begitu dibuka.
+        ['upt' => $upt] = $this->hirarki();
+        Pegawai::factory()->create(['nip' => '198001012020011001', 'nama' => 'Ahmad Fauzi', 'unit_kerja_id' => $upt->id]);
+        $this->eventPada('2026-09-05', $upt);
+
+        $jawaban = $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL.'/ekspor?format=xlsx&dari=2026-09-01&sampai=2026-09-30')
+            ->assertOk();
+
+        $sementara = tempnam(sys_get_temp_dir(), 'laporan-nip-uji').'.xlsx';
+        file_put_contents($sementara, $this->isiBerkasUnduhan($jawaban));
+        $sheet = IOFactory::load($sementara)->getActiveSheet();
+        unlink($sementara);
+
+        $selNip = $sheet->getCell('A2');
+        $this->assertSame(DataType::TYPE_STRING, $selNip->getDataType());
+        $this->assertSame('198001012020011001', $selNip->getValue());
+    }
+
+    #[Test]
+    public function ekspor_pdf_tidak_gagal_karena_kehabisan_memori_pada_data_besar(): void
+    {
+        // Regresi nyata: DomPDF menghabiskan ratusan MB untuk tabel beberapa
+        // ratus baris (terukur ~294MB pada data produksi 666 pegawai),
+        // jauh melampaui batas bawaan PHP (128M) — sebelum diperbaiki,
+        // permintaan ini gagal total dengan fatal error kehabisan memori di
+        // tengah render, dan peramban hanya melihat unduhan yang tidak
+        // pernah selesai. EksporService::unduhPdf() sekarang menaikkan
+        // memory_limit di sekeliling render (lihat denganMemoriBesar()).
+        // Sengaja TIDAK meng-ini_set() memory_limit secara manual di sini:
+        // 128M sudah default PHP CLI (dikonfirmasi tanpa override apa pun di
+        // phpunit.xml) — persis ambang yang sama dengan permintaan HTTP
+        // sungguhan. Test ini murni menumpangi kondisi nyata itu.
+        ['upt' => $upt] = $this->hirarki();
+        Pegawai::factory()->count(300)->create(['unit_kerja_id' => $upt->id]);
+        $this->eventPada('2026-09-05', $upt);
+
+        $jawaban = $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL.'/ekspor?format=pdf&dari=2026-09-01&sampai=2026-09-30')
+            ->assertOk();
+
+        $this->assertStringStartsWith('%PDF-', $jawaban->getContent());
     }
 
     /* ---------------------------------------------------------------------

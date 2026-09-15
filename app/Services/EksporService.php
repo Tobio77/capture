@@ -120,9 +120,9 @@ class EksporService
         string $namaBerkas,
         string $orientasi = 'landscape',
     ): Response {
-        return Pdf::loadView($tampilan, $data + $this->jejakCetak())
+        return $this->denganMemoriBesar(fn () => Pdf::loadView($tampilan, $data + $this->jejakCetak())
             ->setPaper('a4', $orientasi)
-            ->download($namaBerkas);
+            ->download($namaBerkas));
     }
 
     /**
@@ -137,9 +137,53 @@ class EksporService
         string $namaBerkas,
         string $orientasi = 'landscape',
     ): Response {
-        return Pdf::loadView($tampilan, $data + $this->jejakCetak())
+        return $this->denganMemoriBesar(fn () => Pdf::loadView($tampilan, $data + $this->jejakCetak())
             ->setPaper('a4', $orientasi)
-            ->stream($namaBerkas);
+            ->stream($namaBerkas));
+    }
+
+    /**
+     * Render PDF menjadi BYTES mentah, bukan Response — dipakai
+     * BuatLaporanResmiJob yang menyimpan hasilnya ke disk, bukan menjawab
+     * permintaan HTTP secara langsung. Tidak membubuhkan jejakCetak()
+     * sendiri: pemanggil dari job menyusun jejaknya sendiri dari pemohon
+     * ASLI (`riwayat.user`), bukan `auth()->user()` yang tidak berarti apa-apa
+     * di luar konteks permintaan HTTP.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public function bytesPdf(string $tampilan, array $data, string $orientasi = 'portrait'): string
+    {
+        return $this->denganMemoriBesar(fn () => Pdf::loadView($tampilan, $data)
+            ->setPaper('a4', $orientasi)
+            ->output());
+    }
+
+    /**
+     * Batas memori PHP bawaan (128M) tidak cukup untuk merender tabel PDF
+     * beberapa ratus baris lewat DomPDF — pustakanya membangun seluruh model
+     * kotak CSS di memori sekaligus, bukan mengalirkannya per baris. Tanpa
+     * pagar ini, admin yang meng-ekspor Laporan Kehadiran seluruh pegawai
+     * (bukan skenario langka — itu justru kasus paling wajar) mendapati
+     * proses unduhnya gagal total di tengah jalan tanpa pesan yang jelas:
+     * PHP fatal error karena kehabisan memori, dan peramban hanya melihat
+     * unduhan yang tidak pernah selesai.
+     *
+     * Dinaikkan lewat `ini_set()` (bukan php.ini global), dan SENGAJA TIDAK
+     * dikembalikan sesudahnya: `memory_limit` adalah pengaturan per proses
+     * PHP, dan aplikasi ini berjalan model PHP-FPM/`php artisan serve` biasa
+     * (bukan Octane) — setiap permintaan mendapat proses baru dengan INI
+     * bersih, jadi tidak ada permintaan LAIN yang ikut mewarisi batas yang
+     * dilonggarkan ini. Mencoba mengembalikannya di akhir permintaan yang
+     * SAMA justru gagal dengan peringatan: pada titik itu penggunaan memori
+     * sudah melampaui batas lama (itulah sebabnya dinaikkan), dan PHP
+     * menolak `ini_set()` yang menurunkan batas di bawah pemakaian berjalan.
+     */
+    protected function denganMemoriBesar(callable $render): mixed
+    {
+        ini_set('memory_limit', '512M');
+
+        return $render();
     }
 
     /**

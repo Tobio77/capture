@@ -5,9 +5,9 @@ namespace App\Jobs;
 use App\Enums\StatusRiwayatLaporan;
 use App\Exports\LaporanResmiExport;
 use App\Models\RiwayatLaporan;
+use App\Services\EksporService;
 use App\Services\Laporan\LaporanResmiService;
 use App\Services\Laporan\LaporanWordService;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -46,6 +46,7 @@ class BuatLaporanResmiJob implements ShouldQueue
     public function handle(
         LaporanResmiService $laporanResmi,
         LaporanWordService $laporanWord,
+        EksporService $ekspor,
     ): void {
         $riwayat = RiwayatLaporan::query()->find($this->riwayatId);
 
@@ -68,7 +69,7 @@ class BuatLaporanResmiJob implements ShouldQueue
             $isi = match ($riwayat->format) {
                 'docx' => $laporanWord->bytes($data + $this->jejakCetak($riwayat)),
                 'xlsx' => (new LaporanResmiExport($data))->raw(ExcelWriter::XLSX),
-                default => $this->renderPdf($data),
+                default => $this->renderPdf($ekspor, $data, $riwayat),
             };
 
             $path = "laporan-resmi/{$riwayat->id}-{$riwayat->nama_berkas}";
@@ -96,16 +97,12 @@ class BuatLaporanResmiJob implements ShouldQueue
         }
     }
 
-    protected function renderPdf(array $data): string
+    protected function renderPdf(EksporService $ekspor, array $data, RiwayatLaporan $riwayat): string
     {
-        return Pdf::loadView('cetak.laporan-resmi', [
+        return $ekspor->bytesPdf('cetak.laporan-resmi', [
             'data' => $data,
             'formatPersen' => fn (?float $n) => LaporanResmiService::formatPersen($n),
-            'dicetak' => now()->translatedFormat('d F Y H:i'),
-            'oleh' => $data['oleh'] ?? 'sistem',
-        ])
-            ->setPaper('a4', 'portrait')
-            ->output();
+        ] + $this->jejakCetak($riwayat), 'portrait');
     }
 
     /**
