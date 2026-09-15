@@ -5,8 +5,9 @@ import AdminLayout from '@/Layouts/AdminLayout.vue'
 import Ikon from '@/Components/Ikon.vue'
 import KolomCari from '@/Components/UI/KolomCari.vue'
 import Pilihan from '@/Components/UI/Pilihan.vue'
+import PilihanEvent from '@/Components/UI/PilihanEvent.vue'
 import PilihanKolom from '@/Components/UI/PilihanKolom.vue'
-import Tanggal from '@/Components/UI/Tanggal.vue'
+import RentangTanggal from '@/Components/UI/RentangTanggal.vue'
 import Lencana from '@/Components/UI/Lencana.vue'
 import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
 import RingkasanRekap from '@/Components/Rekap/RingkasanRekap.vue'
@@ -33,6 +34,7 @@ const props = defineProps({
 
   // Tab kegiatan
   daftar_event: { type: Array, default: () => [] },
+  filter_event: { type: Object, default: () => ({ dari: '', sampai: '' }) },
   event: { type: Object, default: null },
   rekap: { type: Array, default: () => [] },
 
@@ -76,6 +78,22 @@ const opsiEvent = computed(() =>
 )
 
 /*
+ * Rentang tanggal di atas pemilih event — HANYA mempersempit opsi yang
+ * muncul di combobox (perjalanan ke server, sebab daftar event bisa
+ * memanjang sampai ratusan baris), bukan menyaring peserta event yang
+ * sedang dibuka (itu tetap satu event, satu tabel, seperti sebelumnya).
+ */
+const filterEvent = reactive({ ...props.filter_event })
+
+function terapkanFilterEvent() {
+  router.get(
+    ALAMAT,
+    { ...filterEvent, event_absen_id: eventTerpilih.value || undefined },
+    { preserveState: true, preserveScroll: true, replace: true },
+  )
+}
+
+/*
  * Pencarian tab kegiatan dilakukan di peramban: satu event paling banyak
  * berisi ratusan baris yang sudah ada di layar, sehingga menyaringnya tidak
  * perlu perjalanan ke server dan tetap terasa seketika.
@@ -106,7 +124,7 @@ watch(
 function pilihEvent() {
   router.get(
     ALAMAT,
-    { event_absen_id: eventTerpilih.value },
+    { ...filterEvent, event_absen_id: eventTerpilih.value },
     { preserveState: true, preserveScroll: true, replace: true },
   )
 }
@@ -141,6 +159,21 @@ const kueriUmum = computed(() => ({
   ),
 }))
 
+/*
+ * Satu hari saja — dari === sampai. Endpoint AbsenUmumController (data,
+ * ekspor) belum tahu apa-apa soal rentang, dan tidak perlu: keduanya cuma
+ * dipanggil ketika satuHari (lihat segarkan()/unduh() di bawah), sebab
+ * server sudah menolak "sesi" sama sekali begitu rentangnya >1 hari.
+ */
+const satuHari = computed(() => filter.dari === filter.sampai)
+
+/** Kueri versi lama (`tanggal` tunggal) untuk endpoint AbsenUmumController. */
+const kueriHarianUmum = computed(() => ({
+  unit_kerja_id: filter.unit_kerja_id,
+  tanggal: filter.dari,
+  cari: filter.cari,
+}))
+
 function terapkanUmum() {
   router.get(ALAMAT, kueriUmum.value, {
     preserveState: true,
@@ -171,9 +204,10 @@ let jedaSegar = null
 
 /*
  * Hanya rekap yang masih bergerak yang perlu disegarkan: event yang entry-nya
- * dibuka, dan sesi harian hari ini. Rekap kemarin tidak akan berubah lagi.
+ * dibuka, dan sesi harian hari ini. Rekap kemarin (atau rentang >1 hari)
+ * tidak akan berubah lagi secara langsung.
  */
-const hariIni = computed(() => filter.tanggal === hariIniIso())
+const hariIni = computed(() => satuHari.value && filter.dari === hariIniIso())
 
 onMounted(() => {
   jedaSegar = setInterval(segarkan, JEDA_SEGAR_MS)
@@ -184,7 +218,7 @@ onBeforeUnmount(() => clearInterval(jedaSegar))
 async function segarkan() {
   const alamat = adalahUmum.value
     ? props.umum?.sesi && hariIni.value
-      ? '/admin/kelola-absen/absen-umum/data?' + new URLSearchParams(kueriUmum.value).toString()
+      ? '/admin/kelola-absen/absen-umum/data?' + new URLSearchParams(kueriHarianUmum.value).toString()
       : null
     : props.event && masihDibuka.value
       ? `${ALAMAT}/${props.event.id}/data`
@@ -239,9 +273,8 @@ function unduh(format) {
   if (adalahUmum.value) {
     if (!props.umum?.sesi) return
 
-    const kueri = { ...kueriUmum.value, format }
+    const kueri = { ...kueriHarianUmum.value, format }
 
-    delete kueri.tab
     if (format !== 'pdf') kueri.kolom = kolomTerpilih.value
 
     window.location.href =
@@ -275,6 +308,10 @@ function tanggalPanjang(iso) {
   })
 }
 
+const periodeUmum = computed(() =>
+  satuHari.value ? tanggalPanjang(filter.dari) : `${tanggalPanjang(filter.dari)} – ${tanggalPanjang(filter.sampai)}`,
+)
+
 const kartu = computed(() => [
   {
     label: 'Hadir',
@@ -297,7 +334,10 @@ const kartu = computed(() => [
     ikon: 'jam',
     latar: 'bg-peringatan-lembut text-peringatan',
   },
-  adalahUmum.value
+  // "Belum Absen" hanya berarti pada satu hari — rentang beberapa hari
+  // punya rosternya sendiri per hari, dan menjumlahkannya lintas hari
+  // hanya menyesatkan (lihat AbsenUmumService::rekapRentang()).
+  adalahUmum.value && satuHari.value
     ? {
         label: 'Belum Absen',
         nilai: angka.value.belum_absen ?? 0,
@@ -397,8 +437,8 @@ const kartu = computed(() => [
             />
           </div>
           <div>
-            <label for="tanggal" class="sr-only">Tanggal</label>
-            <Tanggal v-model="filter.tanggal" @ubah="terapkanUmum" />
+            <span class="sr-only">Rentang Tanggal</span>
+            <RentangTanggal v-model:dari="filter.dari" v-model:sampai="filter.sampai" @ubah="terapkanUmum" />
           </div>
           <div class="lg:col-span-2">
             <span class="sr-only">Cari Pegawai</span>
@@ -411,16 +451,16 @@ const kartu = computed(() => [
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p
-              v-if="umum?.sesi"
+              v-if="umum?.sesi || umum?.rentang"
               class="text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-redup"
             >
               Absen Umum
             </p>
             <h2 class="font-display text-lg font-semibold text-utama">
-              {{ umum?.sesi ? namaUnit : 'Belum ada sesi absen umum' }}
+              {{ umum?.sesi || umum?.rentang ? namaUnit : 'Belum ada sesi absen umum' }}
             </h2>
             <p class="mt-1 text-sm text-sekunder">
-              {{ tanggalPanjang(filter.tanggal) }}
+              {{ periodeUmum }}
               <template v-if="umum?.sesi">
                 · mulai {{ umum.sesi.jam_mulai }} · toleransi {{ umum.sesi.toleransi_menit }} menit
               </template>
@@ -443,38 +483,50 @@ const kartu = computed(() => [
 
         <RingkasanRekap :kartu="kartu" class="mt-5" />
 
-        <p class="mt-3 text-xs text-redup">
+        <p v-if="satuHari" class="mt-3 text-xs text-redup">
           {{ angka.pegawai ?? 0 }} pegawai aktif dalam cakupan unit ini.
         </p>
       </div>
 
       <TabelRekap
         class="mt-6"
+        :tanggal="Boolean(umum?.rentang)"
         :baris="barisUmum"
         :cari="filter.cari ?? ''"
-        judul-kosong="Belum ada kehadiran pada tanggal ini"
-        keterangan-kosong="Sesi harian dibuka sendiri pada tap pertama. Coba pilih tanggal lain, atau buka sesinya dari menu Absen Umum."
+        :judul-kosong="satuHari ? 'Belum ada kehadiran pada tanggal ini' : 'Belum ada kehadiran pada rentang ini'"
+        :keterangan-kosong="
+          satuHari
+            ? 'Sesi harian dibuka sendiri pada tap pertama. Coba pilih tanggal lain, atau buka sesinya dari menu Absen Umum.'
+            : 'Tidak ada sesi Absen Umum yang tercatat pada rentang tanggal ini.'
+        "
         @dihapus="segarkan"
       />
     </template>
 
     <!-- =========================== Tab kegiatan ======================== -->
     <template v-else>
-      <div class="mb-5 grid gap-3 sm:grid-cols-2 print:hidden">
-        <div>
-          <label for="event" class="sr-only">Event</label>
-          <Pilihan
-            id="event"
-            v-model="eventTerpilih"
-            :opsi="opsiEvent"
-            placeholder="Pilih event…"
-            @update:model-value="pilihEvent"
-          />
-        </div>
-
-        <div v-if="event">
-          <span class="sr-only">Cari Peserta</span>
-          <KolomCari v-model="cariEvent" placeholder="Nama, NIP, atau unit kerja…" :jeda="0" />
+      <div class="mb-5 panel p-4 print:hidden">
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div class="sm:col-span-2">
+            <span class="sr-only">Persempit rentang tanggal event</span>
+            <RentangTanggal
+              v-model:dari="filterEvent.dari"
+              v-model:sampai="filterEvent.sampai"
+              @ubah="terapkanFilterEvent"
+            />
+          </div>
+          <div>
+            <PilihanEvent
+              v-model="eventTerpilih"
+              :opsi="opsiEvent"
+              label="Event"
+              @update:model-value="pilihEvent"
+            />
+          </div>
+          <div v-if="event">
+            <span class="sr-only">Cari Peserta</span>
+            <KolomCari v-model="cariEvent" placeholder="Nama, NIP, atau unit kerja…" :jeda="0" />
+          </div>
         </div>
       </div>
 

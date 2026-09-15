@@ -377,6 +377,60 @@ class AbsenUmumService
     }
 
     /**
+     * Rekap Absen Umum lintas BEBERAPA hari sekaligus (Bagian 4, revisi
+     * rentang tanggal) — satu unit, satu baris per sesi harian yang memang
+     * ada dalam rentangnya. `tanggal`/`tanggal_label` ditambahkan pada tiap
+     * baris supaya pegawai yang sama pada hari berbeda tetap terbedakan di
+     * tabel — TabelRekap.vue menampilkan kolom itu hanya ketika rentangnya
+     * lebih dari satu hari.
+     *
+     * Berdiri terpisah dari rekapHarian() alih-alih menjadikannya kasus
+     * `$sampai === null`: rentang tidak punya konsep "sesi tunggal" (tombol
+     * override/buka-sesi pada layar Absen Umum operasional tidak berarti
+     * apa-apa di sini), dan ringkasannya beda bentuk — tidak ada "pegawai
+     * aktif"/"belum absen" yang berarti dihitung lintas banyak hari sekaligus.
+     *
+     * @return array{baris: Collection<int, array<string, mixed>>, ringkasan: array<string, mixed>}
+     */
+    public function rekapRentang(
+        User $pelaku,
+        ?int $unitKerjaId,
+        Carbon $dari,
+        Carbon $sampai,
+        string $cari = '',
+    ): array {
+        if ($unitKerjaId === null) {
+            return ['baris' => collect(), 'ringkasan' => $this->absensi->ringkasanRekap(collect())];
+        }
+
+        $unitTeratas = UnitKerja::idTeratasUntuk($unitKerjaId) ?? $unitKerjaId;
+        $cakupan = $this->cakupan($pelaku);
+
+        $kunciSemua = [];
+
+        for ($hari = $dari->copy(); $hari->lte($sampai); $hari->addDay()) {
+            $kunciSemua[] = self::kunci($unitTeratas, $hari);
+        }
+
+        $sesiSemua = EventAbsen::query()->umum()->whereIn('kunci_sesi', $kunciSemua)->orderBy('tanggal')->get();
+
+        $baris = $sesiSemua->flatMap(fn (EventAbsen $sesi) => $this->absensi->rekap($sesi, $cakupan)
+            ->map(function (array $isi) use ($sesi) {
+                $isi['tanggal'] = $sesi->tanggal->toDateString();
+                $isi['tanggal_label'] = $sesi->tanggal->translatedFormat('d M');
+
+                return $isi;
+            }));
+
+        $baris = $this->saring($baris, $cari);
+
+        return [
+            'baris' => $baris,
+            'ringkasan' => $this->absensi->ringkasanRekap($baris),
+        ];
+    }
+
+    /**
      * Cakupan unit pengguna, atau null bila tidak perlu disaring (FR-REK-02).
      *
      * @return array<int, int>|null

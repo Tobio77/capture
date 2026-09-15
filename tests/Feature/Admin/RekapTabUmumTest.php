@@ -174,13 +174,40 @@ class RekapTabUmumTest extends TestCase
         $this->tap('199001012020011001');
 
         // Sesi kemarin tidak pernah ada, jadi tabelnya kosong — bukan tertukar
-        // dengan sesi hari ini.
+        // dengan sesi hari ini. dari=sampai (satu hari) sama persis dengan
+        // parameter `tanggal` tunggal sebelum rentang tanggal ada.
         $this->actingAs($this->admin)
-            ->get(self::URL."?tab=umum&unit_kerja_id={$this->upt->id}&tanggal=2026-09-06")
+            ->get(self::URL."?tab=umum&unit_kerja_id={$this->upt->id}&dari=2026-09-06&sampai=2026-09-06")
             ->assertOk()
             ->assertInertia(fn (Assert $halaman) => $halaman
                 ->where('umum.sesi', null)
+                ->where('umum.rentang', false)
                 ->has('umum.baris', 0)
+                ->etc());
+    }
+
+    #[Test]
+    public function tab_umum_rentang_menggabungkan_beberapa_sesi_harian(): void
+    {
+        $this->pegawai('199001012020011001', 'Ahmad Fauzi');
+
+        $this->travelTo('2026-09-07 07:35:00');
+        $this->tap('199001012020011001');
+
+        $this->travelTo('2026-09-09 07:40:00');
+        $this->tap('199001012020011001');
+
+        // Rentang dua hari — bukan konsep "sesi tunggal" lagi; baris kedua
+        // hari muncul sekaligus, dibedakan lewat tanggal.
+        $this->actingAs($this->admin)
+            ->get(self::URL."?tab=umum&unit_kerja_id={$this->upt->id}&dari=2026-09-07&sampai=2026-09-09")
+            ->assertOk()
+            ->assertInertia(fn (Assert $halaman) => $halaman
+                ->where('umum.sesi', null)
+                ->where('umum.rentang', true)
+                ->has('umum.baris', 2)
+                ->where('umum.baris.0.tanggal', '2026-09-07')
+                ->where('umum.baris.1.tanggal', '2026-09-09')
                 ->etc());
     }
 

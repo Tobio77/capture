@@ -92,9 +92,14 @@ class EventAbsenService
      *
      * @return Collection<int, array<string, mixed>>
      */
-    public function opsiEvent(User $pelaku): Collection
+    /**
+     * @param  array<string, mixed>  $filter  hanya `dari`/`sampai` yang berarti di sini —
+     *                                        dipakai pemilih event Rekap Event (Bagian 4) untuk
+     *                                        mempersempit daftar yang muncul di combobox.
+     */
+    public function opsiEvent(User $pelaku, array $filter = []): Collection
     {
-        return $this->kueriDaftar($pelaku)
+        return $this->kueriDaftar($pelaku, $filter)
             ->get()
             ->map(fn (EventAbsen $event) => [
                 'id' => $event->id,

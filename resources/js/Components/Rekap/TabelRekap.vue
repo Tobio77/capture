@@ -32,6 +32,14 @@ const props = defineProps({
   /** Kolom foto hanya berguna di layar; rekap cetak dipakai sebagai lampiran. */
   foto: { type: Boolean, default: false },
 
+  /**
+   * Kolom Tanggal — hanya berarti ketika `baris` menggabungkan LEBIH DARI
+   * SATU hari sekaligus (Rekap Umum rentang tanggal, Bagian 4): pegawai
+   * yang sama boleh muncul pada beberapa tanggal, dan tanpa kolom ini
+   * baris-barisnya tidak terbedakan sama sekali.
+   */
+  tanggal: { type: Boolean, default: false },
+
   perHalaman: { type: Number, default: 25 },
 
   judulKosong: { type: String, default: 'Belum ada kehadiran' },
@@ -51,6 +59,7 @@ const superadmin = computed(() => usePage().props.auth?.user?.role === 'superadm
 
 const kolom = computed(() => [
   { label: 'No' },
+  ...(props.tanggal ? [{ label: 'Tanggal', kelas: 'whitespace-nowrap' }] : []),
   { label: 'NIP' },
   { label: 'Nama' },
   { label: 'Unit Kerja' },
@@ -60,6 +69,13 @@ const kolom = computed(() => [
   { label: 'Status' },
   ...(props.foto ? [{ label: 'Foto', cetak: false }] : []),
 ])
+
+/*
+ * Pegawai yang sama boleh muncul pada beberapa tanggal ketika rentangnya
+ * lebih dari satu hari — `pegawai_id` saja tidak lagi unik dalam keadaan
+ * itu, sehingga kuncinya ikut menyertakan tanggal.
+ */
+const kunciBaris = (isi) => (props.tanggal ? `${isi.pegawai_id}-${isi.tanggal}` : isi.pegawai_id)
 
 /**
  * Hapus satu baris Absensi (Datang ATAU Pulang, bukan keduanya sekaligus —
@@ -129,13 +145,16 @@ watch(
     :total="baris.length"
     :total-asli="totalAsli"
     :per-halaman="perHalaman"
-    kunci="pegawai_id"
+    :kunci="kunciBaris"
     ikon-kosong="pegawai"
     :judul-kosong="cari ? 'Tidak ada yang cocok' : judulKosong"
     :keterangan-kosong="cari ? 'Coba kata kunci lain, atau bersihkan pencarian.' : keteranganKosong"
   >
     <template #baris="{ isi, nomor }">
       <td class="px-4 py-2.5 font-display tabular-nums text-redup">{{ nomor }}</td>
+      <td v-if="tanggal" class="whitespace-nowrap px-4 py-2.5 font-display tabular-nums text-sekunder">
+        {{ isi.tanggal_label }}
+      </td>
       <td class="px-4 py-2.5 font-display tabular-nums text-sekunder">{{ isi.nip }}</td>
       <td class="whitespace-nowrap px-4 py-2.5 font-medium text-utama">{{ isi.nama }}</td>
       <td class="max-w-[14rem] truncate px-4 py-2.5 text-sekunder" :title="isi.unit_kerja">

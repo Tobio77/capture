@@ -404,4 +404,35 @@ class RekapTest extends TestCase
                 ->has('rekap', 1)
                 ->etc());
     }
+
+    #[Test]
+    public function rentang_tanggal_mempersempit_pemilih_event_tanpa_menyentuh_rekap_yang_dibuka(): void
+    {
+        // Bagian 4 (pemilih event yang lebih rapi): rentang tanggal hanya
+        // menyaring opsi yang muncul di combobox — event yang sedang dibuka
+        // tetap direkap utuh, apa pun rentang yang sedang disaring.
+        ['upt' => $upt] = $this->hirarki();
+
+        $eventLama = EventAbsen::factory()->create(['nama' => 'Apel Januari', 'tanggal' => '2026-01-10']);
+        $eventLama->unitKerja()->attach($upt);
+
+        $eventBaru = EventAbsen::factory()->create(['nama' => 'Apel September', 'tanggal' => '2026-09-10']);
+        $eventBaru->unitKerja()->attach($upt);
+
+        Absensi::factory()->create([
+            'event_absen_id' => $eventLama->id,
+            'pegawai_id' => Pegawai::factory()->create(['unit_kerja_id' => $upt->id])->id,
+        ]);
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->get(self::URL."?event_absen_id={$eventLama->id}&dari=2026-09-01&sampai=2026-09-30")
+            ->assertInertia(fn (Assert $page) => $page
+                // Pemilih hanya menawarkan event September — dipersempit.
+                ->has('daftar_event', 1)
+                ->where('daftar_event.0.nama', 'Apel September')
+                // Tetapi event Januari yang eksplisit diminta tetap terekap utuh.
+                ->where('event.nama', 'Apel Januari')
+                ->has('rekap', 1)
+                ->etc());
+    }
 }

@@ -87,13 +87,23 @@ class RekapController extends Controller
             $request->integer('unit_kerja_id') ?: $unitTersedia->first()['id'] ?? null,
         );
 
-        $tanggal = $request->string('tanggal')->toString() === ''
-            ? Carbon::today()
-            : Carbon::parse($request->string('tanggal')->toString())->startOfDay();
-
+        [$dari, $sampai] = $this->rentangUmum($request);
         $cari = $request->string('cari')->toString();
-        $rekap = $this->absenUmum->rekapHarian($pengguna, $unitId, $tanggal, $cari);
-        $sesi = $rekap['sesi'];
+
+        /*
+         * Satu hari (dari === sampai, bawaan) memakai jalur LAMA persis apa
+         * adanya — sesi tunggal, lengkap dengan status buka/tutup yang
+         * dipakai layar Absen Umum operasional. Rentang sungguhan (>1 hari)
+         * tidak punya konsep "sesi tunggal" sama sekali; lihat catatan
+         * AbsenUmumService::rekapRentang().
+         */
+        $rentang = ! $dari->isSameDay($sampai);
+
+        $rekap = $rentang
+            ? $this->absenUmum->rekapRentang($pengguna, $unitId, $dari, $sampai, $cari)
+            : $this->absenUmum->rekapHarian($pengguna, $unitId, $dari, $cari);
+
+        $sesi = $rentang ? null : $rekap['sesi'];
 
         return Inertia::render('Rekap/Index', [
             'tab' => 'umum',
@@ -105,9 +115,11 @@ class RekapController extends Controller
                 'unit_kerja' => $unitTersedia->values(),
                 'filter' => [
                     'unit_kerja_id' => $unitId,
-                    'tanggal' => $tanggal->toDateString(),
+                    'dari' => $dari->toDateString(),
+                    'sampai' => $sampai->toDateString(),
                     'cari' => $cari,
                 ],
+                'rentang' => $rentang,
                 'sesi' => $sesi === null ? null : [
                     'nama' => $sesi->nama,
                     'tanggal' => $sesi->tanggal->toDateString(),
@@ -121,12 +133,49 @@ class RekapController extends Controller
     }
 
     /**
+     * Rentang tanggal tab Rekap Umum — satu hari (dari === sampai) bila
+     * tidak disebutkan, sama seperti perilaku sebelum rentang tanggal ada.
+     *
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    protected function rentangUmum(Request $request): array
+    {
+        $dari = $request->filled('dari')
+            ? Carbon::parse($request->string('dari')->toString())->startOfDay()
+            : Carbon::today();
+
+        $sampai = $request->filled('sampai')
+            ? Carbon::parse($request->string('sampai')->toString())->startOfDay()
+            : $dari->copy();
+
+        if ($sampai->lessThan($dari)) {
+            [$dari, $sampai] = [$sampai, $dari];
+        }
+
+        // Batas wajar, sama seperti Laporan (366 hari) — rentang tak
+        // terbatas berarti menghimpun ratusan sesi harian sekaligus.
+        if ($dari->diffInDays($sampai) > 366) {
+            $sampai = $dari->copy()->addDays(366);
+        }
+
+        return [$dari, $sampai];
+    }
+
+    /**
      * Tab Rekap Event — kehadiran satu kegiatan.
      */
     protected function kegiatan(Request $request): Response
     {
         $pengguna = $request->user();
-        $daftarEvent = $this->event->opsiEvent($pengguna);
+
+        /*
+         * Rentang tanggal HANYA mempersempit daftar yang muncul di pemilih
+         * event (Bagian 4, revisi pemilih event) — tidak menyentuh
+         * bagaimana event yang sedang dibuka direkap; peserta satu event
+         * tetap satu event, apa pun rentang tanggal yang sedang disaring.
+         */
+        $filterEvent = $request->only(['dari', 'sampai']);
+        $daftarEvent = $this->event->opsiEvent($pengguna, $filterEvent);
 
         // Tanpa pilihan eksplisit, event terbaru yang ditampilkan — admin
         // hampir selalu membuka halaman ini untuk kegiatan yang sedang atau
@@ -143,6 +192,10 @@ class RekapController extends Controller
             'tab' => 'event',
             'umum' => null,
             'daftar_event' => $daftarEvent,
+            'filter_event' => [
+                'dari' => $filterEvent['dari'] ?? '',
+                'sampai' => $filterEvent['sampai'] ?? '',
+            ],
             'event' => $terpilih === null ? null : [
                 'id' => $terpilih->id,
                 'nama' => $terpilih->nama,

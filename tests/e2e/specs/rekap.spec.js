@@ -81,4 +81,35 @@ test.describe('Rekap Absen', () => {
     ])
     expect(xlsx.suggestedFilename()).toMatch(/\.xlsx$/)
   })
+
+  test('tab kegiatan: pemilih event dapat dicari', async ({ page }) => {
+    // Bagian 4 (pemilih event yang lebih rapi): dropdown datar diganti
+    // combobox dapat-dicari — yang diuji di sini murni bahwa mengetik
+    // benar-benar menyaring opsi yang muncul, sesuatu yang cuma bisa
+    // dipastikan lewat peramban sungguhan.
+    //
+    // Menumpangi event yang sudah ditinggalkan test sebelumnya, bukan
+    // membuat event baru sendiri: FR-EVT-06 menolak dua event AKTIF yang
+    // cakupannya beririsan, dan test "unduh CSV dan Excel" di atas sudah
+    // meninggalkan satu event "semua unit" aktif — event baru apa pun yang
+    // dibuat di sini pasti bentrok dengannya.
+    await page.goto('/admin/kelola-absen/rekap')
+
+    const nama = await page.getByRole('heading', { level: 2 }).first().textContent()
+
+    const pemilih = page.getByRole('combobox', { name: 'Event' })
+    await pemilih.click()
+
+    // Kata kunci yang tidak cocok dengan event mana pun tidak menampilkan
+    // opsi apa pun — bukan diam-diam menampilkan seluruh daftar lagi.
+    await pemilih.fill('Tidak Pernah Ada Event Bernama Ini')
+    await expect(page.getByText('Tidak ada event yang cocok.')).toBeVisible()
+
+    // Kata kunci yang cocok menampilkan opsinya.
+    await pemilih.fill(nama.slice(0, 8))
+    await expect(page.getByRole('option', { name: new RegExp(nama) })).toBeVisible()
+
+    await page.getByRole('option', { name: new RegExp(nama) }).click()
+    await expect(page.getByRole('heading', { name: nama })).toBeVisible()
+  })
 })
