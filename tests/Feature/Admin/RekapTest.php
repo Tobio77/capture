@@ -74,12 +74,12 @@ class RekapTest extends TestCase
         $event->unitKerja()->attach($upt);
         $pegawai = Pegawai::factory()->create(['unit_kerja_id' => $upt->id]);
 
-        Absensi::factory()->create([
+        $datang = Absensi::factory()->create([
             'event_absen_id' => $event->id,
             'pegawai_id' => $pegawai->id,
             'waktu' => now()->setTime(7, 35),
         ]);
-        Absensi::factory()->pulang()->create([
+        $pulang = Absensi::factory()->pulang()->create([
             'event_absen_id' => $event->id,
             'pegawai_id' => $pegawai->id,
             'waktu' => now()->setTime(16, 5),
@@ -90,6 +90,11 @@ class RekapTest extends TestCase
         $this->assertCount(1, $rekap);
         $this->assertSame('07:35', $rekap[0]['jam_masuk']);
         $this->assertSame('16:05', $rekap[0]['jam_pulang']);
+
+        // Id baris Absensi sesungguhnya di balik jam_masuk/jam_pulang —
+        // dipakai fitur hapus absensi per-baris (superadmin saja).
+        $this->assertSame($datang->id, $rekap[0]['datang_id']);
+        $this->assertSame($pulang->id, $rekap[0]['pulang_id']);
     }
 
     #[Test]

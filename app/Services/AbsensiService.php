@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\AksiLog;
 use App\Enums\JenisAbsen;
 use App\Enums\MetodeAbsen;
 use App\Enums\StatusKetepatan;
@@ -10,6 +11,7 @@ use App\Models\Absensi;
 use App\Models\EventAbsen;
 use App\Models\Kiosk;
 use App\Models\Pegawai;
+use App\Models\User;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -42,6 +44,7 @@ class AbsensiService
     public function __construct(
         protected SettingAbsenService $setting,
         protected KalenderKerjaService $kalender,
+        protected LogAktivitasService $log,
     ) {}
 
     /**
@@ -313,6 +316,14 @@ class AbsensiService
                     'unit_kerja' => $pegawai->unitKerja?->nama,
                     'jam_masuk' => $datang?->waktu->format('H:i'),
                     'jam_pulang' => $pulang?->waktu->format('H:i'),
+
+                    // Id baris Absensi sesungguhnya di baliknya — satu baris
+                    // rekap ini menggabungkan sampai dua baris Absensi
+                    // (Datang + Pulang), dan keduanya perlu dapat dihapus
+                    // TERPISAH (superadmin saja, lihat AbsensiController).
+                    'datang_id' => $datang?->id,
+                    'pulang_id' => $pulang?->id,
+
                     'metode' => $rujukan->metode->label(),
                     'status_ketepatan' => $datang?->status_ketepatan?->value,
                     'status_label' => $datang?->status_ketepatan?->label(),
@@ -342,6 +353,36 @@ class AbsensiService
             'terlambat' => $rekap->where('status_ketepatan', 'terlambat')->count(),
             'sudah_pulang' => $rekap->whereNotNull('jam_pulang')->count(),
         ];
+    }
+
+    /**
+     * Hapus satu baris absensi (superadmin saja — lihat AbsensiController),
+     * beserta berkas fotonya bila ada, dan catat pada audit trail.
+     *
+     * Dipakai untuk keperluan pengujian atau membetulkan kekeliruan tap —
+     * BUKAN jalur normal. Kalimat log disusun SEBELUM baris dihapus, sebab
+     * relasinya (pegawai, event) tidak lagi terjangkau sesudahnya.
+     */
+    public function hapus(Absensi $absensi, User $pelaku): void
+    {
+        $absensi->loadMissing(['pegawai', 'event']);
+
+        $keterangan = sprintf(
+            'Menghapus absensi %s — %s (%s) pada %s, %s.',
+            $absensi->jenis->label(),
+            $absensi->pegawai?->nip ?? 'NIP tidak diketahui',
+            $absensi->pegawai?->nama ?? 'nama tidak diketahui',
+            $absensi->event?->nama ?? 'event tidak diketahui',
+            $absensi->waktu->translatedFormat('d F Y H:i'),
+        );
+
+        if ($absensi->foto_path !== null) {
+            Storage::disk(self::DISK)->delete($absensi->foto_path);
+        }
+
+        $absensi->delete();
+
+        $this->log->catat(AksiLog::Hapus, $keterangan, user: $pelaku);
     }
 
     /**

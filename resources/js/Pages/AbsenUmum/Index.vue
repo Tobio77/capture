@@ -365,6 +365,7 @@ const tanggalPanjang = (iso) =>
           ? 'Sesi harian dibuka sendiri pada tap pertama, atau lewat tombol Buka Sesi Hari Ini.'
           : 'Kehadiran akan muncul di sini begitu pegawai pertama men-tap.'
       "
+      @dihapus="segarkan"
     />
 
     <!-- Riwayat sesi -->

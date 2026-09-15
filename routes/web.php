@@ -5,6 +5,7 @@ use App\Http\Controllers\Absen\FotoAbsenController;
 use App\Http\Controllers\Absen\FotoPegawaiController;
 use App\Http\Controllers\Absen\IdentifikasiTapController;
 use App\Http\Controllers\Absen\SimpanAbsenController;
+use App\Http\Controllers\Admin\AbsensiController;
 use App\Http\Controllers\Admin\AbsenUmumController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\EventController;
@@ -373,6 +374,16 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
         Route::post('pengguna/{pengguna}/reset-sandi', [PenggunaController::class, 'resetSandi'])
             ->middleware('throttle:10,1')
             ->name('pengguna.reset-sandi');
+    });
+
+    /*
+     * Hapus satu baris absensi — Superadmin saja, bukan Admin Dinas.
+     * Dipakai untuk keperluan pengujian atau membetulkan tap yang keliru
+     * tercatat; setiap penghapusan tetap tercatat pada audit trail (lihat
+     * AbsensiService::hapus()).
+     */
+    Route::middleware('peran:superadmin')->group(function () {
+        Route::delete('absensi/{absensi}', [AbsensiController::class, 'destroy'])->name('absensi.destroy');
     });
 
     /*

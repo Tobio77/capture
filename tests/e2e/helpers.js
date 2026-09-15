@@ -83,10 +83,13 @@ export async function daftarkanDanAktifkanKiosk(adminPage, context, namaUnitKerj
  *   1. Matikan Verifikasi Wajah — lihat catatan cakupan di kepala berkas
  *      `kiosk-dan-event.spec.js`; {@link PEGAWAI_TANPA_WAJAH} akan ditolak
  *      server (WAJAH_BELUM_DIVERIFIKASI) selama ini menyala.
- *   2. Lebarkan Jendela Operasional Harian Absen Datang — Absen Umum
- *      menolak tap di luar jam ini (beda dari event kegiatan, yang tidak
- *      mengenal jendela sama sekali), dan test dijalankan pada jam
- *      berapa pun sepanjang hari, bukan hanya jam kerja.
+ *   2. Lebarkan jendela Absen Datang KETUJUH HARI — Absen Umum menolak tap
+ *      di luar jam ini (beda dari event kegiatan, yang tidak mengenal
+ *      jendela sama sekali), dan test dijalankan pada jam maupun HARI
+ *      berapa pun, bukan hanya jam/hari kerja (sejak jadwal per hari,
+ *      S41 — jendelanya tidak lagi satu angka untuk seluruh pekan).
+ *      Diisi pada baris Senin lalu disebar lewat "Samakan ke semua hari",
+ *      bukan mengisi ketujuh baris satu-satu.
  *
  * Keduanya satu formulir, satu penyimpanan.
  */
@@ -101,15 +104,22 @@ export async function siapkanUntukTapKiosk(adminPage) {
     berubah = true
   }
 
-  const jamBuka = adminPage.getByLabel('Jam buka Absen Datang')
+  const jamBuka = adminPage.getByLabel('Jam buka datang Senin')
+  const jamTutup = adminPage.getByLabel('Jam tutup datang Senin')
+  let jendelaBerubah = false
+
   if ((await jamBuka.inputValue()) !== '00:00') {
     await jamBuka.fill('00:00')
-    berubah = true
+    jendelaBerubah = true
   }
 
-  const jamTutup = adminPage.getByLabel('Jam tutup Absen Datang')
   if ((await jamTutup.inputValue()) !== '23:59') {
     await jamTutup.fill('23:59')
+    jendelaBerubah = true
+  }
+
+  if (jendelaBerubah) {
+    await adminPage.getByRole('button', { name: 'Samakan ke semua hari' }).first().click()
     berubah = true
   }
 

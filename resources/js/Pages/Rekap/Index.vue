@@ -454,6 +454,7 @@ const kartu = computed(() => [
         :cari="filter.cari ?? ''"
         judul-kosong="Belum ada kehadiran pada tanggal ini"
         keterangan-kosong="Sesi harian dibuka sendiri pada tap pertama. Coba pilih tanggal lain, atau buka sesinya dari menu Absen Umum."
+        @dihapus="segarkan"
       />
     </template>
 
@@ -518,6 +519,7 @@ const kartu = computed(() => [
           :baris="barisTampilEvent"
           :total-asli="barisEvent.length"
           :cari="cariEvent"
+          @dihapus="segarkan"
         />
       </template>
     </template>

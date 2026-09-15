@@ -9,10 +9,14 @@ import { BERKAS_AUTH } from '../auth-state.js'
 test.describe('Setting Absen', () => {
   test.use({ storageState: BERKAS_AUTH.superadmin })
 
-  test('jam masuk harian dan ambang batas laporan tersimpan', async ({ page }) => {
+  test('jam masuk per hari dan ambang batas laporan tersimpan', async ({ page }) => {
     await page.goto('/admin/kelola-absen/setting')
 
-    await page.getByLabel('Jam Masuk Harian').fill('08:15')
+    // Jam masuk kini per hari (Senin–Minggu), bukan satu angka untuk
+    // seluruh pekan (S41) — Rabu diisi berbeda dari Senin untuk memastikan
+    // baris yang benar-benar tersimpan, bukan cuma baris pertama.
+    await page.getByLabel('Jam masuk Senin').fill('08:15')
+    await page.getByLabel('Jam masuk Rabu').fill('06:45')
     await page.locator('#ambang-kehadiran').fill('72')
     await page.locator('#ambang-keterlambatan').fill('20')
 
@@ -20,7 +24,8 @@ test.describe('Setting Absen', () => {
     await expect(page.getByText('Setting Absen tersimpan.')).toBeVisible()
 
     await page.reload()
-    await expect(page.getByLabel('Jam Masuk Harian')).toHaveValue('08:15')
+    await expect(page.getByLabel('Jam masuk Senin')).toHaveValue('08:15')
+    await expect(page.getByLabel('Jam masuk Rabu')).toHaveValue('06:45')
     await expect(page.locator('#ambang-kehadiran')).toHaveValue('72')
     await expect(page.locator('#ambang-keterlambatan')).toHaveValue('20')
   })

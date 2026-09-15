@@ -1,5 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
+import { router, usePage } from '@inertiajs/vue3'
+import Ikon from '@/Components/Ikon.vue'
 import Lencana from '@/Components/UI/Lencana.vue'
 import TabelData from '@/Components/UI/TabelData.vue'
 
@@ -39,7 +41,13 @@ const props = defineProps({
   },
 })
 
+const emit = defineEmits(['dihapus'])
+
 const halaman = ref(1)
+
+// Tombol hapus per-baris (Bagian 2) hanya untuk superadmin — admin dinas/UPT
+// tidak pernah melihatnya sama sekali, bukan sekadar dinonaktifkan.
+const superadmin = computed(() => usePage().props.auth?.user?.role === 'superadmin')
 
 const kolom = computed(() => [
   { label: 'No' },
@@ -52,6 +60,49 @@ const kolom = computed(() => [
   { label: 'Status' },
   ...(props.foto ? [{ label: 'Foto', cetak: false }] : []),
 ])
+
+/**
+ * Hapus satu baris Absensi (Datang ATAU Pulang, bukan keduanya sekaligus —
+ * keduanya baris terpisah di database walau tampil dalam satu baris tabel).
+ * Dipakai untuk keperluan pengujian atau membetulkan tap yang keliru
+ * tercatat; setiap penghapusan tercatat pada audit trail di sisi server.
+ *
+ * Baris `isi` yang dihapus diubah LANGSUNG (bukan menunggu halaman induk
+ * menyegarkan diri) — objeknya sama persis dengan yang dipegang array
+ * `baris` milik induk (props diteruskan lewat referensi, bukan disalin),
+ * sehingga perubahan di sini langsung terlihat tanpa peduli apakah induk
+ * sedang polling (tanggal hari ini) atau tidak (rekap tanggal lampau, yang
+ * tidak pernah disegarkan otomatis). `emit('dihapus')` di atasnya hanya
+ * untuk hal yang TIDAK dapat diketahui dari sini — kartu ringkasan (Total
+ * Hadir, Tepat, Terlambat) milik induk, bukan tabel ini.
+ */
+function hapusAbsensi(isi, jenis) {
+  const label = jenis === 'datang' ? 'Datang' : 'Pulang'
+  const id = jenis === 'datang' ? isi.datang_id : isi.pulang_id
+
+  if (!window.confirm(`Hapus absensi ${label} — ${isi.nama}? Tindakan ini tidak dapat dibatalkan.`)) {
+    return
+  }
+
+  router.delete(`/admin/absensi/${id}`, {
+    preserveScroll: true,
+    preserveState: true,
+    onSuccess: () => {
+      if (jenis === 'datang') {
+        isi.datang_id = null
+        isi.jam_masuk = null
+        isi.status_ketepatan = null
+        isi.status_label = null
+        isi.foto_url = null
+      } else {
+        isi.pulang_id = null
+        isi.jam_pulang = null
+      }
+
+      emit('dihapus')
+    },
+  })
+}
 
 const barisTampil = computed(() =>
   props.baris.slice((halaman.value - 1) * props.perHalaman, halaman.value * props.perHalaman),
@@ -90,8 +141,34 @@ watch(
       <td class="max-w-[14rem] truncate px-4 py-2.5 text-sekunder" :title="isi.unit_kerja">
         {{ isi.unit_kerja ?? '—' }}
       </td>
-      <td class="px-4 py-2.5 font-display tabular-nums text-utama">{{ isi.jam_masuk ?? '—' }}</td>
-      <td class="px-4 py-2.5 font-display tabular-nums text-utama">{{ isi.jam_pulang ?? '—' }}</td>
+      <td class="px-4 py-2.5">
+        <div class="flex items-center gap-1.5">
+          <span class="font-display tabular-nums text-utama">{{ isi.jam_masuk ?? '—' }}</span>
+          <button
+            v-if="superadmin && isi.datang_id"
+            type="button"
+            class="rounded p-0.5 text-redup transition hover:text-galat-teks print:hidden"
+            title="Hapus absensi datang"
+            @click="hapusAbsensi(isi, 'datang')"
+          >
+            <Ikon nama="hapus" ukuran="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </td>
+      <td class="px-4 py-2.5">
+        <div class="flex items-center gap-1.5">
+          <span class="font-display tabular-nums text-utama">{{ isi.jam_pulang ?? '—' }}</span>
+          <button
+            v-if="superadmin && isi.pulang_id"
+            type="button"
+            class="rounded p-0.5 text-redup transition hover:text-galat-teks print:hidden"
+            title="Hapus absensi pulang"
+            @click="hapusAbsensi(isi, 'pulang')"
+          >
+            <Ikon nama="hapus" ukuran="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </td>
       <td class="px-4 py-2.5 text-sekunder">{{ isi.metode }}</td>
       <td class="px-4 py-2.5">
         <Lencana
