@@ -25,6 +25,14 @@ const props = defineProps({
   absen_umum_aktif: { type: Boolean, required: true },
   jam_masuk: { type: String, required: true },
 
+  /**
+   * Simpul OPD terpilih — baris menggabungkan SELURUH unit kerja sekaligus,
+   * bukan satu sesi tunggal (lihat AbsenUmumService::rekapSemuaUnit()).
+   * `sesi` selalu null dalam keadaan ini walau sesi per-unit di baliknya
+   * sungguhan; beberapa tampilan di bawah butuh tahu beda kedua keadaan itu.
+   */
+  agregat: { type: Boolean, default: false },
+
   /** Status efektif per jenis absen beserta sumbernya (FR-SET-07). */
   status_jendela: { type: Object, default: () => ({}) },
 })
@@ -106,7 +114,9 @@ onMounted(() => {
 onBeforeUnmount(() => clearInterval(jeda))
 
 async function segarkan() {
-  if (!hariIni.value || props.sesi === null) return
+  // Tampilan aggregate OPD selalu ber-`sesi` null (bukan tanda "belum ada
+  // yang berjalan" seperti pada satu unit) — polling tetap harus berjalan.
+  if (!hariIni.value || (props.sesi === null && !props.agregat)) return
 
   try {
     const jawaban = await fetch(
@@ -248,7 +258,13 @@ const tanggalPanjang = (iso) =>
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 class="font-display text-lg font-semibold text-utama">
-            {{ sesi?.nama ?? 'Belum ada sesi absen umum' }}
+            <!--
+              Tampilan aggregate OPD tidak punya satu sesi tunggal untuk
+              disebut namanya (rekapSemuaUnit() selalu mengembalikan sesi
+              null) — tanpa ini, judulnya diam-diam berkata "Belum ada sesi
+              absen umum" walau puluhan sesi per unit sesungguhnya berjalan.
+            -->
+            {{ agregat ? 'Seluruh Unit Kerja' : sesi?.nama ?? 'Belum ada sesi absen umum' }}
           </h2>
           <p class="mt-1 text-sm text-sekunder">
             {{ tanggalPanjang(filter.tanggal) }}
@@ -256,6 +272,10 @@ const tanggalPanjang = (iso) =>
               · mulai {{ sesi.jam_mulai }} · toleransi {{ sesi.toleransi_menit }} menit
             </template>
             <template v-else> · jam masuk harian {{ jam_masuk }} </template>
+          </p>
+          <p v-if="agregat" class="mt-0.5 text-xs text-redup">
+            Menggabungkan sesi harian tiap unit kerja. Buka/tutup paksa di bawah berlaku bagi
+            SEMUA unit sekaligus — pilih satu unit kerja untuk memantau sesinya sendiri-sendiri.
           </p>
         </div>
 
@@ -269,7 +289,8 @@ const tanggalPanjang = (iso) =>
             class="inline-flex items-center gap-1.5 rounded-md border border-garis px-3 py-1.5 text-sm font-medium text-utama transition hover:bg-permukaan-hover active:scale-95"
             @click="bukaSesi"
           >
-            <Ikon nama="tambah" ukuran="h-4 w-4" /> Buka Sesi Hari Ini
+            <Ikon nama="tambah" ukuran="h-4 w-4" />
+            {{ agregat ? 'Buka Sesi Hari Ini (seluruh unit)' : 'Buka Sesi Hari Ini' }}
           </button>
         </div>
       </div>

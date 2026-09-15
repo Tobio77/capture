@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Enums\OverrideAbsenUmum;
 use App\Exports\TabelDataExport;
 use App\Http\Controllers\Controller;
+use App\Models\EventAbsen;
 use App\Models\UnitKerja;
 use App\Services\AbsensiService;
 use App\Services\AbsenUmumService;
@@ -82,6 +83,22 @@ class AbsenUmumController extends Controller
         );
 
         $sesi = $rekap['sesi'];
+        $agregat = $this->absenUmum->adalahOpd($unitId);
+
+        /*
+         * Tampilan aggregate OPD tidak punya satu sesi tunggal untuk dibaca
+         * override-nya ($sesi selalu null di sini, lihat rekapSemuaUnit()) —
+         * tanpa ini, status jendela dan tombol paksa akan selalu diam-diam
+         * berkata "mengikuti jadwal" walau override sesungguhnya sudah
+         * dipasang lewat aturOverrideSemua() pada tiap unit, persis jenis
+         * kebingungan yang membuat panel admin terlihat tidak nyambung
+         * dengan keadaan sesungguhnya (item 2).
+         */
+        $sesiUntukStatus = $agregat
+            ? (($override = $this->absenUmum->overrideSemuaSeragam($tanggal)) === null
+                ? null
+                : new EventAbsen(['override_absen' => $override]))
+            : $sesi;
 
         return Inertia::render('AbsenUmum/Index', [
             'unit_kerja' => $unitTersedia->values(),
@@ -91,6 +108,10 @@ class AbsenUmumController extends Controller
                 'cari' => $request->string('cari')->toString(),
             ],
             'absen_umum_aktif' => $this->absenUmum->aktif(),
+
+            // Simpul OPD terpilih: baris menggabungkan SELURUH unit kerja,
+            // bukan satu sesi tunggal — lihat catatan pada rekapSemuaUnit().
+            'agregat' => $agregat,
 
             // Jam masuk hari YANG SEDANG DILIHAT ($tanggal), bukan jam global
             // seragam — bisa saja beda dari jam hari ini bila admin sedang
@@ -103,7 +124,7 @@ class AbsenUmumController extends Controller
              * karena seseorang menutupnya dan lupa mencabutnya" — keduanya
              * terlihat sama di layar tetapi menuntut tindakan berbeda.
              */
-            'status_jendela' => collect($this->absenUmum->statusSemua($unitId, $sesi))
+            'status_jendela' => collect($this->absenUmum->statusSemua($unitId, $sesiUntukStatus))
                 ->map(fn ($status) => $status->untukLayar()),
             'sesi' => $sesi === null ? null : [
                 'id' => $sesi->id,

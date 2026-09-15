@@ -351,6 +351,37 @@ class AbsenUmumService
     }
 
     /**
+     * Override yang berlaku SERAGAM di seluruh unit kerja pada satu tanggal,
+     * atau null bila belum ada sesi sama sekali, atau overridenya berbeda
+     * antar unit.
+     *
+     * Tampilan aggregate OPD (lihat sesi(), rekapSemuaUnit()) tidak punya
+     * satu sesi tunggal untuk dibaca override-nya — dipakai untuk tetap
+     * memperlihatkan status jendela dan pilihan tombol paksa yang benar
+     * pada tampilan itu (lihat AbsenUmumController::index()) alih-alih diam-
+     * diam selalu berkata "mengikuti jadwal" walau override sesungguhnya
+     * sudah dipasang lewat aturOverrideSemua() pada tiap unit.
+     */
+    public function overrideSemuaSeragam(?Carbon $tanggal = null): ?OverrideAbsenUmum
+    {
+        $tanggal ??= Carbon::today();
+        $kunciSemua = $this->unitSemuaId()->map(fn (int $id) => self::kunci($id, $tanggal))->all();
+
+        // get()->pluck() sengaja dipakai, bukan pluck() langsung pada query
+        // builder — hanya lewat model yang terhidrasi barisnya benar-benar
+        // melalui cast enum kolomnya, sebab pluck() query builder membaca
+        // nilai kolom mentah.
+        $overrideUnik = EventAbsen::query()
+            ->umum()
+            ->whereIn('kunci_sesi', $kunciSemua)
+            ->get()
+            ->pluck('override_absen')
+            ->unique();
+
+        return $overrideUnik->count() === 1 ? $overrideUnik->first() : null;
+    }
+
+    /**
      * Pasang atau cabut override pada sesi hari ini.
      *
      * Sesinya dibuat bila belum ada: admin yang menekan "buka paksa" pukul

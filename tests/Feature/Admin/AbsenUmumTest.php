@@ -262,9 +262,34 @@ class AbsenUmumTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->where('sesi', null)
+                ->where('agregat', true)
                 ->has('baris', 2)
                 ->where('ringkasan.hadir', 2)
                 ->where('ringkasan.pegawai', 3)
+                ->etc());
+    }
+
+    #[Test]
+    public function status_jendela_lewat_opd_mengikuti_override_seragam_seluruh_unit(): void
+    {
+        // Tampilan aggregate OPD tidak punya satu sesi tunggal untuk dibaca
+        // override-nya (rekapSemuaUnit() selalu mengembalikan sesi null) —
+        // tanpa overrideSemuaSeragam(), status jendela pada tampilan ini
+        // akan diam-diam selalu berkata "mengikuti jadwal" walau override
+        // sesungguhnya sudah dipasang di setiap unit lewat aturOverrideSemua().
+        ['opd' => $opd] = $this->hirarki();
+        $admin = User::factory()->superadmin()->create();
+
+        $this->actingAs($admin)
+            ->post(self::URL.'/override', ['aksi' => 'tutup', 'unit_kerja_id' => $opd->id])
+            ->assertSessionHas('sukses');
+
+        $this->actingAs($admin)
+            ->get(self::URL."?unit_kerja_id={$opd->id}")
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('status_jendela.datang.terbuka', false)
+                ->where('status_jendela.datang.sumber', 'override')
                 ->etc());
     }
 
