@@ -21,6 +21,14 @@ enum AksiLog: string
     case GabungEventGagal = 'gabung_event_gagal';
     case KeluarEvent = 'keluar_event';
 
+    /**
+     * Kasus tersendiri, bukan `Ubah` biasa (FR-MTN-01): memulihkan backup
+     * mengubah puluhan/ratusan baris sekaligus lintas beberapa tabel, dan
+     * itu layak mudah ditemukan tersendiri saat menelusuri audit trail —
+     * beda kelas dari mengedit satu setelan.
+     */
+    case PulihkanBackup = 'pulihkan_backup';
+
     public function label(): string
     {
         return match ($this) {
@@ -36,6 +44,7 @@ enum AksiLog: string
             self::GabungEvent => 'Perangkat Bergabung ke Event',
             self::GabungEventGagal => 'Percobaan Bergabung ke Event Gagal',
             self::KeluarEvent => 'Perangkat Keluar dari Event',
+            self::PulihkanBackup => 'Memulihkan Backup',
         };
     }
 

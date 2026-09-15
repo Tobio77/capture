@@ -407,6 +407,12 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
             ->name('backup.unduh');
         Route::delete('backup/{riwayatBackup}', [MaintenanceController::class, 'hapus'])
             ->name('backup.hapus');
+
+        // Menulis ulang puluhan/ratusan baris lintas beberapa tabel —
+        // dibatasi laju lebih ketat daripada aksi lain di grup ini.
+        Route::post('backup/{riwayatBackup}/pulihkan', [MaintenanceController::class, 'pulihkan'])
+            ->middleware('throttle:5,1')
+            ->name('backup.pulihkan');
     });
 
     /*

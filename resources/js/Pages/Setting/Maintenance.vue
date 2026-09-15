@@ -43,7 +43,7 @@ function buatBackup() {
 <template>
   <AdminLayout
     judul="Maintenance & Backup"
-    deskripsi="Cadangkan data absensi secara manual maupun terjadwal, dan atur berapa lama backup lama disimpan."
+    deskripsi="Cadangkan dan pulihkan data absensi secara manual maupun terjadwal, dan atur berapa lama backup lama disimpan."
   >
     <div class="grid gap-6 lg:grid-cols-2">
       <!-- Cakupan backup -->

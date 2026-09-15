@@ -2,15 +2,18 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Enums\AksiLog;
 use App\Enums\StatusRiwayatLaporan;
 use App\Models\Absensi;
 use App\Models\EventAbsen;
+use App\Models\LogAktivitas;
 use App\Models\Pegawai;
 use App\Models\RiwayatBackup;
 use App\Models\UnitKerja;
 use App\Models\User;
 use App\Services\BackupService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -100,7 +103,7 @@ class MaintenanceBackupTest extends TestCase
         unlink($sementara);
 
         $this->assertEqualsCanonicalizing(
-            ['unit_kerja.json', 'pegawai.json', 'kiosk.json', 'event_absen.json', 'absensi.json'],
+            ['unit_kerja.json', 'pegawai.json', 'kiosk.json', 'event_absen.json', 'event_unit_kerja.json', 'absensi.json'],
             $namaBerkas,
         );
     }
@@ -209,5 +212,146 @@ class MaintenanceBackupTest extends TestCase
 
         $this->actingAs($adminDinas)->post('/admin/setting/maintenance/backup')->assertForbidden();
         $this->actingAs($adminDinas)->delete("/admin/setting/maintenance/backup/{$riwayat->id}")->assertForbidden();
+    }
+
+    /* ---------------------------------------------------------------------
+     * Pulihkan (restore) — FR-MTN-02, menggabungkan bukan mengganti total.
+     * ------------------------------------------------------------------- */
+
+    #[Test]
+    public function pulihkan_mengembalikan_baris_yang_terhapus_setelah_backup(): void
+    {
+        Storage::fake(BackupService::DISK);
+
+        $unit = UnitKerja::factory()->create();
+        $pegawai = Pegawai::factory()->create(['nip' => '199001012020011001', 'nama' => 'Ahmad Fauzi', 'unit_kerja_id' => $unit->id]);
+        $event = EventAbsen::factory()->create();
+        $event->unitKerja()->attach($unit);
+        $absensi = Absensi::factory()->create(['event_absen_id' => $event->id, 'pegawai_id' => $pegawai->id]);
+
+        $riwayat = app(BackupService::class)->buatTerjadwal();
+
+        // Baris "terhapus keliru" SETELAH backup dibuat — persis skenario
+        // yang jadi alasan fitur ini ada.
+        $absensi->delete();
+        $this->assertDatabaseMissing('absensi', ['id' => $absensi->id]);
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->post("/admin/setting/maintenance/backup/{$riwayat->id}/pulihkan", [
+                'konfirmasi' => $riwayat->nama_berkas,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('absensi', ['id' => $absensi->id, 'pegawai_id' => $pegawai->id]);
+    }
+
+    #[Test]
+    public function pulihkan_tidak_menghapus_data_yang_dibuat_setelah_backup(): void
+    {
+        // Ini yang membedakan "gabung" dari "ganti total" — jaminan yang
+        // paling penting dari seluruh fitur ini.
+        Storage::fake(BackupService::DISK);
+
+        $unit = UnitKerja::factory()->create();
+        Pegawai::factory()->create(['unit_kerja_id' => $unit->id]);
+
+        $riwayat = app(BackupService::class)->buatTerjadwal();
+
+        $pegawaiBaru = Pegawai::factory()->create(['unit_kerja_id' => $unit->id, 'nama' => 'Baru Setelah Backup']);
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->post("/admin/setting/maintenance/backup/{$riwayat->id}/pulihkan", [
+                'konfirmasi' => $riwayat->nama_berkas,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('pegawai', ['id' => $pegawaiBaru->id]);
+    }
+
+    #[Test]
+    public function pulihkan_menegakkan_hierarki_unit_kerja_dan_pivot_event(): void
+    {
+        // unit_kerja.induk_id menaut ke dirinya sendiri — kasus yang
+        // menuntut dua tahap (lihat BackupService::KOSONGKAN_DULU). Pivot
+        // event_unit_kerja tidak punya model Eloquent sama sekali.
+        Storage::fake(BackupService::DISK);
+
+        $induk = UnitKerja::factory()->create();
+        $anak = UnitKerja::factory()->create(['induk_id' => $induk->id]);
+        $event = EventAbsen::factory()->create();
+        $event->unitKerja()->attach($anak);
+
+        $riwayat = app(BackupService::class)->buatTerjadwal();
+
+        UnitKerja::whereKey($anak->id)->update(['induk_id' => null]);
+        DB::table('event_unit_kerja')->where('event_absen_id', $event->id)->delete();
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->post("/admin/setting/maintenance/backup/{$riwayat->id}/pulihkan", [
+                'konfirmasi' => $riwayat->nama_berkas,
+            ])
+            ->assertRedirect();
+
+        $this->assertSame($induk->id, UnitKerja::query()->find($anak->id)->induk_id);
+        $this->assertDatabaseHas('event_unit_kerja', ['event_absen_id' => $event->id, 'unit_kerja_id' => $anak->id]);
+    }
+
+    #[Test]
+    public function pulihkan_tercatat_pada_audit_trail(): void
+    {
+        Storage::fake(BackupService::DISK);
+
+        $riwayat = app(BackupService::class)->buatTerjadwal();
+        $superadmin = User::factory()->superadmin()->create(['nama' => 'Budi Superadmin']);
+
+        $this->actingAs($superadmin)->post("/admin/setting/maintenance/backup/{$riwayat->id}/pulihkan", [
+            'konfirmasi' => $riwayat->nama_berkas,
+        ]);
+
+        $log = LogAktivitas::query()->where('aksi', AksiLog::PulihkanBackup)->latest()->first();
+
+        $this->assertNotNull($log);
+        $this->assertSame($superadmin->id, $log->user_id);
+        $this->assertStringContainsString($riwayat->nama_berkas, $log->deskripsi);
+    }
+
+    #[Test]
+    public function pulihkan_menolak_konfirmasi_yang_tidak_cocok(): void
+    {
+        Storage::fake(BackupService::DISK);
+
+        $riwayat = app(BackupService::class)->buatTerjadwal();
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->post("/admin/setting/maintenance/backup/{$riwayat->id}/pulihkan", [
+                'konfirmasi' => 'nama-berkas-yang-salah.zip',
+            ])
+            ->assertSessionHasErrors('konfirmasi');
+    }
+
+    #[Test]
+    public function pulihkan_menolak_backup_yang_belum_selesai(): void
+    {
+        $riwayat = $this->buatRiwayat(['status' => StatusRiwayatLaporan::Diproses, 'path' => null]);
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->post("/admin/setting/maintenance/backup/{$riwayat->id}/pulihkan", [
+                'konfirmasi' => $riwayat->nama_berkas,
+            ])
+            ->assertNotFound();
+    }
+
+    #[Test]
+    public function admin_dinas_ditolak_memulihkan(): void
+    {
+        Storage::fake(BackupService::DISK);
+
+        $riwayat = app(BackupService::class)->buatTerjadwal();
+
+        $this->actingAs(User::factory()->adminDinas()->create())
+            ->post("/admin/setting/maintenance/backup/{$riwayat->id}/pulihkan", [
+                'konfirmasi' => $riwayat->nama_berkas,
+            ])
+            ->assertForbidden();
     }
 }

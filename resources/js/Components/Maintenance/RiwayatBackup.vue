@@ -1,9 +1,11 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { router } from '@inertiajs/vue3'
+import { router, useForm } from '@inertiajs/vue3'
 import Ikon from '@/Components/Ikon.vue'
 import Lencana from '@/Components/UI/Lencana.vue'
 import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
+import Modal from '@/Components/Modal.vue'
+import TombolProses from '@/Components/UI/TombolProses.vue'
 
 /**
  * Riwayat Backup data absensi (FR-MTN-01) — pola yang sama persis dengan
@@ -72,6 +74,39 @@ function hapus(item) {
     },
   })
 }
+
+/*
+ * Pulihkan (restore) — aksi paling berisiko di halaman ini, jadi satu-
+ * satunya di sini yang menuntut lebih dari window.confirm(): mengetik ULANG
+ * nama berkasnya sendiri, diperiksa PERSIS SAMA di server (lihat
+ * MaintenanceController::pulihkan()) — tombol yang bisa tertekan tanpa
+ * sengaja tidak boleh cukup untuk menulis ulang data lintas lima tabel.
+ */
+const targetPulihkan = ref(null)
+const formPulihkan = useForm({ konfirmasi: '' })
+
+function bukaPulihkan(item) {
+  targetPulihkan.value = item
+  formPulihkan.reset()
+  formPulihkan.clearErrors()
+}
+
+function tutupPulihkan() {
+  targetPulihkan.value = null
+}
+
+const konfirmasiCocok = computed(
+  () => targetPulihkan.value !== null && formPulihkan.konfirmasi === targetPulihkan.value.nama_berkas,
+)
+
+function kirimPulihkan() {
+  if (!konfirmasiCocok.value) return
+
+  formPulihkan.post(`/admin/setting/maintenance/backup/${targetPulihkan.value.id}/pulihkan`, {
+    preserveScroll: true,
+    onSuccess: () => tutupPulihkan(),
+  })
+}
 </script>
 
 <template>
@@ -137,6 +172,15 @@ function hapus(item) {
           </a>
 
           <button
+            v-if="item.status === 'selesai'"
+            type="button"
+            class="inline-flex items-center gap-1.5 rounded-md border border-garis px-3 py-1.5 text-xs font-medium text-redup transition hover:border-aksen hover:text-aksen-teks active:scale-95"
+            @click="bukaPulihkan(item)"
+          >
+            <Ikon nama="segarkan" ukuran="h-3.5 w-3.5" /> Pulihkan
+          </button>
+
+          <button
             type="button"
             class="inline-flex items-center gap-1.5 rounded-md border border-garis px-3 py-1.5 text-xs font-medium text-redup transition hover:border-galat hover:text-galat-teks active:scale-95"
             @click="hapus(item)"
@@ -146,5 +190,59 @@ function hapus(item) {
         </div>
       </li>
     </ul>
+
+    <Modal
+      :terbuka="targetPulihkan !== null"
+      judul="Pulihkan Backup"
+      keterangan="Menggabungkan data dari backup ke data yang sedang berjalan."
+      @tutup="tutupPulihkan"
+    >
+      <div v-if="targetPulihkan" class="space-y-4">
+        <p class="rounded-lg bg-peringatan-lembut px-3.5 py-2.5 text-sm text-peringatan-teks">
+          Baris dari <strong class="font-semibold">{{ targetPulihkan.nama_berkas }}</strong>
+          akan ditambahkan atau MENIMPA baris yang ber-ID sama pada data yang berjalan sekarang.
+          Data yang dibuat SETELAH backup ini tetap ada, tidak dihapus — tetapi baris yang
+          nilainya sudah berubah sejak backup ini akan kembali ke nilai lama.
+        </p>
+
+        <div>
+          <label for="konfirmasi-pulihkan" class="block text-sm font-medium text-utama">
+            Ketik ulang nama berkas untuk melanjutkan
+          </label>
+          <p class="mt-1 text-xs text-redup">{{ targetPulihkan.nama_berkas }}</p>
+          <input
+            id="konfirmasi-pulihkan"
+            v-model="formPulihkan.konfirmasi"
+            type="text"
+            autocomplete="off"
+            class="kolom-isian mt-2 font-mono text-xs"
+            @keyup.enter="kirimPulihkan"
+          />
+          <p v-if="formPulihkan.errors.konfirmasi" class="mt-1.5 text-xs text-peringatan-teks">
+            {{ formPulihkan.errors.konfirmasi }}
+          </p>
+        </div>
+      </div>
+
+      <template #aksi>
+        <button
+          type="button"
+          class="rounded-lg px-4 py-2 text-sm font-medium text-sekunder hover:bg-permukaan-hover"
+          @click="tutupPulihkan"
+        >
+          Batal
+        </button>
+        <TombolProses
+          tipe="button"
+          ikon="segarkan"
+          teks-proses="Memulihkan…"
+          :proses="formPulihkan.processing"
+          :nonaktif="!konfirmasiCocok"
+          @click="kirimPulihkan"
+        >
+          Pulihkan Data
+        </TombolProses>
+      </template>
+    </Modal>
   </div>
 </template>
