@@ -368,7 +368,8 @@ class PerhatianDashboardService
     protected function lewatBatasMasuk(): bool
     {
         $setting = $this->setting->ambil();
-        [$jam, $menit] = explode(':', $setting['jam_masuk_umum']);
+        $jamMasukHariIni = $this->setting->jadwalUntukHari(Carbon::now()->dayOfWeekIso)['jam_masuk'];
+        [$jam, $menit] = explode(':', $jamMasukHariIni);
 
         return Carbon::now()->gt(
             Carbon::today()

@@ -226,9 +226,17 @@ class AbsenUmumService
 
         $alasanLibur = $this->kalender->alasanLibur($unitKerjaId, $waktu->copy()->startOfDay());
 
+        /*
+         * Jadwal HARI YANG DIEVALUASI ($waktu), bukan selalu "hari ini" —
+         * status() sudah menerima $waktu sebagai parameter eksplisit (dipakai
+         * pengujian dan penelusuran ulang), dan jadwal per hari harus ikut
+         * kaidah yang sama alih-alih diam-diam memakai jam hari sekarang.
+         */
+        $jadwalHari = $this->setting->jadwalUntukHari($waktu->dayOfWeekIso);
+
         [$buka, $tutup] = $jenis === JenisAbsen::Datang
-            ? [$setting['jam_buka_datang'], $setting['jam_tutup_datang']]
-            : [$setting['jam_buka_pulang'], $setting['jam_tutup_pulang']];
+            ? [$jadwalHari['jam_buka_datang'], $jadwalHari['jam_tutup_datang']]
+            : [$jadwalHari['jam_buka_pulang'], $jadwalHari['jam_tutup_pulang']];
 
         if (! $setting['absen_umum_aktif']) {
             return new StatusAbsenUmum($jenis, false, 'setting', $buka, $tutup, alasanLibur: $alasanLibur);
@@ -462,6 +470,11 @@ class AbsenUmumService
     protected function buatSesi(int $unitKerjaId, Carbon $tanggal): EventAbsen
     {
         $setting = $this->setting->ambil();
+
+        // Jam masuk hari TANGGAL SESI, bukan "sekarang" — sesi bisa saja
+        // dibuka untuk tanggal yang berbeda dari hari permintaan berjalan.
+        $jamMasuk = $this->setting->jadwalUntukHari($tanggal->dayOfWeekIso)['jam_masuk'];
+
         $unit = UnitKerja::query()->find($unitKerjaId);
         $kunci = self::kunci($unitKerjaId, $tanggal);
 
@@ -471,7 +484,7 @@ class AbsenUmumService
                 'jenis' => JenisEvent::Umum,
                 'kunci_sesi' => $kunci,
                 'tanggal' => $tanggal->toDateString(),
-                'jam_mulai' => $setting['jam_masuk_umum'].':00',
+                'jam_mulai' => $jamMasuk.':00',
                 'toleransi_menit' => $setting['toleransi_default_menit'],
                 'cakupan' => CakupanEvent::Unit,
                 'status' => StatusEvent::Aktif,

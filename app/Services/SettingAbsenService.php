@@ -54,6 +54,29 @@ class SettingAbsenService
 
     public const string KUNCI_TUTUP_PULANG = 'absen.jam_tutup_pulang';
 
+    /**
+     * Jadwal jam per hari (Senin–Minggu), menggantikan satu jam yang sama
+     * untuk seluruh hari. Kasus nyata yang mendorongnya: UPT yang jam
+     * masuknya pukul 07.00 pada hari biasa tetapi 07.00-kurang pada hari
+     * senam pagi, atau jendela pulang yang lebih pendek menjelang akhir
+     * pekan.
+     *
+     * SENGAJA GLOBAL (bukan per unit kerja) — selaras dengan seluruh
+     * pengaturan jam Absen Umum lain di kelas ini, yang juga global. Sakelar
+     * "hari ini libur total" per unit SUDAH ADA lewat `UnitKerja.hari_kerja`
+     * ({@see KalenderKerjaService}) — jadwal jam di sini hanya berarti pada
+     * hari yang memang sudah dinyatakan hari kerja; hari libur/akhir pekan
+     * tetap tertutup penuh apa pun isi jamnya.
+     *
+     * Disimpan sebagai SATU kunci berisi JSON (bukan 35 kunci terpisah):
+     * `PengaturanRepository` murni key-value string, dan tujuh baris yang
+     * selalu dibaca/ditulis bersamaan tidak ada gunanya dipecah.
+     */
+    public const string KUNCI_JADWAL_MINGGUAN = 'absen.jadwal_jam_mingguan';
+
+    /** Hari ISO 1 (Senin) sampai 7 (Minggu) — urutan tetap dipakai jadwal mingguan. */
+    public const array HARI_ISO = [1, 2, 3, 4, 5, 6, 7];
+
     public const string KUNCI_WAJIB_KODE_AKTIVASI = 'absen.wajib_kode_aktivasi';
 
     /**
@@ -137,6 +160,9 @@ class SettingAbsenService
             'jam_buka_pulang' => $this->jam(self::KUNCI_BUKA_PULANG, '15:00'),
             'jam_tutup_pulang' => $this->jam(self::KUNCI_TUTUP_PULANG, '18:00'),
 
+            // Jadwal jam per hari (Senin–Minggu); lihat catatan pada konstantanya.
+            'jadwal_mingguan' => $this->jadwalMingguan(),
+
             /*
              * FR-SET-06. Bawaannya menyala: perangkat harus didaftarkan admin
              * dan menukarkan kode aktivasi lebih dahulu. Mematikannya membuka
@@ -185,6 +211,121 @@ class SettingAbsenService
     }
 
     /**
+     * Jadwal jam ketujuh hari, Senin (1) sampai Minggu (7).
+     *
+     * Bila belum pernah disimpan, disintesis dari jam global lama
+     * (`jam_masuk_umum`, `jam_buka_datang`, dst.) direplikasi ke ketujuh
+     * hari — sehingga jam yang sudah dikonfigurasi admin sebelum fitur ini
+     * ada TIDAK hilang, hanya menjadi titik awal yang sama untuk semua hari.
+     *
+     * @return array<int, array{hari: int, jam_masuk: string, jam_buka_datang: string, jam_tutup_datang: string, jam_buka_pulang: string, jam_tutup_pulang: string}>
+     */
+    public function jadwalMingguan(): array
+    {
+        $mentah = $this->pengaturan->ambil(self::KUNCI_JADWAL_MINGGUAN);
+        $tersimpan = $mentah === null ? null : json_decode($mentah, true);
+
+        if (! is_array($tersimpan)) {
+            return $this->jadwalBawaan();
+        }
+
+        $perHari = collect($tersimpan)
+            ->filter(fn ($baris) => is_array($baris) && isset($baris['hari']))
+            ->keyBy('hari');
+
+        // Baris yang tidak lengkap (mis. hari baru ditambahkan seiring versi
+        // aplikasi berikutnya) jatuh ke bawaan yang sama seperti sebelum
+        // fitur ini ada, bukan menjadikan seluruh jadwal tidak terbaca.
+        return collect(self::HARI_ISO)
+            ->map(function (int $hari) use ($perHari) {
+                $baris = $perHari->get($hari);
+
+                return is_array($baris) ? $this->bariskanJadwal($hari, $baris) : $this->barisJadwalBawaan($hari);
+            })
+            ->all();
+    }
+
+    /**
+     * Jadwal jam satu hari saja — dipakai AbsenUmumService untuk menentukan
+     * jendela/jam masuk yang berlaku pada hari tertentu.
+     *
+     * @return array{hari: int, jam_masuk: string, jam_buka_datang: string, jam_tutup_datang: string, jam_buka_pulang: string, jam_tutup_pulang: string}
+     */
+    public function jadwalUntukHari(int $isoHari): array
+    {
+        return collect($this->jadwalMingguan())->firstWhere('hari', $isoHari)
+            ?? $this->barisJadwalBawaan($isoHari);
+    }
+
+    /**
+     * @return array<int, array{hari: int, jam_masuk: string, jam_buka_datang: string, jam_tutup_datang: string, jam_buka_pulang: string, jam_tutup_pulang: string}>
+     */
+    protected function jadwalBawaan(): array
+    {
+        return collect(self::HARI_ISO)->map(fn (int $hari) => $this->barisJadwalBawaan($hari))->all();
+    }
+
+    /**
+     * @return array{hari: int, jam_masuk: string, jam_buka_datang: string, jam_tutup_datang: string, jam_buka_pulang: string, jam_tutup_pulang: string}
+     */
+    protected function barisJadwalBawaan(int $hari): array
+    {
+        return [
+            'hari' => $hari,
+            'jam_masuk' => $this->jam(self::KUNCI_JAM_MASUK_UMUM, self::JAM_MASUK_BAWAAN),
+            'jam_buka_datang' => $this->jam(self::KUNCI_BUKA_DATANG, '06:00'),
+            'jam_tutup_datang' => $this->jam(self::KUNCI_TUTUP_DATANG, '09:00'),
+            'jam_buka_pulang' => $this->jam(self::KUNCI_BUKA_PULANG, '15:00'),
+            'jam_tutup_pulang' => $this->jam(self::KUNCI_TUTUP_PULANG, '18:00'),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $baris
+     * @return array{hari: int, jam_masuk: string, jam_buka_datang: string, jam_tutup_datang: string, jam_buka_pulang: string, jam_tutup_pulang: string}
+     */
+    protected function bariskanJadwal(int $hari, array $baris): array
+    {
+        $bawaan = $this->barisJadwalBawaan($hari);
+        $jam = fn (string $medan) => $this->jamAtauBawaan($baris[$medan] ?? null, $bawaan[$medan]);
+
+        return [
+            'hari' => $hari,
+            'jam_masuk' => $jam('jam_masuk'),
+            'jam_buka_datang' => $jam('jam_buka_datang'),
+            'jam_tutup_datang' => $jam('jam_tutup_datang'),
+            'jam_buka_pulang' => $jam('jam_buka_pulang'),
+            'jam_tutup_pulang' => $jam('jam_tutup_pulang'),
+        ];
+    }
+
+    protected function jamAtauBawaan(mixed $nilai, string $bawaan): string
+    {
+        return is_string($nilai) && preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $nilai) === 1
+            ? $nilai
+            : $bawaan;
+    }
+
+    /**
+     * Rapikan jadwal mingguan sebelum disimpan sebagai JSON — dijamin selalu
+     * tujuh baris berurutan Senin..Minggu apa pun urutan/kelengkapan yang
+     * dikirim pemanggil, sehingga `jadwalMingguan()` tidak perlu menduga-duga
+     * saat membacanya kembali.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function rapikanJadwal(mixed $nilai): array
+    {
+        $perHari = collect(is_array($nilai) ? $nilai : [])
+            ->filter(fn ($baris) => is_array($baris) && isset($baris['hari']))
+            ->keyBy('hari');
+
+        return collect(self::HARI_ISO)
+            ->map(fn (int $hari) => $this->bariskanJadwal($hari, $perHari->get($hari, [])))
+            ->all();
+    }
+
+    /**
      * @param  array<string, mixed>  $data
      * @return array<string, mixed> pengaturan setelah disimpan
      */
@@ -200,7 +341,7 @@ class SettingAbsenService
          */
         $nilai = fn (string $medan) => $data[$medan] ?? $sebelum[$medan];
 
-        $this->pengaturan->simpanBanyak([
+        $simpanan = [
             self::KUNCI_MANUAL => $this->dariBool($nilai('metode_manual_aktif')),
             self::KUNCI_RFID => $this->dariBool($nilai('metode_rfid_aktif')),
             self::KUNCI_WAJAH => $this->dariBool($nilai('metode_wajah_aktif')),
@@ -216,7 +357,31 @@ class SettingAbsenService
             self::KUNCI_WAJIB_KODE_AKTIVASI => $this->dariBool($nilai('wajib_kode_aktivasi')),
             self::KUNCI_AMBANG_KEHADIRAN_MINIMUM => (string) (int) $nilai('ambang_kehadiran_minimum'),
             self::KUNCI_AMBANG_KETERLAMBATAN_MAKSIMUM => (string) (int) $nilai('ambang_keterlambatan_maksimum'),
-        ]);
+        ];
+
+        /*
+         * Jadwal mingguan HANYA ditulis ulang bila pemanggil benar-benar
+         * mengirimkannya (form Setting Absen selalu mengirim — lihat
+         * Setting/Absen.vue). Bila tidak, `jadwal_mingguan` tidak disentuh
+         * sama sekali — bukan ditulis ulang dari `$sebelum['jadwal_mingguan']`.
+         *
+         * Alasannya: `$sebelum` diambil SEBELUM baris jam_* di atas
+         * tersimpan. Pemanggil yang hanya mengubah `jam_buka_pulang` lewat
+         * jalur lama (mis. test, atau kode lain yang belum pindah ke jadwal
+         * per hari) akan membekukan jadwal_mingguan dari nilai LAMA yang
+         * belum berubah — jendela barunya tidak pernah benar-benar berlaku
+         * sebab status()/buatSesi() kini membaca jadwal_mingguan, bukan kunci
+         * jam_* lagi. Selama jadwal_mingguan belum pernah tersimpan sama
+         * sekali, ia tetap disintesis LIVE dari kunci jam_* setiap dibaca
+         * (lihat jadwalMingguan()) — sehingga jalur lama itu tetap berlaku
+         * seperti sebelum fitur ini ada, sampai admin benar-benar membuka
+         * dan menyimpan tabel jadwal per hari yang baru.
+         */
+        if (array_key_exists('jadwal_mingguan', $data)) {
+            $simpanan[self::KUNCI_JADWAL_MINGGUAN] = json_encode($this->rapikanJadwal($data['jadwal_mingguan']));
+        }
+
+        $this->pengaturan->simpanBanyak($simpanan);
 
         $sesudah = $this->ambil();
 
@@ -294,6 +459,15 @@ class SettingAbsenService
 
         foreach ($sesudah as $medan => $nilai) {
             if ($sebelum[$medan] === $nilai) {
+                continue;
+            }
+
+            // Jadwal mingguan berbentuk array tujuh baris, bukan skalar —
+            // diffnya sendiri tidak ada gunanya dibaca sebagai satu untai
+            // "sebelum → sesudah", jadi cukup ditandai berubah.
+            if ($medan === 'jadwal_mingguan') {
+                $perubahan[] = 'jadwal jam mingguan diubah';
+
                 continue;
             }
 

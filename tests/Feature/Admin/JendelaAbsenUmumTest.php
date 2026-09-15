@@ -400,6 +400,59 @@ class JendelaAbsenUmumTest extends TestCase
     }
 
     /* ---------------------------------------------------------------------
+     * Jadwal jam per hari (Senin–Minggu).
+     * ------------------------------------------------------------------- */
+
+    #[Test]
+    public function jadwal_mingguan_berbeda_per_hari(): void
+    {
+        // Rabu (ISO 3) sengaja dibuat jendela datang lebih sempit daripada
+        // hari lain — kasus nyata yang mendorong fitur ini: UPT yang Rabu-nya
+        // ada senam pagi, sehingga jendela masuknya harus lebih ketat.
+        $jadwal = collect(range(1, 7))->map(fn (int $hari) => [
+            'hari' => $hari,
+            'jam_masuk' => $hari === 3 ? '06:45' : '07:30',
+            'jam_buka_datang' => '06:00',
+            'jam_tutup_datang' => $hari === 3 ? '06:30' : '09:00',
+            'jam_buka_pulang' => '15:00',
+            'jam_tutup_pulang' => '18:00',
+        ])->all();
+
+        app(SettingAbsenService::class)->simpan(['jadwal_mingguan' => $jadwal], $this->admin);
+
+        // Rabu, 07:00 — di luar jendela Rabu yang sudah dipersempit (06:00–06:30).
+        $this->travelTo('2026-09-09 07:00:00');
+        $this->tap('datang')->assertStatus(409);
+
+        // Senin, jam yang sama — jendela bawaan (06:00–09:00) masih terbuka.
+        $this->travelTo('2026-09-07 07:00:00');
+        $this->tap('datang')->assertOk();
+
+        // Sesi Senin merekam jam masuk hari Senin (07:30), bukan jam Rabu.
+        $sesi = EventAbsen::query()->umum()->whereDate('tanggal', '2026-09-07')->sole();
+        $this->assertSame('07:30:00', (string) $sesi->jam_mulai);
+    }
+
+    #[Test]
+    public function menyimpan_setting_lain_tanpa_menyentuh_jadwal_mingguan_tidak_membekukan_jadwal_lama(): void
+    {
+        // Bugfix: sebelum diperbaiki, memanggil simpan() dengan medan LAIN
+        // (mis. jam_buka_pulang lewat jalur lama) membekukan jadwal_mingguan
+        // dari nilai SEBELUM perubahan itu diterapkan — sehingga perubahan
+        // jam_buka_pulang tidak pernah benar-benar berlaku, sebab
+        // status()/buatSesi() membaca jadwal_mingguan, bukan kunci jam_*
+        // secara langsung. Selama jadwal_mingguan belum pernah disimpan
+        // eksplisit, ia harus tetap disintesis LIVE dari kunci jam_* terkini.
+        app(SettingAbsenService::class)->simpan([
+            'jam_buka_pulang' => '22:00',
+            'jam_tutup_pulang' => '02:00',
+        ], $this->admin);
+
+        $this->travelTo('2026-09-07 23:00:00');
+        $this->tap('pulang')->assertOk();
+    }
+
+    /* ---------------------------------------------------------------------
      * Kegiatan tidak ikut terkena jendela.
      * ------------------------------------------------------------------- */
 

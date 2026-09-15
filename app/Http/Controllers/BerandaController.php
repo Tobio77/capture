@@ -124,7 +124,7 @@ class BerandaController extends Controller
              * raksasa itu punya konsekuensi — orang yang membacanya langsung
              * tahu ia masih tepat waktu atau sudah lewat.
              */
-            'jam_masuk' => $setting['jam_masuk_umum'],
+            'jam_masuk' => $this->setting->jadwalUntukHari(Carbon::now()->dayOfWeekIso)['jam_masuk'],
             'toleransi_menit' => $setting['toleransi_default_menit'],
         ]);
     }

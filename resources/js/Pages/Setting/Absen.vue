@@ -28,14 +28,38 @@ const props = defineProps({
 const form = useForm({ ...props.setting })
 
 /*
- * Dua jendela, bukan satu. Jam pulang sengaja dapat berbeda antar unit lewat
- * setting global yang sama — yang tidak seragam ditangani override harian,
- * bukan dengan menyimpan jam per unit yang harus dirawat satu per satu.
+ * Urutan tetap Senin..Minggu, selaras dengan urutan `hari` (ISO 1..7) yang
+ * dikirim SettingAbsenService::jadwalMingguan() — indeks array form dan
+ * indeks label ini SELALU sejajar, tidak perlu dicocokkan lewat `hari`.
  */
-const jendelaHarian = [
-  { jenis: 'datang', label: 'Absen Datang', buka: 'jam_buka_datang', tutup: 'jam_tutup_datang' },
-  { jenis: 'pulang', label: 'Absen Pulang', buka: 'jam_buka_pulang', tutup: 'jam_tutup_pulang' },
-]
+const HARI_LABEL = ['Senin', 'Selasa', 'Rabu', 'Kamis', "Jum'at", 'Sabtu', 'Minggu']
+
+/**
+ * Menyalin jam satu baris ke keenam baris lainnya — tanpa ini, kasus paling
+ * umum ("cuma satu hari yang beda") berarti mengisi ulang 30 kolom jam
+ * manual satu per satu.
+ */
+function samakanKeSemuaHari(indeks) {
+  const acuan = form.jadwal_mingguan[indeks]
+
+  form.jadwal_mingguan = form.jadwal_mingguan.map((baris) => ({
+    ...baris,
+    jam_masuk: acuan.jam_masuk,
+    jam_buka_datang: acuan.jam_buka_datang,
+    jam_tutup_datang: acuan.jam_tutup_datang,
+    jam_buka_pulang: acuan.jam_buka_pulang,
+    jam_tutup_pulang: acuan.jam_tutup_pulang,
+  }))
+}
+
+// Galat per-sel ("jadwal_mingguan.2.jam_masuk", dst.) dirangkum satu baris —
+// 35 slot galat kecil di bawah tiap kolom sel akan lebih ramai daripada
+// membantu.
+const errorJadwalMingguan = computed(() => {
+  const kunci = Object.keys(form.errors).find((k) => k.startsWith('jadwal_mingguan'))
+
+  return kunci ? 'Ada jam yang belum valid pada tabel di bawah — periksa kembali.' : null
+})
 
 const metode = [
   {
@@ -181,72 +205,109 @@ const simpan = () => {
             </span>
           </label>
 
-          <div class="mt-5">
-            <label for="jam_masuk" class="block text-sm font-medium text-utama">
-              Jam Masuk Harian
-            </label>
-            <p class="mt-0.5 text-xs text-redup">
-              Batas tepat waktu bagi sesi absen umum, ditambah toleransi keterlambatan di atas.
-            </p>
-            <input
-              id="jam_masuk"
-              v-model="form.jam_masuk_umum"
-              type="time"
-              class="mt-2 w-32 rounded-md border-garis font-display tabular-nums bayang focus:border-aksen focus:ring-aksen sm:text-sm"
-            />
-            <p v-if="form.errors.jam_masuk_umum" class="mt-1.5 text-xs text-peringatan-teks">
-              {{ form.errors.jam_masuk_umum }}
-            </p>
-          </div>
-
           <!--
-            FR-SET-07. Dua jendela terpisah, bukan satu jendela besar: satu
-            jendela 06.00–18.00 membuat "Pulang" pukul 07.00 dan "Datang" pukul
-            17.00 sama-sama sah, dan sistem tidak punya dasar menolaknya.
+            FR-SET-07 (revisi jadwal per hari). Jam masuk dan jendela
+            operasional dulu satu angka untuk seluruh pekan; kini tiap hari
+            punya barisnya sendiri — kasus nyata: UPT yang hari Rabu masuk
+            lebih pagi karena ada senam bersama dulu.
+
+            Sakelar "hari ini libur total" BUKAN di sini: itu sudah diatur
+            per unit kerja lewat Unit Kerja → Hari Kerja (dengan pewarisan ke
+            seksi di bawahnya), dan tetap berlaku apa pun jam yang diisi di
+            bawah — hari yang bukan hari kerja unit tetap tertutup penuh.
           -->
           <div class="mt-6 border-t border-garis pt-5">
-            <p class="text-sm font-medium text-utama">Jendela Operasional Harian</p>
+            <p class="text-sm font-medium text-utama">Jadwal Jam per Hari</p>
             <p class="mt-0.5 text-xs text-redup">
-              Di luar jam ini perangkat menolak tap. Berbeda dari Jam Masuk Harian di atas, yang
-              menentukan tepat atau terlambat — datang boleh sejak jam buka, tetapi terhitung
-              terlambat setelah jam masuk.
+              <strong class="font-medium text-sekunder">Jam Masuk</strong> menentukan tepat/terlambat
+              (ditambah toleransi keterlambatan di atas).
+              <strong class="font-medium text-sekunder">Buka–Tutup Datang/Pulang</strong> menentukan
+              kapan tap diterima sama sekali — di luar jam itu perangkat menolak tap, apa pun kata
+              Jam Masuk.
             </p>
 
-            <div class="mt-4 grid gap-5 sm:grid-cols-2">
-              <div v-for="jendela in jendelaHarian" :key="jendela.jenis">
-                <p class="text-xs font-semibold uppercase tracking-wider text-redup">
-                  {{ jendela.label }}
-                </p>
-
-                <div class="mt-2 flex items-center gap-2">
-                  <input
-                    v-model="form[jendela.buka]"
-                    type="time"
-                    :aria-label="`Jam buka ${jendela.label}`"
-                    class="kolom-isian w-32 font-display tabular-nums"
-                  />
-                  <span class="text-sm text-redup">sampai</span>
-                  <input
-                    v-model="form[jendela.tutup]"
-                    type="time"
-                    :aria-label="`Jam tutup ${jendela.label}`"
-                    class="kolom-isian w-32 font-display tabular-nums"
-                  />
-                </div>
-
-                <p
-                  v-if="form.errors[jendela.buka] || form.errors[jendela.tutup]"
-                  class="mt-1.5 text-xs text-peringatan-teks"
-                >
-                  {{ form.errors[jendela.buka] ?? form.errors[jendela.tutup] }}
-                </p>
-              </div>
+            <div class="mt-4 overflow-x-auto">
+              <table class="w-full min-w-[42rem] text-sm">
+                <thead>
+                  <tr class="border-b border-garis text-left text-xs font-semibold uppercase tracking-wider text-redup">
+                    <th class="py-2 pr-3">Hari</th>
+                    <th class="px-2 py-2">Jam Masuk</th>
+                    <th class="px-2 py-2" colspan="2">Datang (buka–tutup)</th>
+                    <th class="px-2 py-2" colspan="2">Pulang (buka–tutup)</th>
+                    <th class="py-2 pl-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="(baris, indeks) in form.jadwal_mingguan"
+                    :key="baris.hari"
+                    class="border-b border-garis last:border-0"
+                  >
+                    <td class="whitespace-nowrap py-2 pr-3 font-medium text-utama">
+                      {{ HARI_LABEL[indeks] }}
+                    </td>
+                    <td class="px-2 py-2">
+                      <input
+                        v-model="baris.jam_masuk"
+                        type="time"
+                        :aria-label="`Jam masuk ${HARI_LABEL[indeks]}`"
+                        class="kolom-isian w-28 font-display tabular-nums"
+                      />
+                    </td>
+                    <td class="py-2 pl-2 pr-1">
+                      <input
+                        v-model="baris.jam_buka_datang"
+                        type="time"
+                        :aria-label="`Jam buka datang ${HARI_LABEL[indeks]}`"
+                        class="kolom-isian w-28 font-display tabular-nums"
+                      />
+                    </td>
+                    <td class="px-1 py-2">
+                      <input
+                        v-model="baris.jam_tutup_datang"
+                        type="time"
+                        :aria-label="`Jam tutup datang ${HARI_LABEL[indeks]}`"
+                        class="kolom-isian w-28 font-display tabular-nums"
+                      />
+                    </td>
+                    <td class="py-2 pl-2 pr-1">
+                      <input
+                        v-model="baris.jam_buka_pulang"
+                        type="time"
+                        :aria-label="`Jam buka pulang ${HARI_LABEL[indeks]}`"
+                        class="kolom-isian w-28 font-display tabular-nums"
+                      />
+                    </td>
+                    <td class="px-1 py-2">
+                      <input
+                        v-model="baris.jam_tutup_pulang"
+                        type="time"
+                        :aria-label="`Jam tutup pulang ${HARI_LABEL[indeks]}`"
+                        class="kolom-isian w-28 font-display tabular-nums"
+                      />
+                    </td>
+                    <td class="py-2 pl-2 text-right">
+                      <button
+                        type="button"
+                        class="whitespace-nowrap text-xs font-medium text-aksen-teks hover:underline"
+                        @click="samakanKeSemuaHari(indeks)"
+                      >
+                        Samakan ke semua hari
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
 
+            <p v-if="errorJadwalMingguan" class="mt-2 text-xs text-peringatan-teks">
+              {{ errorJadwalMingguan }}
+            </p>
+
             <p class="mt-4 text-xs text-redup">
-              Kasus khusus — apel dadakan sore hari, atau penutupan lebih awal — ditangani lewat
-              tombol buka/tutup paksa pada halaman Absen Umum. Override itu berlaku sehari saja
-              dan tidak terbawa ke hari berikutnya.
+              Kasus khusus untuk SATU hari saja — apel dadakan sore hari, atau penutupan lebih awal
+              — ditangani lewat tombol buka/tutup paksa pada halaman Absen Umum. Override itu
+              berlaku hari itu saja dan tidak mengubah jadwal di atas.
             </p>
           </div>
         </section>

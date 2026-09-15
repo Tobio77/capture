@@ -91,7 +91,11 @@ class AbsenUmumController extends Controller
                 'cari' => $request->string('cari')->toString(),
             ],
             'absen_umum_aktif' => $this->absenUmum->aktif(),
-            'jam_masuk' => $this->setting->ambil()['jam_masuk_umum'],
+
+            // Jam masuk hari YANG SEDANG DILIHAT ($tanggal), bukan jam global
+            // seragam — bisa saja beda dari jam hari ini bila admin sedang
+            // menengok tanggal lain (lihat SettingAbsenService::jadwalUntukHari()).
+            'jam_masuk' => $this->setting->jadwalUntukHari($tanggal->dayOfWeekIso)['jam_masuk'],
 
             /*
              * Status efektif kedua jenis absen, beserta SUMBERNYA. Admin harus

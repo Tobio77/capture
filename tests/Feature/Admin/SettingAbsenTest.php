@@ -45,6 +45,17 @@ class SettingAbsenTest extends TestCase
             'jam_buka_pulang' => '15:00',
             'jam_tutup_pulang' => '18:00',
 
+            // Jadwal jam per hari: formulir selalu mengirim ketujuh baris
+            // sekaligus (lihat SimpanSettingAbsenRequest — size:7 wajib).
+            'jadwal_mingguan' => collect(range(1, 7))->map(fn (int $hari) => [
+                'hari' => $hari,
+                'jam_masuk' => '07:30',
+                'jam_buka_datang' => '06:00',
+                'jam_tutup_datang' => '09:00',
+                'jam_buka_pulang' => '15:00',
+                'jam_tutup_pulang' => '18:00',
+            ])->all(),
+
             'wajib_kode_aktivasi' => true,
 
             'ambang_kehadiran_minimum' => 80,

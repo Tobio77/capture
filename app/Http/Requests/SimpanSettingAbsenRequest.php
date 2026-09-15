@@ -44,6 +44,23 @@ class SimpanSettingAbsenRequest extends FormRequest
             'jam_tutup_datang' => ['required', 'date_format:H:i'],
             'jam_buka_pulang' => ['required', 'date_format:H:i'],
             'jam_tutup_pulang' => ['required', 'date_format:H:i'],
+
+            /*
+             * Jadwal jam per hari (Senin–Minggu) — tujuh baris persis, tidak
+             * kurang tidak lebih; `hari` harus salah satu dari 1..7 (ISO) dan
+             * tidak boleh berulang, supaya SettingAbsenService::rapikanJadwal()
+             * tidak diam-diam kehilangan atau menduplikasi satu hari.
+             */
+            'jadwal_mingguan' => ['required', 'array', 'size:7'],
+            'jadwal_mingguan.*.hari' => [
+                'required', 'integer', 'distinct', Rule::in(SettingAbsenService::HARI_ISO),
+            ],
+            'jadwal_mingguan.*.jam_masuk' => ['required', 'date_format:H:i'],
+            'jadwal_mingguan.*.jam_buka_datang' => ['required', 'date_format:H:i'],
+            'jadwal_mingguan.*.jam_tutup_datang' => ['required', 'date_format:H:i'],
+            'jadwal_mingguan.*.jam_buka_pulang' => ['required', 'date_format:H:i'],
+            'jadwal_mingguan.*.jam_tutup_pulang' => ['required', 'date_format:H:i'],
+
             'wajib_kode_aktivasi' => ['required', 'boolean'],
 
             'ambang_kehadiran_minimum' => [
@@ -99,6 +116,7 @@ class SimpanSettingAbsenRequest extends FormRequest
             'jam_tutup_datang' => 'jam tutup absen datang',
             'jam_buka_pulang' => 'jam buka absen pulang',
             'jam_tutup_pulang' => 'jam tutup absen pulang',
+            'jadwal_mingguan' => 'jadwal jam mingguan',
             'wajib_kode_aktivasi' => 'wajib kode aktivasi perangkat',
             'ambang_kehadiran_minimum' => 'ambang kehadiran minimum',
             'ambang_keterlambatan_maksimum' => 'ambang keterlambatan maksimum',
