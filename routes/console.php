@@ -19,3 +19,13 @@ Schedule::command('pegawai:sinkron')
     ->dailyAt('02:00')
     ->withoutOverlapping()
     ->appendOutputTo(storage_path('logs/sinkron-pegawai.log'));
+
+/*
+ * Backup harian data absensi (FR-MTN-01), plus pembersihan backup yang
+ * melampaui retensi. Dijadwalkan pukul 03:00 — sejam sesudah sinkronisasi
+ * pegawai, supaya keduanya tidak berebut I/O basis data yang sama.
+ */
+Schedule::command('absensi:backup')
+    ->dailyAt('03:00')
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/backup-absensi.log'));

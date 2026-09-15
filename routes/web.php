@@ -13,6 +13,7 @@ use App\Http\Controllers\Admin\FotoReferensiWajahController;
 use App\Http\Controllers\Admin\HariLiburController;
 use App\Http\Controllers\Admin\KartuRfidController;
 use App\Http\Controllers\Admin\LaporanController;
+use App\Http\Controllers\Admin\MaintenanceController;
 use App\Http\Controllers\Admin\PegawaiController;
 use App\Http\Controllers\Admin\PenggunaController;
 use App\Http\Controllers\Admin\PerangkatAbsenController;
@@ -384,6 +385,28 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
      */
     Route::middleware('peran:superadmin')->group(function () {
         Route::delete('absensi/{absensi}', [AbsensiController::class, 'destroy'])->name('absensi.destroy');
+    });
+
+    /*
+     * Maintenance & Backup — arsip data absensi (FR-MTN-01). Superadmin
+     * saja: penyimpanan/retensi backup adalah tanggung jawabnya, sama
+     * seperti kebersihan berkas Riwayat Laporan.
+     */
+    Route::middleware('peran:superadmin')->prefix('setting/maintenance')->name('maintenance.')->group(function () {
+        Route::get('/', [MaintenanceController::class, 'edit'])->name('edit');
+        Route::post('/', [MaintenanceController::class, 'update'])->name('update');
+
+        Route::post('backup', [MaintenanceController::class, 'buat'])
+            ->middleware('throttle:10,1')
+            ->name('backup.buat');
+        Route::get('backup/data', [MaintenanceController::class, 'data'])
+            ->middleware('throttle:60,1')
+            ->name('backup.data');
+        Route::get('backup/{riwayatBackup}/unduh', [MaintenanceController::class, 'unduh'])
+            ->middleware('throttle:30,1')
+            ->name('backup.unduh');
+        Route::delete('backup/{riwayatBackup}', [MaintenanceController::class, 'hapus'])
+            ->name('backup.hapus');
     });
 
     /*

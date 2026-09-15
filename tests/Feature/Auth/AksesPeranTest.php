@@ -105,6 +105,7 @@ class AksesPeranTest extends TestCase
                 $this->assertContains('Setting Unit Kerja', $label);
                 $this->assertNotContains('Setting Absen', $label);
                 $this->assertNotContains('Kelola User / Role', $label);
+                $this->assertNotContains('Maintenance & Backup', $label);
             });
     }
 
@@ -119,6 +120,23 @@ class AksesPeranTest extends TestCase
                 $this->assertContains('Setting Absen', $label);
                 $this->assertContains('Kelola User / Role', $label);
                 $this->assertContains('Laporan', $label);
+                $this->assertContains('Maintenance & Backup', $label);
+            });
+    }
+
+    #[Test]
+    public function menu_admin_dinas_tidak_memuat_maintenance_backup(): void
+    {
+        // Superadmin-murni, bukan lintasUnit() biasa (beda dari Setting
+        // Absen/Integrasi WORKA yang dilihat admin dinas juga) — retensi
+        // dan pembersihan backup adalah tanggung jawab superadmin sendiri.
+        $this->actingAs(User::factory()->adminDinas()->create())
+            ->get('/admin/dashboard')
+            ->assertInertia(function (Assert $page) {
+                $label = $this->labelMenu($page->toArray()['props']['menu']);
+
+                $this->assertContains('Setting Absen', $label);
+                $this->assertNotContains('Maintenance & Backup', $label);
             });
     }
 

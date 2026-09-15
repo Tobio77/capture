@@ -40,6 +40,13 @@ class MenuNavigasi
                     ['label' => 'Setting Absen', 'rute' => 'setting-absen.index', 'peran' => $lintasUnit],
                     ['label' => 'Setting Unit Kerja', 'rute' => 'unit-kerja.index', 'peran' => $semuaPeran],
                     ['label' => 'Integrasi WORKA', 'rute' => 'setting-worka.edit', 'peran' => $lintasUnit],
+
+                    /*
+                     * Backup/retensi data absensi adalah tanggung jawab
+                     * superadmin murni — bukan admin dinas, selaras dengan
+                     * satu-satunya menu superadmin-murni lain (Kelola User).
+                     */
+                    ['label' => 'Maintenance & Backup', 'rute' => 'maintenance.edit', 'peran' => [PeranPengguna::Superadmin]],
                 ],
             ],
             [
