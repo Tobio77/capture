@@ -55,7 +55,7 @@ const halaman = ref(1)
 
 // Tombol hapus per-baris (Bagian 2) hanya untuk superadmin — admin dinas/UPT
 // tidak pernah melihatnya sama sekali, bukan sekadar dinonaktifkan.
-const superadmin = computed(() => usePage().props.auth?.user?.role === 'superadmin')
+const superadmin = computed(() => usePage().props.auth?.pengguna?.role === 'superadmin')
 
 const kolom = computed(() => [
   { label: 'No' },

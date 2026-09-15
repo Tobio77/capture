@@ -39,6 +39,14 @@ test.describe('Rekap Absen', () => {
     await pilihDariDropdown(page, 'unit', UNIT_KERJA.blkSurabaya.nama)
     await expect(page.getByText(PEGAWAI_TANPA_WAJAH.nama)).toBeVisible()
 
+    // Tombol hapus per-baris (superadmin saja) bergantung pada properti
+    // Inertia yang dibagikan lewat `auth.pengguna`, bukan `auth.user` —
+    // salah kutip properti itu (bug nyata sebelumnya) membuat tombolnya
+    // diam-diam TIDAK PERNAH tampil bagi siapa pun, tanpa error yang
+    // kelihatan; otorisasi baksennya sendiri sudah teruji lewat
+    // `AbsensiHapusTest` PHP.
+    await expect(page.getByTitle('Hapus absensi datang')).toBeVisible()
+
     const [csv] = await Promise.all([
       page.waitForEvent('download'),
       page.getByRole('button', { name: 'CSV' }).click(),
