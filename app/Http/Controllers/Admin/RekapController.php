@@ -45,6 +45,15 @@ class RekapController extends Controller
         'jam_masuk' => 'Jam Masuk',
         'jam_pulang' => 'Jam Pulang',
         'metode' => 'Metode',
+
+        /*
+         * Perangkat dan alamat IP asal tap (S49). Jumlah komputer yang dipakai
+         * sebuah unit tidak dibatasi dan berubah dari hari ke hari, sehingga
+         * "dari mesin mana kehadiran ini masuk" hanya terjawab di sini.
+         */
+        'perangkat' => 'Perangkat',
+        'ip_address' => 'Alamat IP',
+
         'status_label' => 'Status',
     ];
 
@@ -75,17 +84,16 @@ class RekapController extends Controller
     }
 
     /**
-     * Tab Rekap Umum — kehadiran harian per unit kerja dan tanggal.
+     * Tab Rekap Umum — kehadiran harian pada satu tanggal atau rentang.
+     *
+     * Unit kerja di sini PENYARING, bukan penentu sesi: sejak S49 sesi harian
+     * satu untuk seluruh dinas, dan tanpa penyaring tabelnya memuat pegawai
+     * unit mana pun yang boleh dilihat pengguna (FR-REK-02).
      */
     protected function umum(Request $request): Response
     {
         $pengguna = $request->user();
-        $unitTersedia = $this->absenUmum->unitTersedia($pengguna);
-
-        $unitId = $this->absenUmum->unitTerpilih(
-            $pengguna,
-            $request->integer('unit_kerja_id') ?: $unitTersedia->first()['id'] ?? null,
-        );
+        $unitId = $request->integer('unit_kerja_id') ?: null;
 
         [$dari, $sampai] = $this->rentangUmum($request);
         $cari = $request->string('cari')->toString();
@@ -100,8 +108,8 @@ class RekapController extends Controller
         $rentang = ! $dari->isSameDay($sampai);
 
         $rekap = $rentang
-            ? $this->absenUmum->rekapRentang($pengguna, $unitId, $dari, $sampai, $cari)
-            : $this->absenUmum->rekapHarian($pengguna, $unitId, $dari, $cari);
+            ? $this->absenUmum->rekapRentang($pengguna, $dari, $sampai, $cari, $unitId)
+            : $this->absenUmum->rekapHarian($pengguna, $dari, $cari, $unitId);
 
         $sesi = $rentang ? null : $rekap['sesi'];
 
@@ -112,7 +120,7 @@ class RekapController extends Controller
             'rekap' => [],
             'ringkasan' => $rekap['ringkasan'],
             'umum' => [
-                'unit_kerja' => $unitTersedia->values(),
+                'unit_kerja' => $this->absenUmum->unitTersedia($pengguna),
                 'filter' => [
                     'unit_kerja_id' => $unitId,
                     'dari' => $dari->toDateString(),
@@ -314,7 +322,7 @@ class RekapController extends Controller
 
     protected function eventTerpilih(Request $request, int $id): ?EventAbsen
     {
-        $event = EventAbsen::query()->with('unitKerja:id')->find($id);
+        $event = EventAbsen::query()->find($id);
 
         if ($event === null || ! $this->dapatMelihat($request, $event)) {
             return null;
@@ -330,26 +338,24 @@ class RekapController extends Controller
     {
         $pertama = $daftarEvent->first();
 
-        return $pertama === null
-            ? null
-            : EventAbsen::query()->with('unitKerja:id')->find($pertama['id']);
+        return $pertama === null ? null : EventAbsen::query()->find($pertama['id']);
     }
 
     /**
-     * Admin UPT boleh membuka rekap event yang menyentuh unitnya, termasuk
-     * event bercakupan semua unit — isinya yang dibatasi, bukan aksesnya.
+     * Setiap admin boleh membuka rekap event mana pun.
+     *
+     * Sejak S49 event berlaku bagi seluruh dinas, sehingga tidak ada event
+     * yang "bukan urusan" sebuah UPT — pegawainya justru berhak hadir di
+     * dalamnya. Yang dibatasi peran adalah ISI rekapnya, lewat
+     * {@see self::cakupan()}: Admin UPT tetap hanya melihat pegawainya sendiri
+     * (FR-REK-02).
+     *
+     * Dipertahankan sebagai method alih-alih dibuang bersama pemanggilnya:
+     * ia menandai titik tempat pembatasan akses rekap akan kembali diletakkan
+     * bila kelak dibutuhkan, dan pemanggilnya sudah tersebar di tiga endpoint.
      */
     protected function dapatMelihat(Request $request, EventAbsen $event): bool
     {
-        $pengguna = $request->user();
-
-        if ($pengguna->lintasUnit() || $event->berlakuUntukSemuaUnit()) {
-            return true;
-        }
-
-        return $event->unitKerja
-            ->pluck('id')
-            ->intersect(UnitKerja::idsDenganTurunan($pengguna->unit_kerja_id))
-            ->isNotEmpty();
+        return true;
     }
 }

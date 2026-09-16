@@ -4,24 +4,41 @@ namespace App\Http\Controllers\Kiosk;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Kiosk\AktivasiKioskRequest;
-use App\Models\UnitKerja;
 use App\Services\KioskService;
+use App\Services\KodeUnitService;
 use App\Services\SettingAbsenService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cookie;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
+/**
+ * Masuknya sebuah komputer menjadi titik absen (UIUX §4.1).
+ *
+ * Satu layar, dua jalur — yang berlaku ditentukan Mode Pendaftaran Perangkat
+ * (FR-SET-06):
+ *
+ *   - Mode mati (bawaan): petugas mengetikkan KODE UNIT KERJA tempat mesin itu
+ *     berdiri. Perangkatnya dibuatkan sendiri oleh sistem, tertaut ke unit
+ *     tersebut, dengan alamat IP tercatat.
+ *   - Mode menyala: perangkat harus sudah didaftarkan admin, dan yang
+ *     diketikkan adalah KODE AKTIVASI sekali pakai miliknya.
+ *
+ * Keduanya berakhir sama: satu device_token dalam cookie, dan perangkat
+ * dipulangkan ke halaman depan untuk memilih Absen Umum atau Absen Event.
+ */
 class AktivasiController extends Controller
 {
     public function __construct(
         protected KioskService $kiosk,
+        protected KodeUnitService $kodeUnit,
         protected SettingAbsenService $setting,
     ) {}
 
     /**
-     * Layar aktivasi perangkat (UIUX §4.1).
+     * Layar masuk perangkat.
      */
     public function create(Request $request): Response|RedirectResponse
     {
@@ -29,60 +46,72 @@ class AktivasiController extends Controller
             return redirect()->route('beranda');
         }
 
-        $modeTerbuka = $this->setting->modeTerbuka();
-
         return Inertia::render('Kiosk/Aktivasi', [
-            'mode_terbuka' => $modeTerbuka,
-
             /*
-             * Unit kerja hanya dikirim ketika Mode Terbuka menyala. Pada mode
-             * biasa, layar aktivasi tidak perlu — dan tidak boleh — membocorkan
-             * daftar unit kerja kepada mesin yang belum punya kode apa pun.
+             * Menentukan kode mana yang diminta layar, dan bunyi penjelasannya.
+             * Daftar unit kerja sengaja TIDAK ikut dikirim pada kedua mode:
+             * mesin yang belum memegang kode apa pun tidak berkepentingan
+             * mengetahui unit kerja mana saja yang ada, dan kodenyalah yang
+             * menentukan — bukan pilihan pada sebuah daftar.
              */
-            'unit_kerja' => $modeTerbuka
-                ? UnitKerja::query()
-                    ->levelTeratas()
-                    ->aktif()
-                    ->orderBy('nama')
-                    ->get(['id', 'kode', 'nama'])
-                : [],
+            'mode_pendaftaran' => $this->setting->pendaftaranPerangkatAktif(),
+            'panjang_kode' => KodeUnitService::PANJANG_KODE,
         ]);
     }
 
     /**
-     * Masuk tanpa kode aktivasi selagi Mode Terbuka menyala (FR-SET-06).
+     * Tukarkan kode unit kerja dengan device_token perangkat (FR-EVT-03).
      *
-     * Pemeriksaan settingnya diulang di sini, bukan hanya di layar: layar
-     * hanyalah tampilan, dan permintaan ini dapat dikirim langsung oleh siapa
-     * pun yang tahu alamatnya.
+     * Pemeriksaan modenya diulang di sini, bukan hanya di layar: layar hanyalah
+     * tampilan, dan permintaan ini dapat dikirim langsung oleh siapa pun yang
+     * tahu alamatnya.
      */
-    public function terbuka(Request $request): RedirectResponse
+    public function unit(Request $request): RedirectResponse
     {
-        abort_unless(
-            $this->setting->modeTerbuka(),
+        abort_if(
+            $this->setting->pendaftaranPerangkatAktif(),
             403,
-            'Perangkat wajib diaktifkan dengan kode. Mintakan kode aktivasi kepada admin.',
+            'Mode Pendaftaran Perangkat sedang menyala. Perangkat harus didaftarkan admin dan memakai kode aktivasi.',
         );
 
-        $data = $request->validate([
-            'unit_kerja_id' => ['required', 'integer', 'exists:unit_kerja,id'],
-        ]);
+        $data = $request->validate(
+            ['kode' => ['required', 'string', 'max:32']],
+            ['kode.required' => 'Kode unit kerja wajib diisi.'],
+        );
 
-        $unitKerja = UnitKerja::query()->findOrFail($data['unit_kerja_id']);
+        $unitKerja = $this->kodeUnit->unitDariKode($data['kode']);
 
-        ['token' => $token] = $this->kiosk->masukTanpaKode($unitKerja, $request);
+        if ($unitKerja === null) {
+            /*
+             * Kode yang salah dan kode milik unit yang dinonaktifkan dijawab
+             * pesan yang sama. Membedakannya mengubah kolom ini menjadi alat
+             * menebak: penebak yang diberi tahu "unitnya nonaktif" sudah
+             * mengetahui bahwa ia menemukan kode yang benar.
+             */
+            throw ValidationException::withMessages([
+                'kode' => 'Kode unit kerja tidak dikenal. Mintakan kode terbaru kepada admin dinas.',
+            ]);
+        }
+
+        ['token' => $token] = $this->kiosk->masukDenganKodeUnit($unitKerja, $request);
 
         return redirect()
             ->route('beranda')
-            ->with('sukses', 'Perangkat masuk tanpa kode aktivasi (Mode Terbuka).')
+            ->with('sukses', "Perangkat dikenali sebagai titik absen {$unitKerja->nama}.")
             ->withCookie($this->kiosk->cookieToken($token, $request));
     }
 
     /**
-     * Tukarkan kode aktivasi dengan device_token perangkat.
+     * Tukarkan kode aktivasi sekali pakai dengan device_token perangkat.
      */
     public function store(AktivasiKioskRequest $request): RedirectResponse
     {
+        abort_unless(
+            $this->setting->pendaftaranPerangkatAktif(),
+            403,
+            'Mode Pendaftaran Perangkat sedang dimatikan. Masuk memakai kode unit kerja.',
+        );
+
         ['token' => $token] = $this->kiosk->aktifkan(
             $request->string('kode_aktivasi')->toString(),
             $request,
@@ -103,7 +132,7 @@ class AktivasiController extends Controller
 
         return redirect()
             ->route('kiosk.aktivasi')
-            ->with('sukses', 'Perangkat telah dilepaskan. Masukkan kode aktivasi baru untuk menggunakannya kembali.')
+            ->with('sukses', 'Perangkat telah dilepaskan. Masukkan kode untuk menggunakannya kembali.')
             ->withCookie(Cookie::forget(KioskService::NAMA_COOKIE));
     }
 }

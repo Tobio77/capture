@@ -48,29 +48,28 @@ export async function pilihDariDropdown(page, idTombol, namaOpsi) {
 }
 
 /**
- * Daftarkan satu perangkat baru pada unit kerja yang diberikan (lewat
- * `page` admin yang sudah masuk) lalu aktifkan di konteks TERPISAH (kiosk
- * tidak berbagi sesi/cookie dengan admin) — mengembalikan `Page` kiosk yang
- * sudah aktif, siap dipakai memilih Absen Umum/Absen Event.
+ * Hubungkan satu perangkat baru sebagai titik absen unit kerja yang diberikan:
+ * kode perangkat unitnya dibaca lewat `page` admin yang sudah masuk, lalu
+ * diketikkan di konteks TERPISAH (kiosk tidak berbagi sesi/cookie dengan
+ * admin). Mengembalikan `Page` kiosk yang sudah dikenali, siap dipakai memilih
+ * Absen Umum/Absen Event.
+ *
+ * Sejak S49 tidak ada pendaftaran per mesin: jalur masuknya kode unit kerja
+ * yang tetap (lihat Setting → Unit Kerja).
  *
  * Dipakai lebih dari satu spec (kiosk-dan-event, rekap) yang sama-sama butuh
- * satu titik absen aktif tanpa peduli detail kode aktivasinya sendiri.
+ * satu titik absen aktif tanpa peduli detail kodenya sendiri.
  */
-export async function daftarkanDanAktifkanKiosk(adminPage, context, namaUnitKerja) {
-  const namaTitik = `E2E ${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+export async function daftarkanDanAktifkanKiosk(adminPage, context, kodeUnitKerja) {
+  await adminPage.goto('/admin/kelola-absen/unit-kerja')
 
-  await adminPage.goto('/admin/perangkat')
-  await adminPage.getByRole('button', { name: 'Daftarkan Perangkat' }).click()
-  await adminPage.getByLabel('Nama Titik Absen').fill(namaTitik)
-  await pilihDariDropdown(adminPage, 'unit_form', namaUnitKerja)
-  await adminPage.getByRole('button', { name: 'Simpan Perangkat' }).click()
-
-  const kode = (await adminPage.locator('code').innerText()).trim()
+  const baris = adminPage.getByRole('row', { name: new RegExp(kodeUnitKerja) })
+  const kode = (await baris.getByRole('cell').nth(2).innerText()).trim()
 
   const kiosk = await context.newPage()
   await kiosk.goto('/kiosk/aktivasi')
-  await kiosk.getByLabel('Kode Aktivasi').fill(kode)
-  await kiosk.getByRole('button', { name: 'Aktifkan Perangkat' }).click()
+  await kiosk.getByLabel('Kode Unit Kerja').fill(kode)
+  await kiosk.getByRole('button', { name: 'Hubungkan Perangkat' }).click()
   await expect(kiosk).toHaveURL(/\/$/)
 
   return kiosk

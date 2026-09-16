@@ -8,17 +8,36 @@ use App\Models\Kiosk;
 use App\Models\LogAktivitas;
 use App\Models\UnitKerja;
 use App\Services\KioskService;
+use App\Services\SettingAbsenService;
+use App\Support\PengaturanRepository;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
+use Tests\Feature\KodeUnitKerjaTest;
 use Tests\TestCase;
 
 /**
  * Aktivasi perangkat kiosk dan penerbitan device_token (FR-AUTH-01, FR-USR-03, NFR-03).
+ *
+ * Jalur kode aktivasi sekali pakai ini bukan lagi jalur bawaan sejak S49 — ia
+ * hanya berlaku selagi Mode Pendaftaran Perangkat menyala (FR-SET-06), dan
+ * karena itu setUp() menyalakannya. Jalur bawaannya, kode unit kerja, diuji di
+ * {@see KodeUnitKerjaTest}; sakelar yang memilih di antara
+ * keduanya diuji di {@see ModePendaftaranPerangkatTest}.
  */
 class AktivasiKioskTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        app(PengaturanRepository::class)->simpan(
+            SettingAbsenService::KUNCI_PENDAFTARAN_PERANGKAT,
+            '1',
+        );
+    }
 
     #[Test]
     public function layar_aktivasi_tampil_untuk_perangkat_yang_belum_aktif(): void

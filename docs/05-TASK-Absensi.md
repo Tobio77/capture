@@ -105,6 +105,28 @@ Rencana pengerjaan dibagi menjadi fase dan sesi, mengikuti pola yang telah terbu
 | S28      | Persiapan data & pelatihan | Sinkronisasi awal data pegawai, pendaftaran foto referensi massal, pelatihan admin unit kerja |
 | S29      | Deployment                 | Rilis ke VPS Jagoan Hosting, konfigurasi CI (GitHub Actions), pemantauan awal pasca-rilis     |
 
+# 9b. Revisi Pascarilis — Absensi Satu Dinas (S49)
+
+Revisi kebijakan yang menyentuh hampir setiap lapisan, dikerjakan sebagai satu
+sesi karena kedelapan butirnya saling bergantung: melepas cakupan unit dari
+event tanpa melepasnya dari sesi harian akan meninggalkan sistem yang separuh
+berpindah.
+
+| **Butir** | **Keputusan** | **Rujukan** |
+|-----------|---------------|-------------|
+| 1 | Dua macam absen dipertahankan: umum (harian) dan event (kegiatan), dua layar terpisah yang berjalan berdampingan | FR-SET-05, FR-EVT-04 |
+| 2 | Cakupan per unit kerja DIHAPUS. Absen umum maupun event berlaku bagi seluruh Disnakertrans dan seluruh pegawainya | FR-EVT-01, FR-SET-05 |
+| 3 | Absen umum menyala terus dan dapat dimatikan/dinyalakan manual; menyalakannya kembali MELANJUTKAN sesi hari itu | FR-SET-05, FR-SET-07 |
+| 4 | Unit kerja hanya dipakai pada rekap, laporan, dan penyaring | FR-REK-02, FR-LAP-02 |
+| 5 | Setiap unit kerja punya satu kode perangkat tetap, dapat diganti Superadmin/Admin Dinas; perangkat mengetikkannya sekali dan IP-nya tercatat | FR-EVT-03 |
+| 6 | Jumlah perangkat per unit tidak dibatasi, semuanya tercatat beserta unit dan IP-nya pada rekap | FR-EVT-05, FR-REK-01 |
+| 7 | Mode Pendaftaran Perangkat dimatikan secara bawaan; fiturnya utuh dengan sakelar untuk menyalakannya kembali | FR-SET-06 |
+| 8 | Laporan tetap menampilkan unit kerja; Admin UPT hanya mengunduh unitnya, peran lintas unit mengunduh semuanya | FR-LAP-02 |
+
+Migration yang menyertainya menulis ulang data historis dan **tidak punya jalan
+mundur** — lihat SDD §3.6 dan §3.8. Pulihkan dari backup bila bentuk lama
+benar-benar dibutuhkan.
+
 # 10. Ketergantungan Eksternal yang Perlu Dikonfirmasi Sebelum Mulai
 
 - Spesifikasi teknis API WORKA/BKD (autentikasi, format respons, endpoint pegawai) — diperlukan sebelum Sesi S06.

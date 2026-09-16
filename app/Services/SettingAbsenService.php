@@ -77,7 +77,28 @@ class SettingAbsenService
     /** Hari ISO 1 (Senin) sampai 7 (Minggu) — urutan tetap dipakai jadwal mingguan. */
     public const array HARI_ISO = [1, 2, 3, 4, 5, 6, 7];
 
-    public const string KUNCI_WAJIB_KODE_AKTIVASI = 'absen.wajib_kode_aktivasi';
+    /**
+     * Mode Pendaftaran Perangkat (FR-SET-06, revisi S49).
+     *
+     * **Dimatikan secara bawaan.** Jalur masuk perangkat yang berlaku sehari-
+     * hari adalah kode unit kerja: sebuah komputer mengetikkan kode UPT-nya
+     * sekali, lalu dikenali sebagai perangkat unit itu
+     * ({@see KodeUnitService}). Jalur itu tidak menuntut admin mendaftarkan
+     * tiap mesin lebih dahulu — dan memang tidak boleh menuntutnya, sebab
+     * jumlah komputer yang dipakai sebuah UPT berubah dari hari ke hari.
+     *
+     * Menyalakan mode ini mengembalikan jalur lama: perangkat harus
+     * didaftarkan admin di Kelola Perangkat Absen dan menukarkan kode aktivasi
+     * sekali pakai, dan kode unit kerja tidak lagi diterima. Fiturnya sengaja
+     * dipertahankan utuh — instansi yang kelak ingin mengunci daftar mesinnya
+     * tinggal menggeser sakelar ini, tanpa ada yang perlu ditulis ulang.
+     *
+     * Kunci lamanya (`absen.wajib_kode_aktivasi`) tidak dipakai lagi dan
+     * dibuang oleh migration: maknanya terbalik dari kunci ini, sehingga
+     * membiarkannya terbaca berarti instalasi lama menyala dengan mode yang
+     * justru tidak dikehendaki.
+     */
+    public const string KUNCI_PENDAFTARAN_PERANGKAT = 'absen.pendaftaran_perangkat_aktif';
 
     /**
      * Stempel waktu pelonggaran pengaman (perbaikan H-3).
@@ -86,8 +107,6 @@ class SettingAbsenService
      * ketika sakelarnya digeser; lihat {@see self::catatPelonggaran()}.
      */
     public const string KUNCI_WAJAH_MATI_SEJAK = 'absen.verifikasi_wajah_mati_sejak';
-
-    public const string KUNCI_TERBUKA_SEJAK = 'absen.mode_terbuka_sejak';
 
     /**
      * Ambang batas yang menyalakan rekomendasi pada Laporan Resmi
@@ -163,14 +182,8 @@ class SettingAbsenService
             // Jadwal jam per hari (Senin–Minggu); lihat catatan pada konstantanya.
             'jadwal_mingguan' => $this->jadwalMingguan(),
 
-            /*
-             * FR-SET-06. Bawaannya menyala: perangkat harus didaftarkan admin
-             * dan menukarkan kode aktivasi lebih dahulu. Mematikannya membuka
-             * layar absen bagi mesin mana pun yang dapat menjangkau alamatnya,
-             * sehingga hanya untuk keadaan darurat — dan admin diberi peringatan
-             * yang selalu terlihat selama mode itu menyala.
-             */
-            'wajib_kode_aktivasi' => $this->bool(self::KUNCI_WAJIB_KODE_AKTIVASI, true),
+            // FR-SET-06; lihat catatan pada konstantanya.
+            'pendaftaran_perangkat_aktif' => $this->bool(self::KUNCI_PENDAFTARAN_PERANGKAT, false),
 
             /*
              * FR-LAP-04. Dipakai bagian Rekomendasi pada Laporan Resmi untuk
@@ -188,15 +201,15 @@ class SettingAbsenService
     }
 
     /**
-     * Mode Terbuka: perangkat boleh masuk tanpa kode aktivasi.
+     * Mode Pendaftaran Perangkat sedang menyala (FR-SET-06).
      *
-     * Dipisahkan sebagai method sendiri karena dibaca dari banyak tempat —
-     * layar aktivasi, pembuatan perangkat ad-hoc, dan spanduk peringatan di
-     * panel admin — dan ketiganya harus selalu sepakat.
+     * Dipisahkan sebagai method sendiri karena dibaca dari beberapa tempat —
+     * layar masuk perangkat, penerbitan kode aktivasi, dan halaman Kelola
+     * Perangkat Absen — dan semuanya harus selalu sepakat.
      */
-    public function modeTerbuka(): bool
+    public function pendaftaranPerangkatAktif(): bool
     {
-        return ! $this->ambil()['wajib_kode_aktivasi'];
+        return (bool) $this->ambil()['pendaftaran_perangkat_aktif'];
     }
 
     /**
@@ -354,7 +367,7 @@ class SettingAbsenService
             self::KUNCI_TUTUP_DATANG => substr((string) $nilai('jam_tutup_datang'), 0, 5),
             self::KUNCI_BUKA_PULANG => substr((string) $nilai('jam_buka_pulang'), 0, 5),
             self::KUNCI_TUTUP_PULANG => substr((string) $nilai('jam_tutup_pulang'), 0, 5),
-            self::KUNCI_WAJIB_KODE_AKTIVASI => $this->dariBool($nilai('wajib_kode_aktivasi')),
+            self::KUNCI_PENDAFTARAN_PERANGKAT => $this->dariBool($nilai('pendaftaran_perangkat_aktif')),
             self::KUNCI_AMBANG_KEHADIRAN_MINIMUM => (string) (int) $nilai('ambang_kehadiran_minimum'),
             self::KUNCI_AMBANG_KETERLAMBATAN_MAKSIMUM => (string) (int) $nilai('ambang_keterlambatan_maksimum'),
         ];
@@ -401,14 +414,21 @@ class SettingAbsenService
     /**
      * Catat SEJAK KAPAN sebuah pengaman dilonggarkan (perbaikan H-3).
      *
-     * Dua sakelar pada layar ini melonggarkan pengaman, dan keduanya mudah
-     * dinyalakan untuk satu apel pagi yang terburu-buru lalu terlupakan
-     * berminggu-minggu. Tanpa stempel waktu, tidak ada yang dapat membedakan
-     * "baru dimatikan lima menit lalu" dari "sudah mati sejak bulan lalu" —
-     * dan panel Perhatian tidak punya dasar untuk mengingatkan siapa pun.
+     * Verifikasi wajah mudah dimatikan untuk satu apel pagi yang terburu-buru
+     * lalu terlupakan berminggu-minggu. Tanpa stempel waktu, tidak ada yang
+     * dapat membedakan "baru dimatikan lima menit lalu" dari "sudah mati sejak
+     * bulan lalu" — dan panel Perhatian tidak punya dasar untuk mengingatkan
+     * siapa pun.
      *
      * Waktunya dihapus begitu pengamannya menyala kembali, sehingga pemulihan
      * yang benar tidak meninggalkan peringatan yang menggantung.
+     *
+     * Mode Pendaftaran Perangkat TIDAK ikut di sini, berbeda dari sebelum S49.
+     * Dulu mematikannya berarti membuka layar absen bagi mesin mana pun yang
+     * dapat menjangkau alamat server — pelonggaran yang memang pantas
+     * diperingatkan terus-menerus. Kini jalur bawaannya tetap menuntut kode
+     * unit kerja, sehingga mematikan mode pendaftaran bukan lagi pelonggaran
+     * pengaman melainkan pilihan cara kerja.
      *
      * @param  array<string, mixed>  $sebelum
      * @param  array<string, mixed>  $sesudah
@@ -417,7 +437,6 @@ class SettingAbsenService
     {
         $pengaman = [
             'metode_wajah_aktif' => self::KUNCI_WAJAH_MATI_SEJAK,
-            'wajib_kode_aktivasi' => self::KUNCI_TERBUKA_SEJAK,
         ];
 
         foreach ($pengaman as $medan => $kunci) {

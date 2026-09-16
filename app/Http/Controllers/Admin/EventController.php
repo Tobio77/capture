@@ -2,16 +2,12 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Enums\CakupanEvent;
 use App\Enums\StatusEvent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SimpanEventRequest;
 use App\Models\EventAbsen;
-use App\Models\KodeUnitEvent;
-use App\Models\UnitKerja;
 use App\Services\EksporService;
 use App\Services\EventAbsenService;
-use App\Services\KodeUnitEventService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,63 +18,42 @@ use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 /**
  * Daftar dan pengelolaan event absensi (FR-EVT-01, FR-EVT-02).
  *
- * Menutup event (FR-EVT-04) dan detail kiosk terhubung (FR-EVT-03, FR-EVT-05)
- * dikerjakan pada S11 dan S12.
+ * Sejak S49 setiap event berlaku bagi seluruh dinas, sehingga tidak ada lagi
+ * pemeriksaan "apakah event ini menyentuh unit saya" di sini. Yang tersisa
+ * adalah pembedaan peran yang jauh lebih sederhana, dan ia ditegakkan pada
+ * route: seluruh peran admin boleh MEMBACA daftar dan detailnya, hanya peran
+ * lintas unit yang boleh membuat, mengubah, menutup, dan menghapus.
  */
 class EventController extends Controller
 {
     public function __construct(
         protected EventAbsenService $event,
         protected EksporService $ekspor,
-        protected KodeUnitEventService $kodeUnit,
     ) {}
 
     public function index(Request $request): Response
     {
-        $pengguna = $request->user();
-
-        $filter = $request->only(['cari', 'status', 'unit_kerja_id', 'dari', 'sampai']);
+        $filter = $request->only(['cari', 'status', 'dari', 'sampai']);
 
         return Inertia::render('Event/Index', [
-            'daftar' => $this->event->daftar($pengguna, $filter),
+            'daftar' => $this->event->daftar($request->user(), $filter),
             'filter' => array_map(fn ($nilai) => $nilai ?? '', $filter + [
-                'cari' => '', 'status' => '', 'unit_kerja_id' => '', 'dari' => '', 'sampai' => '',
+                'cari' => '', 'status' => '', 'dari' => '', 'sampai' => '',
             ]),
             'status_pilihan' => collect(StatusEvent::cases())
                 ->map(fn (StatusEvent $status) => [
                     'nilai' => $status->value,
                     'label' => $status->label(),
                 ]),
-            'unit_kerja' => $this->event->unitKerjaTersedia($pengguna),
             'nilai_awal' => $this->event->nilaiAwal(),
 
             /*
-             * Cakupan yang melampaui satu unit — "Semua Unit" dan "Wilayah
-             * Kerja Surabaya" — hanya untuk peran lintas unit (FR-EVT-01,
-             * FR-EVT-02).
+             * Menentukan tampil-tidaknya tombol buat/ubah/tutup/hapus. Dihitung
+             * di server dan dikirim sebagai prop, bukan diturunkan ulang di
+             * peramban: route sudah menolak yang tidak berhak, dan tombol yang
+             * tampil tanpa hak hanya menyesatkan admin unit.
              */
-            'boleh_semua_unit' => $pengguna->lintasUnit(),
-            'cakupan_semua_unit' => CakupanEvent::SemuaUnit->value,
-            'cakupan_unit' => CakupanEvent::Unit->value,
-
-            /*
-             * Cakupan bawaan sistem: daftar unitnya tertanam pada enum, bukan
-             * dicentang admin. Dikirim beserta unit penyusunnya supaya
-             * formulir dapat memperlihatkan apa saja yang tercakup sebelum
-             * admin menyimpan — dan supaya kekeliruan pemetaan kode unit
-             * ketahuan di layar, bukan setelah event berjalan.
-             */
-            'cakupan_tertanam' => collect(CakupanEvent::cases())
-                ->filter(fn (CakupanEvent $cakupan) => $cakupan->unitTertanam())
-                ->map(fn (CakupanEvent $cakupan) => [
-                    'nilai' => $cakupan->value,
-                    'label' => $cakupan->label(),
-                    'unit_kerja' => UnitKerja::query()
-                        ->whereIn('kode', $cakupan->kodeUnitTertanam())
-                        ->orderBy('nama')
-                        ->get(['id', 'kode', 'nama']),
-                ])
-                ->values(),
+            'boleh_kelola' => $request->user()->lintasUnit(),
         ]);
     }
 
@@ -89,30 +64,24 @@ class EventController extends Controller
     public function ekspor(Request $request): SymfonyResponse
     {
         $pengguna = $request->user();
-        $filter = $request->only(['cari', 'status', 'unit_kerja_id', 'dari', 'sampai']);
+        $filter = $request->only(['cari', 'status', 'dari', 'sampai']);
         $baris = $this->event->semua($pengguna, $filter);
 
         $nama = 'daftar-event-'.now()->format('Ymd-Hi');
-        $cakupan = $pengguna->lintasUnit()
-            ? 'Seluruh unit kerja'
-            : ($pengguna->unitKerja?->nama ?? 'Tanpa unit kerja');
 
         if ($request->string('format')->toString() === 'pdf') {
             return $this->ekspor->unduhPdf('cetak.event', [
                 'baris' => $baris,
-                'cakupan' => $cakupan,
+                'cakupan' => 'Seluruh unit kerja',
                 'keterangan' => $baris->count().' event pada penyaringan ini',
             ], "{$nama}.pdf");
         }
 
         return $this->ekspor->unduhCsv(
             $this->ekspor->csv(
-                ['Nama Event', 'Cakupan', 'Tanggal', 'Jam Mulai', 'Toleransi (menit)', 'Perangkat', 'Absen Masuk', 'Status'],
+                ['Nama Event', 'Tanggal', 'Jam Mulai', 'Toleransi (menit)', 'Perangkat', 'Absen Masuk', 'Status'],
                 $baris->map(fn (array $isi) => [
                     $isi['nama'],
-                    $isi['cakupan'] === 'semua_unit'
-                        ? 'Semua Unit'
-                        : collect($isi['unit_kerja'])->pluck('kode')->join(', '),
                     $isi['tanggal'],
                     $isi['jam_mulai'],
                     $isi['toleransi_menit'],
@@ -129,13 +98,11 @@ class EventController extends Controller
     {
         $event = $this->event->buat($request->validated(), $request->user());
 
-        return back()->with('sukses', "Event {$event->nama} berhasil dibuat.");
+        return back()->with('sukses', "Event {$event->nama} berhasil dibuka untuk seluruh unit kerja.");
     }
 
     public function update(SimpanEventRequest $request, EventAbsen $event): RedirectResponse
     {
-        abort_unless($this->boleh($request, $event), 403);
-
         // Event yang sudah ditutup adalah catatan riwayat; perubahannya akan
         // menggeser makna absensi yang terlanjur tercatat di bawahnya.
         abort_unless($event->aktif(), 403, 'Event yang sudah ditutup tidak dapat diubah.');
@@ -146,45 +113,15 @@ class EventController extends Controller
     }
 
     /**
-     * Detail event: kiosk terhubung, jumlah absen masuk, status entry
-     * (FR-EVT-05).
+     * Detail event: perangkat yang melayaninya beserta unit dan IP masing-
+     * masing, jumlah absen masuk, dan status entry (FR-EVT-05).
      *
      * Dijawab sebagai JSON, bukan halaman Inertia, karena dimuat oleh modal
      * di atas daftar event yang sudah tampil.
      */
     public function detail(Request $request, EventAbsen $event): JsonResponse
     {
-        abort_unless($this->dapatMelihat($request, $event), 403);
-
-        return response()->json(
-            $this->event->detail($event, $this->boleh($request, $event)),
-        );
-    }
-
-    /**
-     * Terbitkan ulang kode unit kerja sebuah event (FR-EVT-03).
-     *
-     * Berwenang atas kode = berwenang atas eventnya, yaitu pagar yang sama
-     * dengan mengubah dan menutup event: Superadmin serta Admin Dinas untuk
-     * event mana pun, Admin UPT hanya untuk event yang menyentuh unitnya
-     * sendiri (matriks peran SRS §6).
-     */
-    public function resetKode(Request $request, EventAbsen $event, KodeUnitEvent $kode): RedirectResponse
-    {
-        abort_unless($this->boleh($request, $event), 403);
-        abort_unless($kode->event_absen_id === $event->id, 404);
-
-        // Kode hanya berguna selama entry masih menerima tap; menerbitkan
-        // ulang pada event yang sudah ditutup hanya membingungkan petugas.
-        abort_unless($event->aktif(), 403, 'Event ini sudah ditutup.');
-
-        $baru = $this->kodeUnit->reset($kode, $request->user());
-
-        return back()->with('sukses', sprintf(
-            'Kode unit %s diganti menjadi %s. Perangkat yang sudah bergabung tidak terputus.',
-            $baru->unitKerja?->kode ?? 'terpilih',
-            KodeUnitEventService::format($baru->kode),
-        ));
+        return response()->json($this->event->detail($event));
     }
 
     /**
@@ -192,7 +129,6 @@ class EventController extends Controller
      */
     public function tutup(Request $request, EventAbsen $event): RedirectResponse
     {
-        abort_unless($this->boleh($request, $event), 403);
         abort_unless($event->aktif(), 403, 'Event ini sudah ditutup.');
 
         $this->event->tutup($event, $request->user());
@@ -212,8 +148,6 @@ class EventController extends Controller
      */
     public function destroy(Request $request, EventAbsen $event): RedirectResponse
     {
-        abort_unless($this->boleh($request, $event), 403);
-
         abort_unless(
             $this->event->dapatDihapus($event),
             403,
@@ -225,49 +159,5 @@ class EventController extends Controller
         $this->event->hapus($event, $request->user());
 
         return back()->with('sukses', "Event {$nama} berhasil dihapus.");
-    }
-
-    /**
-     * Melihat lebih longgar daripada mengubah: Admin UPT boleh membuka detail
-     * event bercakupan semua unit yang menyentuh unitnya, walau tidak boleh
-     * mengubahnya.
-     */
-    protected function dapatMelihat(Request $request, EventAbsen $event): bool
-    {
-        $pengguna = $request->user();
-
-        if ($pengguna->lintasUnit() || $event->berlakuUntukSemuaUnit()) {
-            return true;
-        }
-
-        return $event->unitKerja
-            ->pluck('id')
-            ->intersect(UnitKerja::idsDenganTurunan($pengguna->unit_kerja_id))
-            ->isNotEmpty();
-    }
-
-    /**
-     * Admin UPT hanya boleh menyentuh event yang mencakup unitnya (FR-EVT-02).
-     */
-    protected function boleh(Request $request, EventAbsen $event): bool
-    {
-        $pengguna = $request->user();
-
-        if ($pengguna->lintasUnit()) {
-            return true;
-        }
-
-        if ($event->berlakuUntukSemuaUnit()) {
-            // Event lintas unit dibuat peran lintas unit; Admin UPT boleh
-            // melihatnya, tetapi tidak boleh mengubahnya.
-            return false;
-        }
-
-        $cakupanPengguna = UnitKerja::idsDenganTurunan($pengguna->unit_kerja_id);
-
-        return $event->unitKerja
-            ->pluck('id')
-            ->intersect($cakupanPengguna)
-            ->isNotEmpty();
     }
 }

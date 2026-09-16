@@ -340,7 +340,7 @@ class JendelaAbsenUmumTest extends TestCase
             ->assertStatus(409)
             ->assertJson(['code' => 'DI_LUAR_JAM']);
 
-        $sesiBesok = app(AbsenUmumService::class)->sesi($this->upt->id);
+        $sesiBesok = app(AbsenUmumService::class)->sesi();
 
         $this->assertNull($sesiBesok?->override_absen, 'Sesi hari baru harus lahir tanpa override.');
     }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\KodeUnitService;
 use Database\Factories\UnitKerjaFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -19,12 +20,21 @@ class UnitKerja extends Model
     protected $table = 'unit_kerja';
 
     /**
+     * `kode_perangkat` sengaja TIDAK fillable.
+     *
+     * Ia tidak pernah datang dari formulir admin maupun dari sinkronisasi
+     * WORKA — hanya {@see KodeUnitService} yang menerbitkan dan
+     * menggantinya. Membiarkannya terisi lewat mass-assignment berarti satu
+     * kiriman formulir yang keliru dapat memutus jalan masuk seluruh perangkat
+     * sebuah unit, tanpa jejak siapa yang melakukannya.
+     *
      * @return array<string, string>
      */
     protected function casts(): array
     {
         return [
             'aktif' => 'boolean',
+            'kode_perangkat_direset_pada' => 'datetime',
 
             /*
              * Larik nomor hari ISO-8601 (1 Senin … 7 Minggu), atau null bila
@@ -66,6 +76,16 @@ class UnitKerja extends Model
     public function users(): HasMany
     {
         return $this->hasMany(User::class);
+    }
+
+    /**
+     * Admin yang terakhir mengganti kode perangkat unit ini (FR-EVT-03).
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function peresetKode(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'kode_perangkat_direset_oleh');
     }
 
     /**

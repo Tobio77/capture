@@ -1,4 +1,4 @@
-{{-- Daftar event beserta cakupan dan capaiannya. --}}
+{{-- Daftar event beserta capaiannya. Sejak S49 setiap event berlaku bagi seluruh unit kerja, sehingga tidak ada lagi kolom cakupan. --}}
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -18,7 +18,6 @@
             <tr>
                 <th style="width:26px">No</th>
                 <th>Nama Event</th>
-                <th>Cakupan Unit</th>
                 <th style="width:70px">Tanggal</th>
                 <th style="width:40px">Jam</th>
                 <th class="kanan" style="width:56px">Toleransi</th>
@@ -32,13 +31,6 @@
                 <tr>
                     <td class="angka-kolom redup">{{ $urutan + 1 }}</td>
                     <td>{{ $isi['nama'] }}</td>
-                    <td>
-                        @if ($isi['cakupan'] === 'semua_unit')
-                            Semua Unit
-                        @else
-                            {{ collect($isi['unit_kerja'])->pluck('kode')->join(', ') }}
-                        @endif
-                    </td>
                     <td class="angka-kolom">{{ $isi['tanggal'] }}</td>
                     <td class="angka-kolom">{{ $isi['jam_mulai'] }}</td>
                     <td class="angka-kolom">{{ $isi['toleransi_menit'] }} mnt</td>
@@ -48,7 +40,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="9" class="redup" style="padding:18px;text-align:center">
+                    <td colspan="8" class="redup" style="padding:18px;text-align:center">
                         Tidak ada event pada penyaringan ini.
                     </td>
                 </tr>

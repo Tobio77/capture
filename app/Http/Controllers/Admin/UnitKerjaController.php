@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\SimpanUnitKerjaRequest;
 use App\Http\Requests\UbahStatusUnitKerjaRequest;
 use App\Models\UnitKerja;
+use App\Services\KodeUnitService;
 use App\Services\UnitKerjaService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,7 +15,10 @@ use Inertia\Response;
 
 class UnitKerjaController extends Controller
 {
-    public function __construct(protected UnitKerjaService $unitKerja) {}
+    public function __construct(
+        protected UnitKerjaService $unitKerja,
+        protected KodeUnitService $kodeUnit,
+    ) {}
 
     /**
      * Daftar unit kerja level teratas beserta jumlah pegawai dan kiosk
@@ -44,6 +48,26 @@ class UnitKerjaController extends Controller
         $this->unitKerja->perbarui($unitKerja, $request->validated(), $request->user());
 
         return back()->with('sukses', "Unit kerja {$unitKerja->kode} berhasil diperbarui.");
+    }
+
+    /**
+     * Ganti kode perangkat sebuah unit kerja (FR-EVT-03).
+     *
+     * Satu-satunya keadaan yang membutuhkannya adalah kode yang telanjur
+     * tersebar ke luar unit. Perangkat yang SUDAH dikenali tidak terputus — ia
+     * memegang device token sendiri — sehingga pesan suksesnya menyebutkan itu
+     * eksplisit: admin yang mengira sedang mengusir perangkat justru harus
+     * mencabut aksesnya di Kelola Perangkat Absen.
+     */
+    public function resetKode(Request $request, UnitKerja $unitKerja): RedirectResponse
+    {
+        $baru = $this->kodeUnit->reset($unitKerja, $request->user());
+
+        return back()->with('sukses', sprintf(
+            'Kode perangkat unit %s diganti menjadi %s. Perangkat yang sudah dikenali tidak terputus.',
+            $unitKerja->kode,
+            KodeUnitService::format($baru->kode_perangkat),
+        ));
     }
 
     /**

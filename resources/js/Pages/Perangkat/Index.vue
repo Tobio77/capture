@@ -1,6 +1,6 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
-import { router, useForm, usePage } from '@inertiajs/vue3'
+import { Link, router, useForm, usePage } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
 import Modal from '@/Components/Modal.vue'
 import Ikon from '@/Components/Ikon.vue'
@@ -20,6 +20,12 @@ const props = defineProps({
   daftar: { type: Object, required: true },
   filter: { type: Object, required: true },
   unit_kerja: { type: Array, required: true },
+
+  /*
+   * FR-SET-06. Menentukan tampil-tidaknya keterangan bahwa kode aktivasi yang
+   * diterbitkan di halaman ini sedang tidak berlaku.
+   */
+  mode_pendaftaran: { type: Boolean, default: false },
 })
 
 const page = usePage()
@@ -193,6 +199,33 @@ const kolom = [
         <Ikon nama="tambah" ukuran="h-4 w-4" /> Daftarkan Perangkat
       </button>
     </template>
+
+    <!--
+      FR-SET-06. Kode aktivasi yang diterbitkan selagi mode pendaftaran mati
+      tidak akan diterima perangkat mana pun — jalur masuknya kode unit kerja.
+      Admin harus mengetahuinya SEBELUM membacakan kode kepada petugas di
+      lokasi, bukan setelah kodenya ditolak di sana.
+    -->
+    <div
+      v-if="!mode_pendaftaran"
+      class="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-garis bg-permukaan-2 px-5 py-4"
+    >
+      <p class="flex items-start gap-2 text-sm text-sekunder">
+        <Ikon nama="info" ukuran="h-4 w-4 shrink-0 mt-0.5" />
+        <span>
+          <span class="font-medium text-utama">Mode Pendaftaran Perangkat sedang dimatikan.</span>
+          Perangkat masuk dengan mengetikkan <strong>kode unit kerja</strong> (lihat Setting →
+          Unit Kerja), dan kode aktivasi yang diterbitkan di sini tidak akan diterima. Daftar di
+          bawah tetap mencatat setiap perangkat yang masuk.
+        </span>
+      </p>
+      <Link
+        href="/admin/kelola-absen/setting"
+        class="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-garis px-3 py-1.5 text-xs font-medium text-sekunder transition hover:bg-permukaan-hover active:scale-95"
+      >
+        <Ikon nama="filter" ukuran="h-3.5 w-3.5" /> Setting Absen
+      </Link>
+    </div>
 
     <!-- Kode aktivasi hanya tampil sekali, tepat setelah diterbitkan. -->
     <Transition

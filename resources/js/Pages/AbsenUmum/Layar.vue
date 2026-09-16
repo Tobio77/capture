@@ -1,23 +1,22 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { Head, Link, router } from '@inertiajs/vue3'
+import { Head, Link } from '@inertiajs/vue3'
 import LayarAbsen from '@/Components/Absen/LayarAbsen.vue'
 import Ikon from '@/Components/Ikon.vue'
-import Pilihan from '@/Components/UI/Pilihan.vue'
 
 /**
  * Layar tangkap absen umum di peramban admin.
  *
  * Memakai layar yang sama dengan perangkat absen; yang berbeda hanya
- * endpointnya, yang dipagari sesi admin alih-alih device token, dan unit
- * kerja yang dilayaninya dipilih di sini alih-alih mengikuti tempat perangkat
- * dipasang.
+ * endpointnya, yang dipagari sesi admin alih-alih device token.
+ *
+ * Pemilih unit kerja yang dulu berdiri di sini sudah tidak ada: sejak S49 sesi
+ * absen umum SATU untuk seluruh dinas, sehingga tidak ada lagi yang perlu
+ * dipilih — layar ini selalu melayani sesi hari ini, dan pegawai unit mana pun
+ * dapat mengabsen di sini.
  */
 
-const props = defineProps({
+defineProps({
   event: { type: Object, default: null },
-  unit_kerja: { type: Array, required: true },
-  unit_kerja_id: { type: Number, default: null },
   absen_umum_aktif: { type: Boolean, required: true },
   metode: { type: Object, required: true },
   ambang_kecocokan_wajah: { type: Number, required: true },
@@ -28,33 +27,10 @@ const props = defineProps({
   status_jendela: { type: Object, default: null },
 })
 
-const unitDipilih = ref(props.unit_kerja_id)
-
-const kueri = computed(() =>
-  unitDipilih.value === null ? '' : `?unit_kerja_id=${unitDipilih.value}`,
-)
-
-const endpoint = computed(() => ({
-  presensi: `/admin/kelola-absen/absen-umum/presensi${kueri.value}`,
-  identifikasi: `/admin/kelola-absen/absen-umum/tap/identifikasi${kueri.value}`,
-  simpan: `/admin/kelola-absen/absen-umum/absen${kueri.value}`,
-}))
-
-const opsiUnit = computed(() =>
-  props.unit_kerja.map((unit) => ({ nilai: unit.id, label: unit.nama, keterangan: unit.kode })),
-)
-
-/* Nama unit yang sedang dilayani; jenis layarnya dinyatakan terpisah. */
-const namaUnit = computed(
-  () => props.unit_kerja.find((unit) => unit.id === props.unit_kerja_id)?.nama ?? '',
-)
-
-/*
- * Berpindah unit memuat ulang halaman: sesi harian yang dilayani ikut
- * berganti, begitu pula daftar presensi yang sedang tampil.
- */
-function gantiUnit() {
-  router.get('/admin/kelola-absen/absen-umum/layar', { unit_kerja_id: unitDipilih.value })
+const endpoint = {
+  presensi: '/admin/kelola-absen/absen-umum/presensi',
+  identifikasi: '/admin/kelola-absen/absen-umum/tap/identifikasi',
+  simpan: '/admin/kelola-absen/absen-umum/absen',
 }
 </script>
 
@@ -80,9 +56,9 @@ function gantiUnit() {
   </div>
 
   <!--
-    `titik` tidak mengulang unit kerja — namanya sudah menjadi judul. Yang
-    perlu diketahui petugas justru bahwa layar ini dibuka di peramban admin,
-    bukan di perangkat titik absen.
+    `titik` menyatakan bahwa layar ini dibuka di peramban admin, bukan di
+    perangkat titik absen — satu-satunya beda yang berarti bagi petugas yang
+    berdiri di depannya.
   -->
   <LayarAbsen
     v-else
@@ -96,19 +72,11 @@ function gantiUnit() {
     :status_jendela="status_jendela"
     :endpoint="endpoint"
     label="Absen Umum"
-    :judul="namaUnit"
+    judul="Seluruh Unit Kerja"
     titik="Layar absen admin, bukan perangkat titik absen"
-    judul_kosong="Pilih unit kerja untuk membuka sesi absen umum"
+    judul_kosong="Sesi absen umum hari ini belum dibuka"
   >
     <template #aksi>
-      <Pilihan
-        v-if="unit_kerja.length > 1"
-        v-model="unitDipilih"
-        :opsi="opsiUnit"
-        class="w-56"
-        @update:model-value="gantiUnit"
-      />
-
       <Link
         href="/admin/kelola-absen/absen-umum"
         class="tautan-aksi inline-flex items-center gap-1.5 rounded-lg border border-sidebar-garis px-3 py-2 text-xs font-medium text-sidebar-redup transition-colors duration-150 hover:bg-white/10 hover:text-sidebar-teks active:scale-95"

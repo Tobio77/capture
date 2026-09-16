@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\EventAbsen;
+use App\Http\Controllers\Kiosk\AktivasiController;
 use App\Services\AbsenUmumService;
+use App\Services\EventAbsenService;
 use App\Services\KioskService;
-use App\Services\KodeUnitEventService;
 use App\Services\SettingAbsenService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -21,27 +21,26 @@ use Inertia\Response;
  * `/kiosk` untuk sampai ke tempat yang benar.
  *
  * Halaman ini menggantikan keduanya, dan sengaja **tidak** dipagari apa pun:
- * ia harus terbuka bagi mesin yang belum pernah diaktifkan. Yang berubah
- * hanyalah apa yang ditawarkannya, mengikuti keadaan perangkat yang membukanya.
+ * ia harus terbuka bagi mesin yang belum pernah dikenali. Yang berubah hanyalah
+ * apa yang ditawarkannya, mengikuti keadaan perangkat yang membukanya.
  *
- * | Keadaan                       | Absen Umum          | Absen Event                    |
- * |-------------------------------|---------------------|--------------------------------|
- * | Perangkat belum diaktifkan    | ke layar aktivasi   | ke layar aktivasi              |
- * | Sudah aktif, belum ikut event | langsung masuk      | daftar event + kolom kode      |
- * | Sudah aktif dan ikut event    | langsung masuk      | langsung masuk                 |
+ * | Keadaan                        | Absen Umum        | Absen Event                 |
+ * |--------------------------------|-------------------|-----------------------------|
+ * | Perangkat belum dikenali       | ke layar masuk    | ke layar masuk              |
+ * | Sudah dikenali, ada kegiatan   | langsung masuk    | langsung masuk              |
+ * | Sudah dikenali, tanpa kegiatan | langsung masuk    | tertutup, dengan keterangan |
  *
- * **Daftar event hanya dikirim kepada perangkat yang sudah diaktifkan.**
- * Mengikuti keputusan yang sama pada layar aktivasi (FR-SET-06): nama kegiatan
- * beserta unit penyelenggaranya adalah keterangan internal, dan tidak ada
- * alasan membocorkannya kepada mesin mana pun yang kebetulan dapat menjangkau
- * alamat server. Kodenya sendiri tetap menjadi penentu, tetapi daftar ini
- * mempersempit tebakan — jadi ia ikut dipagari.
+ * **Sejak S49 tidak ada lagi kolom kode event di sini.** Kode kini menempel
+ * pada unit kerja dan hanya diketikkan sekali, di layar masuk perangkat
+ * ({@see AktivasiController}); sesudah itu
+ * perangkat langsung melayani kegiatan apa pun yang sedang dibuka, sebab event
+ * selalu berlaku bagi seluruh dinas.
  */
 class BerandaController extends Controller
 {
     public function __construct(
         protected KioskService $kiosk,
-        protected KodeUnitEventService $kode,
+        protected EventAbsenService $event,
         protected AbsenUmumService $absenUmum,
         protected SettingAbsenService $setting,
     ) {}
@@ -49,24 +48,25 @@ class BerandaController extends Controller
     public function __invoke(Request $request): Response
     {
         $perangkat = $this->kiosk->kioskDariToken($request->cookie(KioskService::NAMA_COOKIE));
-        $event = $perangkat === null ? null : $this->kode->eventYangDiikuti($perangkat);
+
+        /*
+         * Kegiatan yang sedang dibuka hanya diberitahukan kepada perangkat
+         * yang sudah dikenali. Nama kegiatan adalah keterangan internal, dan
+         * tidak ada alasan membocorkannya kepada mesin mana pun yang kebetulan
+         * dapat menjangkau alamat server.
+         */
+        $event = $perangkat === null ? null : $this->event->eventAktifSekarang();
         $setting = $this->setting->ambil();
 
         return Inertia::render('Beranda', [
             /*
-             * Perangkat yang membuka halaman ini, bila sudah diaktifkan.
+             * Perangkat yang membuka halaman ini, bila sudah dikenali.
              * Tidak memakai prop `kiosk` yang dibagikan HandleInertiaRequests:
              * prop itu diisi middleware `kiosk`, yang justru tidak berlaku di
              * sini — halaman depan harus terbuka tanpa device token.
              */
             'perangkat' => $perangkat === null ? null : [
                 'nama_titik' => $perangkat->nama_titik,
-
-                /*
-                 * Asal perangkat dipakai layar depan untuk menandai Mode
-                 * Terbuka, bukan untuk mengubah perilaku apa pun.
-                 */
-                'sumber' => $perangkat->sumber->value,
 
                 /*
                  * Hanya namanya. Kode unit ('DISNAKER') adalah penanda
@@ -77,18 +77,18 @@ class BerandaController extends Controller
                 'unit_kerja' => $perangkat->unitKerja?->only(['nama']),
             ],
 
-            // Null berarti perangkat belum bergabung ke event mana pun.
-            'event_diikuti' => $event === null ? null : [
+            // Null berarti tidak ada kegiatan yang sedang dibuka; layar Absen
+            // Event menerangkan keadaan itu alih-alih menawarkan pintu buntu.
+            'event_aktif' => $event === null ? null : [
                 'id' => $event->id,
                 'nama' => $event->nama,
+                'tanggal' => $event->tanggal->toDateString(),
                 'jam_mulai' => substr((string) $event->jam_mulai, 0, 5),
 
                 // Dipakai layar depan menghitung batas tepat waktu kegiatan,
                 // yang menggantikan batas harian selama perangkat melayaninya.
                 'toleransi_menit' => $event->toleransi_menit,
             ],
-
-            'event_aktif' => $perangkat === null ? [] : $this->eventAktif(),
 
             /*
              * Absen Umum tetap ditawarkan walau dimatikan admin — layarnya
@@ -99,17 +99,11 @@ class BerandaController extends Controller
 
             /*
              * FR-SET-06. Menentukan bunyi ajakan pada perangkat yang belum
-             * aktif: dengan Mode Terbuka ia cukup memilih unit kerjanya,
-             * tanpa Mode Terbuka ia perlu kode aktivasi dari admin.
-             *
-             * Sengaja TIDAK dinamai `mode_terbuka`: nama itu sudah dipakai
-             * prop bersama HandleInertiaRequests untuk spanduk peringatan di
-             * Panel Admin, yang hanya berlaku bagi sesi admin. Dua arti pada
-             * satu nama akan menyesatkan pembaca berikutnya.
+             * dikenali: dengan mode pendaftaran mati, ia cukup mengetikkan kode
+             * unit kerjanya; dengan mode itu menyala, ia perlu kode aktivasi
+             * yang diterbitkan admin untuk mesin itu sendiri.
              */
-            'aktivasi_tanpa_kode' => ! $setting['wajib_kode_aktivasi'],
-
-            'panjang_kode' => KodeUnitEventService::PANJANG_KODE,
+            'mode_pendaftaran' => (bool) $setting['pendaftaran_perangkat_aktif'],
 
             /*
              * Jam server saat halaman dirakit. Jam raksasa di layar depan
@@ -127,35 +121,5 @@ class BerandaController extends Controller
             'jam_masuk' => $this->setting->jadwalUntukHari(Carbon::now()->dayOfWeekIso)['jam_masuk'],
             'toleransi_menit' => $setting['toleransi_default_menit'],
         ]);
-    }
-
-    /**
-     * Event kegiatan yang sedang dibuka, sebagai keterangan bagi petugas yang
-     * hendak memasukkan kode.
-     *
-     * Kodenya sendiri tidak pernah ikut: yang membedakan petugas yang berhak
-     * dari yang tidak justru kode itu.
-     *
-     * @return array<int, array<string, mixed>>
-     */
-    protected function eventAktif(): array
-    {
-        return EventAbsen::query()
-            ->aktif()
-            ->kegiatan()
-            ->with('unitKerja:id,kode,nama')
-            ->orderBy('tanggal')
-            ->orderBy('jam_mulai')
-            ->get()
-            ->map(fn (EventAbsen $event) => [
-                'id' => $event->id,
-                'nama' => $event->nama,
-                'tanggal' => $event->tanggal->toDateString(),
-                'jam_mulai' => substr((string) $event->jam_mulai, 0, 5),
-                'cakupan_label' => $event->berlakuUntukSemuaUnit()
-                    ? $event->cakupan->label()
-                    : $event->unitKerja->pluck('nama')->implode(', '),
-            ])
-            ->all();
     }
 }

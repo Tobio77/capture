@@ -63,7 +63,8 @@ class HandleInertiaRequests extends Middleware
                 'id' => $request->kiosk()->id,
                 'nama_titik' => $request->kiosk()->nama_titik,
 
-                // Dipakai layar tap menandai perangkat Mode Terbuka.
+                // Membedakan perangkat yang masuk sendiri lewat kode unit kerja
+                // dari perangkat yang didaftarkan admin lebih dahulu.
                 'sumber' => $request->kiosk()->sumber->value,
                 'status' => $request->kiosk()->status->value,
                 'ip_terakhir' => $request->kiosk()->ip_terakhir,
@@ -73,18 +74,19 @@ class HandleInertiaRequests extends Middleware
             'menu' => $pengguna ? MenuNavigasi::untuk($pengguna) : [],
 
             /*
-             * FR-SET-06: spanduk peringatan Mode Terbuka dipasang di kerangka
-             * Panel Admin, sehingga keadaannya harus tersedia di setiap layar
-             * admin — bukan hanya di halaman Setting Absen. Closure menahan
-             * pembacaan pengaturan sampai benar-benar dirender, dan hanya
-             * untuk sesi admin: layar perangkat tidak berkepentingan atasnya.
-             */
-            'mode_terbuka' => fn () => $pengguna !== null
-                && app(SettingAbsenService::class)->modeTerbuka(),
-
-            /*
-             * Pasangan Mode Terbuka, dan yang lebih berat dari keduanya
-             * (perbaikan H-3).
+             * Spanduk peringatan verifikasi wajah, dipasang di kerangka Panel
+             * Admin sehingga keadaannya harus tersedia di setiap layar admin —
+             * bukan hanya di halaman Setting Absen. Closure menahan pembacaan
+             * pengaturan sampai benar-benar dirender, dan hanya untuk sesi
+             * admin: layar perangkat tidak berkepentingan atasnya.
+             *
+             * Spanduk Mode Terbuka yang dulu berdampingan di sini sudah tidak
+             * ada. Sampai S48, mematikan "wajib kode aktivasi" membuka layar
+             * absen bagi mesin mana pun yang dapat menjangkau alamat server,
+             * dan itu memang pantas diperingatkan terus-menerus. Jalur masuk
+             * bawaan kini selalu menuntut kode unit kerja
+             * ({@see \App\Services\KodeUnitService}), sehingga tidak ada lagi
+             * keadaan yang perlu diperingatkan.
              *
              * Sampai audit pra-deploy, verifikasi wajah yang dimatikan tidak
              * memunculkan peringatan di mana pun — hanya satu sakelar di

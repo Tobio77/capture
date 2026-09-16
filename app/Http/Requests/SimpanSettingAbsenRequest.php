@@ -61,7 +61,7 @@ class SimpanSettingAbsenRequest extends FormRequest
             'jadwal_mingguan.*.jam_buka_pulang' => ['required', 'date_format:H:i'],
             'jadwal_mingguan.*.jam_tutup_pulang' => ['required', 'date_format:H:i'],
 
-            'wajib_kode_aktivasi' => ['required', 'boolean'],
+            'pendaftaran_perangkat_aktif' => ['required', 'boolean'],
 
             'ambang_kehadiran_minimum' => [
                 'required', 'integer',
@@ -117,7 +117,7 @@ class SimpanSettingAbsenRequest extends FormRequest
             'jam_buka_pulang' => 'jam buka absen pulang',
             'jam_tutup_pulang' => 'jam tutup absen pulang',
             'jadwal_mingguan' => 'jadwal jam mingguan',
-            'wajib_kode_aktivasi' => 'wajib kode aktivasi perangkat',
+            'pendaftaran_perangkat_aktif' => 'mode pendaftaran perangkat',
             'ambang_kehadiran_minimum' => 'ambang kehadiran minimum',
             'ambang_keterlambatan_maksimum' => 'ambang keterlambatan maksimum',
         ];

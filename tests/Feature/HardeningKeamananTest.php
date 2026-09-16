@@ -14,6 +14,7 @@ use App\Services\KioskService;
 use App\Services\PenggunaService;
 use App\Services\PerhatianDashboardService;
 use App\Services\SettingAbsenService;
+use App\Support\PengaturanRepository;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -57,10 +58,10 @@ class HardeningKeamananTest extends TestCase
         $perangkat = Kiosk::factory()->diaktifkan(self::TOKEN)->create(['unit_kerja_id' => $this->upt->id]);
 
         $this->event = EventAbsen::factory()->create();
-        $this->event->unitKerja()->attach($this->upt);
 
-        // Sejak revisi S29, perangkat melayani event hanya setelah bergabung
-        // lewat kode unit kerja (FR-EVT-03).
+        // Jejak perangkat yang melayani event ini (FR-EVT-05). Sejak S49
+        // keanggotaan bukan lagi syarat melayani — event berlaku bagi seluruh
+        // dinas — melainkan catatan perangkat mana yang benar-benar dipakai.
         $this->gabungkanKeEvent($this->event, $perangkat);
     }
 
@@ -86,13 +87,23 @@ class HardeningKeamananTest extends TestCase
      * ------------------------------------------------------------------- */
 
     #[Test]
-    public function perangkat_tidak_dapat_mengambil_foto_pegawai_di_luar_cakupan_eventnya(): void
+    public function perangkat_dapat_mengambil_foto_pegawai_unit_mana_pun_selama_ada_event(): void
     {
         /*
-         * Tanpa pembatasan ini, satu perangkat yang dikuasai orang lain dapat
-         * memanen foto seluruh pegawai dinas hanya dengan menelusuri NIP.
+         * Pelonggaran yang DISENGAJA sejak S49, dan disebut di sini supaya ia
+         * tidak lolos tanpa keputusan. Sampai S48 perangkat hanya boleh
+         * mengambil foto pegawai dalam cakupan eventnya, sebab event dibuka
+         * per unit; kini setiap event berlaku bagi seluruh dinas, sehingga
+         * pegawai unit mana pun memang berhak mengabsen di titik ini — dan
+         * layar tapnya harus dapat menampilkan fotonya.
+         *
+         * Pagar yang menahan pemanenan foto karena itu bukan lagi cakupan
+         * unit, melainkan ADA-TIDAKNYA kegiatan yang dibuka: perangkat yang
+         * menganggur tidak dapat membuka data pegawai sama sekali (lihat
+         * `tanpa_event_aktif_perangkat_tidak_dapat_mengambil_foto_sama_sekali`)
+         * dan endpointnya tetap dibatasi laju.
          */
-        Http::fake();
+        Http::fake(['worka.test/*' => Http::response('biner-jpeg', 200, ['Content-Type' => 'image/jpeg'])]);
 
         Pegawai::factory()->create([
             'nip' => '199001012020011009',
@@ -101,10 +112,7 @@ class HardeningKeamananTest extends TestCase
 
         $this->denganPerangkat()
             ->get('/kiosk/event/pegawai/199001012020011009/foto')
-            ->assertNotFound();
-
-        // WORKA tidak pernah dihubungi untuk pegawai di luar cakupan.
-        Http::assertNothingSent();
+            ->assertOk();
     }
 
     #[Test]
@@ -384,7 +392,14 @@ class HardeningKeamananTest extends TestCase
         $this->assertNotSame('ABCD2345', $tersimpan);
         $this->assertSame(KioskService::hashToken('ABCD2345'), $tersimpan);
 
-        // Dan kodenya tetap dapat ditukarkan seperti biasa.
+        /*
+         * Dan kodenya tetap dapat ditukarkan seperti biasa — selagi Mode
+         * Pendaftaran Perangkat menyala, yaitu satu-satunya keadaan jalur ini
+         * berlaku sejak S49 (FR-SET-06).
+         */
+        app(PengaturanRepository::class)
+            ->simpan(SettingAbsenService::KUNCI_PENDAFTARAN_PERANGKAT, '1');
+
         $this->post('/kiosk/aktivasi', ['kode_aktivasi' => 'ABCD2345'])
             ->assertRedirect('/');
     }

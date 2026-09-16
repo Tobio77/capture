@@ -61,29 +61,27 @@ describe('Halaman depan titik absen', () => {
     expect(layar.text()).toContain('Absen Event')
   })
 
-  test('perangkat belum diaktifkan', () => {
-    render(Beranda, { ...prop.beranda, perangkat: null, event_aktif: [] })
+  test('perangkat belum dihubungkan', () => {
+    render(Beranda, { ...prop.beranda, perangkat: null, event_aktif: null })
   })
 
-  test('perangkat ad-hoc menyebut asal-usulnya tanpa kode unit', () => {
+  test('perangkat menyebut unitnya tanpa kode unit', () => {
     const layar = render(Beranda, {
       ...prop.beranda,
       perangkat: {
         nama_titik: prop.bersama.kiosk_ad_hoc.nama_titik,
-        sumber: 'ad_hoc',
         unit_kerja: { nama: prop.bersama.kiosk_ad_hoc.unit_kerja.nama },
       },
     })
 
-    expect(layar.text()).toContain('Ad-hoc')
+    expect(layar.text()).toContain('Bidang Hubungan Industrial dan Jaminan Sosial')
     expect(layar.text()).not.toContain('BID-HIJS')
   })
 
-  test('perangkat yang sudah melayani sebuah kegiatan', () => {
-    render(Beranda, {
-      ...prop.beranda,
-      event_diikuti: { id: 12, nama: 'Apel Pagi Senin', jam_mulai: '07:30', toleransi_menit: 15 },
-    })
+  test('tanpa kegiatan yang dibuka, kartu Absen Event dimatikan', () => {
+    const layar = render(Beranda, { ...prop.beranda, event_aktif: null })
+
+    expect(layar.text()).toContain('Belum ada kegiatan yang dibuka')
   })
 
   test('admin yang sedang masuk melihat pintasan panel', () => {
@@ -96,12 +94,16 @@ describe('Halaman depan titik absen', () => {
 })
 
 describe('Layar aktivasi perangkat', () => {
-  test('dengan Mode Terbuka', () => {
-    render(Aktivasi, prop.aktivasi)
+  test('meminta kode unit kerja (bawaan)', () => {
+    const layar = render(Aktivasi, prop.aktivasi)
+
+    expect(layar.text()).toContain('Kode Unit Kerja')
   })
 
-  test('tanpa Mode Terbuka', () => {
-    render(Aktivasi, { ...prop.aktivasi, mode_terbuka: false, unit_kerja: [] })
+  test('meminta kode aktivasi selagi mode pendaftaran menyala', () => {
+    const layar = render(Aktivasi, { ...prop.aktivasi, mode_pendaftaran: true })
+
+    expect(layar.text()).toContain('Kode Aktivasi')
   })
 })
 
@@ -184,7 +186,9 @@ describe('Layar absen umum di peramban admin', () => {
 
     const layar = render(LayarAbsenUmum, prop.absen_umum_layar)
 
-    expect(layar.text()).toContain('UPT BLK Surabaya')
+    // Satu sesi untuk seluruh dinas sejak S49; tidak ada lagi unit yang
+    // dipilih di layar ini.
+    expect(layar.text()).toContain('Seluruh Unit Kerja')
   })
 
   test('absen umum dimatikan admin', () => {

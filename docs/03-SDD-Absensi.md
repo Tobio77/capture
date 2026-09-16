@@ -82,8 +82,33 @@ Skema berikut adalah rancangan awal tabel inti; penamaan kolom dapat disesuaikan
 | kode       | varchar(20)                       | Kode unit, unik (mis. BLK-SBY)                             |
 | nama       | varchar(150)                      |                                                            |
 | induk_id   | bigint, FK → unit_kerja, nullable | Unit induk sesuai hirarki WORKA; null pada unit puncak      |
+| kode_perangkat | char(8), unik, nullable       | Kode masuk perangkat absen unit ini (FR-EVT-03, S49)       |
+| kode_perangkat_direset_oleh | bigint, FK → users, nullable | Jejak penggantian kode                    |
+| kode_perangkat_direset_pada | timestamp, nullable  | Jejak penggantian kode                             |
 | aktif      | boolean                           | default true                                               |
 | timestamps | \-                                | created_at, updated_at                                     |
+
+### Kode perangkat unit kerja (FR-EVT-03, revisi S49)
+
+Satu kode per unit kerja level teratas, tetap sepanjang waktu, dan **dapat
+dibaca ulang admin** — berbeda dari `kiosk.device_token` serta
+`kiosk.kode_aktivasi` yang disimpan sebagai hash. Perbedaan itu disengaja:
+kode ini justru harus dapat dibacakan lewat telepon kepada petugas di UPT lain
+yang sedang memasang komputer absennya.
+
+Abjadnya membuang karakter yang mudah tertukar saat dibacakan (0/O, 1/I),
+mengikuti keputusan S04 pada kode aktivasi perangkat, dan ditampilkan
+berpasangan empat (`7K4M-92XQ`).
+
+Kolomnya **tidak fillable**: ia tidak pernah datang dari formulir admin maupun
+dari sinkronisasi WORKA — hanya `KodeUnitService` yang menerbitkan dan
+menggantinya. Penggantian menutup pintu bagi mesin yang belum masuk; perangkat
+yang sudah memegang device token TIDAK terputus, dan untuk memutusnya aksesnya
+dicabut lewat Kelola Perangkat Absen (FR-USR-03).
+
+Kode terbit bersamaan dengan unitnya — saat admin membuatnya, dan pada
+sinkronisasi WORKA setelah `induk_id` tertaut (sebelum itu belum ada unit yang
+dapat dikenali sebagai level teratas).
 
 > **Catatan sumber data.** Seluruh baris `unit_kerja` berasal dari
 > sinkronisasi WORKA, **kecuali satu**: `DISNAKER`. Lihat
@@ -347,7 +372,7 @@ dari sesi pendaftaran.
 |-------------------|-------------------------|--------------------------------|
 | id                | bigint, PK              |                                |
 | nama_titik        | varchar(150)            | mis. “Aula Senam BLK Surabaya” |
-| sumber            | enum                    | terdaftar \| ad_hoc — `ad_hoc` bila masuk lewat Mode Terbuka (FR-SET-06) |
+| sumber            | enum                    | terdaftar | ad_hoc — `ad_hoc` bila masuk lewat kode unit kerja, yaitu jalur bawaan sejak S49 (FR-SET-06) |\| ad_hoc — `ad_hoc` bila masuk lewat Mode Terbuka (FR-SET-06) |
 | unit_kerja_id     | bigint, FK → unit_kerja |                                |
 | device_token      | varchar(100), unik      | token autentikasi perangkat    |
 | ip_terakhir       | varchar(45), nullable   |                                |
@@ -363,11 +388,11 @@ dari sesi pendaftaran.
 | id              | bigint, PK          |                                              |
 | nama            | varchar(150)        |                                              |
 | jenis           | enum                | kegiatan \| umum — bawaan `kegiatan`         |
-| kunci_sesi      | varchar(64), unik, nullable | `umum:{unit_kerja_id}:{YYYY-MM-DD}` untuk sesi harian; null untuk kegiatan |
+| kunci_sesi      | varchar(64), unik, nullable | `umum:{YYYY-MM-DD}` untuk sesi harian; null untuk kegiatan |
 | tanggal         | date                |                                              |
 | jam_mulai       | time                |                                              |
 | toleransi_menit | smallint unsigned   | disalin dari Setting Absen saat dibuat, lalu berdiri sendiri |
-| cakupan         | enum                | unit \| semua_unit                           |
+| cakupan         | varchar(30)         | Peninggalan. Sejak S49 selalu `semua_unit` pada baris baru; nilai lama (`unit`, `wilayah_surabaya`) hanya masih dibaca |
 | status          | enum                | aktif \| ditutup                             |
 | dibuat_oleh     | bigint, FK → users  |                                              |
 | ditutup_pada    | timestamp, nullable |                                              |
@@ -378,10 +403,22 @@ dari sesi pendaftaran.
 pembuatnya dihapus; `toleransi_menit` sengaja disalin, bukan dirujuk, sehingga
 mengubah Setting Absen tidak menggeser event yang sudah berjalan (FR-SET-02).
 
+**Setiap event berlaku bagi seluruh dinas (revisi S49).** Tidak ada lagi event
+yang dibuka hanya untuk UPT A atau bidang B: absensi diselenggarakan Dinas
+Tenaga Kerja dan Transmigrasi, dan setiap pegawai dari unit mana pun berhak
+mencatat kehadirannya pada kegiatan yang sedang berjalan. Unit kerja tidak
+hilang dari sistem — ia berpindah peran, dari penentu SIAPA YANG BOLEH
+mengabsen menjadi dimensi pembacaan pada rekap dan laporan, serta penanda asal
+perangkat yang melayani sebuah tap.
+
+Kolom `cakupan` dipertahankan sebagai catatan sejarah bagi event yang lahir
+sebelum perubahan itu; yang menjawab "siapa saja tercakup" kini
+`EventAbsenService::unitTercakup()`, dan jawabannya selalu seluruh unit.
+
 **Absen umum (`jenis = umum`).** Absensi harian tanpa event kegiatan tidak
-dibuat sebagai jalur terpisah, melainkan sebagai satu baris `event_absen`
-berjenis `umum` per unit kerja level teratas per tanggal, yang dibuka sistem
-sendiri saat pertama kali dibutuhkan. Pilihan ini menjaga kunci unik
+dibuat sebagai jalur terpisah, melainkan sebagai **satu** baris `event_absen`
+berjenis `umum` per tanggal untuk seluruh dinas, yang dibuka sistem sendiri
+saat pertama kali dibutuhkan. Pilihan ini menjaga kunci unik
 (`event_absen_id`, `pegawai_id`, `jenis`) pada tabel `absensi` tetap berarti
 "satu kali datang per hari", dan membuat seluruh mesin yang sudah ada —
 pencatatan, verifikasi wajah, foto, rekap, laporan — bekerja pada absen umum
@@ -393,11 +430,15 @@ Aturannya:
   menu sendiri (Kelola Absen → Absen Umum). Sesi tersebut tetap terhitung pada
   Laporan Kehadiran, karena hari yang sesinya dibuka memang hari yang wajib
   dihadiri.
-- FR-EVT-06 (tumpang tindih cakupan) berlaku **antar event kegiatan saja**.
-  Sesi umum yang selalu aktif tidak boleh membuat admin mustahil membuat apel.
-- Titik absen selalu mendahulukan kegiatan. Sesi umum melayaninya hanya ketika
-  tidak ada kegiatan aktif yang mencakup unitnya, sehingga apel tidak pernah
-  tertukar dengan absen rutin.
+- FR-EVT-06 berlaku **antar event kegiatan saja**. Sesi umum yang selalu aktif
+  tidak boleh membuat admin mustahil membuat apel.
+- Absen Event dan Absen Umum adalah **dua layar terpisah** yang dipilih petugas
+  dari halaman depan, dan tidak ada yang mendahului. Satu perangkat yang sedang
+  melayani apel tetap memiliki sesi harian yang siap dilayani pada alamat
+  sebelahnya.
+- Mematikan lalu menyalakan kembali sakelar Absen Umum **melanjutkan** sesi hari
+  itu beserta seluruh kehadiran yang sudah masuk. Yang ditahan sakelar itu hanya
+  kelahiran sesi baru dan penerimaan tap, tidak pernah sesi yang sudah berjalan.
 - Sesi lahir hanya pada jalur yang memang hendak mencatat kehadiran (tap,
   membuka layar absen, tombol Buka Sesi). Penarikan daftar presensi berkala
   tidak membuatnya, agar perangkat yang menyala pada hari libur tidak
@@ -417,90 +458,57 @@ Aturannya:
 | unit_kerja_id  | bigint, FK | cascade on delete                 |
 |                |            | unik per pasangan event × unit    |
 
-**Cakupan event memakai unit level teratas.** Unit yang boleh dipilih adalah
-unit level teratas yang aktif (lihat §3.1) — UPT, bidang, sekretariat, dan
-DISNAKER. Seksi/subbag tidak dapat dipilih karena absensi diselenggarakan pada
-tingkat UPT/bidang; pegawai di bawahnya tetap tercakup lewat
-`UnitKerja::idsDenganTurunan()`.
+**Peninggalan sejak S49; tidak ada baris baru yang ditulis ke sini.** Setiap
+event kini berlaku bagi seluruh dinas, sehingga tidak ada daftar unit yang
+perlu disimpan — menyalin seluruh unit ke pivot pun akan basi begitu unit baru
+masuk dari sinkronisasi WORKA. Tabelnya dipertahankan supaya event yang lahir
+sebelum perubahan itu tetap terbaca apa adanya, dan migration penggabungan
+sesi Absen Umum membersihkan baris milik sesi harian.
 
-**Cakupan "semua unit" tidak menyimpan baris pivot sama sekali.** Menyalin
-seluruh unit ke pivot akan basi begitu unit baru masuk dari sinkronisasi WORKA,
-sehingga event bercakupan semua unit dikenali dari kolom `cakupan` saja dan
-otomatis mencakup unit yang lahir setelahnya.
+Relasi `EventAbsen::unitKerja()` karena itu tidak boleh dipakai memutuskan
+siapa yang berhak mengabsen. Satu-satunya jawaban atas pertanyaan itu adalah
+`EventAbsenService::unitTercakup()`.
 
-### Cakupan bawaan sistem — Wilayah Kerja Surabaya (S29)
+### Batasan peran (FR-EVT-02, revisi S49)
 
-Selain `unit` dan `semua_unit`, `CakupanEvent` mengenal cakupan yang **daftar
-unitnya ditentukan sistem, bukan dicentang admin**. Yang pertama adalah
-`wilayah_surabaya`: empat UPT yang berkantor di Surabaya dan lazim
-menyelenggarakan apel bersama.
+Membuat, mengubah, menutup, dan menghapus event terbatas pada **Superadmin dan
+Admin Dinas**: tindakan itu kini berdampak pada seluruh dinas sekaligus, dan
+itu bukan wewenang satu UPT. Pembatasannya dipasang pada route
+(`peran:superadmin,admin_dinas`), bukan diperiksa per-event di controller —
+tidak ada lagi sifat event yang menentukannya.
 
-Berbeda dari "semua unit", cakupan ini **tetap mengisi pivot**. Pivotnya diisi
-`SimpanEventRequest::prepareForValidation()` dari kode yang tertanam pada enum,
-sehingga seluruh mesin yang membaca cakupan lewat pivot — pencocokan perangkat,
-rekap, kode unit kerja per event — bekerja tanpa perlu mengenali cakupan baru
-ini sama sekali.
+Admin UPT tetap **membaca** daftar dan detail event, sebab pegawainya justru
+berhak hadir pada setiap kegiatan yang ada di sana. Daftar Event karena itu
+tidak lagi disaring per peran; yang dikirim server adalah medan `boleh_kelola`,
+yang menentukan tampil-tidaknya tombol buat/ubah/tutup/hapus.
 
-**Unitnya dinyatakan sebagai KODE, bukan id.** Id berbeda antar lingkungan:
-sebagian unit Surabaya bernomor kecil karena ikut sinkronisasi awal, sebagian
-menyusul belakangan. Kode adalah satu-satunya penanda yang selamat melewati
-re-sync maupun basis data baru.
+Event yang sudah ditutup tidak dapat diubah oleh peran mana pun, karena absensi
+yang terlanjur tercatat menautnya.
 
-Pemetaannya diverifikasi terhadap hasil sinkronisasi WORKA di produksi
-(5 September 2026). **Keempatnya sudah ada; tidak ada yang perlu dibuatkan unit
-lokal** seperti preseden `DISNAKER` di §3.1. Nama resmi WORKA tidak selalu sama
-dengan sebutan sehari-hari di kantor, sehingga pemetaannya dicatat di sini:
+### Tumpang tindih event aktif (FR-EVT-06, revisi S49)
 
-| Sebutan sehari-hari                  | Nama resmi pada `unit_kerja`                                          | Kode       |
-|--------------------------------------|-----------------------------------------------------------------------|------------|
-| BLK Surabaya                         | UPT Balai Latihan Kerja di Surabaya                                   | `BLK-SBY`  |
-| UPT K2                               | UPT Keselamatan Kerja                                                 | `UPT-K3`   |
-| UPT Balai Pengembangan Produktivitas | UPT Balai Latihan Pengembangan Produktivitas Tenaga Kerja di Surabaya | `UPT-BLPP` |
-| UPT Pelayanan Perlindungan Tenaga Kerja | UPT Pelayanan dan Perlindungan Tenaga Kerja                        | `UPT-P2TK` |
+**Hanya boleh ada SATU event kegiatan berstatus `aktif` pada satu waktu.**
+Karena setiap event mencakup seluruh dinas, dua event aktif selalu beririsan —
+perangkat yang menghadapinya tidak dapat memutuskan sebuah tap milik yang mana.
 
-Dua catatan yang perlu diingat saat menyunting daftarnya. Pertama, "UPT K2"
-adalah singkatan *Keselamatan Kerja* — kodenya justru tertulis `UPT-K3`, dan
-ketidakcocokan itu berasal dari WORKA, bukan dari kekeliruan pemetaan. Kedua,
-`UPT-BLPP` bernama jauh lebih panjang daripada sebutannya; ia satu-satunya unit
-produktivitas di Surabaya, sehingga tidak ada kandidat lain yang mungkin.
-
-**Kode yang tidak ditemukan menggagalkan penyimpanan event**, bukan diam-diam
-menghasilkan cakupan yang lebih sempit. Cakupan yang bolong berarti pegawai
-satu unit tidak dapat mengabsen, dan tidak ada yang menyadarinya sampai hari-H.
-
-Cakupan ini melampaui satu unit kerja, sehingga — seperti "semua unit" — hanya
-tersedia bagi Superadmin dan Admin Dinas (FR-EVT-02).
-
-**Batasan peran (FR-EVT-02).** Admin UPT hanya dapat memilih unit level teratas
-yang menaunginya — termasuk bila akunnya menempel pada seksi di bawahnya — dan
-tidak dapat memakai cakupan "semua unit". Pada daftar event, Admin UPT melihat
-event yang menyentuh unitnya beserta event bercakupan semua unit, tetapi hanya
-dapat mengubah event miliknya sendiri. Event yang sudah ditutup tidak dapat
-diubah oleh peran mana pun, karena absensi yang terlanjur tercatat menautnya.
-
-### Tumpang tindih event aktif (FR-EVT-06)
-
-**Tidak boleh ada dua event berstatus `aktif` dengan cakupan unit kerja yang
-beririsan.** Selama keduanya aktif, kiosk pada unit itu menghadapi lebih dari
-satu event dan tidak dapat memutuskan sebuah tap milik yang mana.
+Sebelum S49 syaratnya "cakupan unitnya tidak beririsan", dan pemeriksaannya
+memuat perbandingan pivot antar event. Seluruh perbandingan itu hilang; yang
+tersisa satu kueri: adakah event kegiatan lain yang masih aktif.
 
 Tanggal dan jam **tidak ikut diperiksa sama sekali** — yang menentukan hanyalah
 status. Konsekuensinya:
 
-- Apel pagi dan apel sore pada unit yang sama **tidak** dapat dibuat bersamaan;
-  apel pagi harus ditutup lebih dulu.
-- Event untuk tanggal mendatang pada unit yang sama juga tertahan selama event
-  berjalan belum ditutup.
+- Apel pagi dan apel sore **tidak** dapat dibuat bersamaan; apel pagi harus
+  ditutup lebih dulu.
+- Event untuk tanggal mendatang juga tertahan selama event berjalan belum
+  ditutup.
 - Menutup event yang lebih dulu berjalan adalah satu-satunya jalan keluar.
 
-*Cakupan* dinilai beririsan bila salah satu pihak bercakupan "semua unit" —
-yang menurut definisi mencakup segalanya — atau bila pivot unit keduanya
-bersinggungan. Unit yang berbeda tetap boleh punya event aktif masing-masing.
-
-Pemeriksaan berjalan saat pembuatan maupun perubahan event; sebuah event tidak
-dihitung bentrok dengan dirinya sendiri. Pesan kesalahannya menyebut nama,
-tanggal, dan cakupan event yang bentrok agar admin tahu persis apa yang harus
-ditutup.
+Sesi Absen Umum tidak pernah ikut dihitung: keduanya dua layar terpisah yang
+berjalan berdampingan. Pemeriksaan berjalan saat pembuatan maupun perubahan
+event; sebuah event tidak dihitung bentrok dengan dirinya sendiri. Pesan
+kesalahannya menyebut nama dan tanggal event yang menghalangi, agar admin tahu
+persis apa yang harus ditutup.
 
 ### Menutup entry (FR-EVT-04)
 
@@ -510,141 +518,78 @@ Penutupan bersifat **satu arah** — tidak ada aksi membuka kembali, karena
 membukanya lagi akan menghidupkan penerimaan tap atas event yang sudah
 dinyatakan selesai.
 
-**Penolakan tap.** Kiosk tidak menyebutkan event mana yang dimaksud saat
-men-tap. Server yang menentukan lewat `EventAbsenService::eventAktifUntukKiosk()`,
+**Penolakan tap.** Perangkat tidak menyebutkan event mana yang dimaksud saat
+men-tap. Server yang menentukan lewat `EventAbsenService::eventAktifSekarang()`,
 dan itu tidak pernah ambigu karena FR-EVT-06 menjamin paling banyak satu event
-aktif per unit kerja. Begitu event ditutup, unit itu tidak lagi memiliki event
-aktif sehingga `POST /kiosk/tap/validasi-nip` menjawab:
+aktif. Begitu event ditutup, tidak ada lagi kegiatan yang dibuka sehingga
+endpoint tap mode `event` menjawab:
 
 ```json
 { "success": false, "code": "EVENT_TIDAK_AKTIF", "message": "…" }
 ```
 
-dengan status HTTP 409. Jawaban sukses kini menyertakan objek `event` (id,
-nama, jam_mulai, toleransi_menit) sebagai penampung tap tersebut.
-
-Cakupan kiosk dihitung dari unit kerjanya beserta seluruh turunannya **dan**
-rantai induknya sampai simpul OPD — kiosk dapat terdaftar pada seksi, sedangkan
-cakupan event dinyatakan pada unit level teratas. Event bercakupan "semua unit"
-melayani kiosk unit mana pun.
+dengan status HTTP 409. Jawaban sukses menyertakan objek `event` (id, nama,
+jam_mulai, toleransi_menit) sebagai penampung tap tersebut.
 
 ### Penghapusan event
 
 Event dapat dihapus permanen **selama belum menautkan satu pun baris
 `absensi`**. Statusnya tidak menentukan: event salah-buat yang terlanjur
 ditutup pun masih dapat dibersihkan, sedangkan event yang sudah menerima satu
-tap terkunci selamanya. Baris `event_unit_kerja` ikut terhapus lewat cascade,
-dan penghapusan tercatat pada audit trail.
+tap terkunci selamanya. Baris `event_kiosk` ikut terhapus lewat cascade, dan
+penghapusan tercatat pada audit trail.
 
 Pemeriksaannya menoleransi keadaan tabel `absensi` belum ada — tabel itu
 dibuat pada S16 — dengan menganggap jumlah absensi nol, sehingga tidak perlu
 diubah lagi setelah tabelnya lahir.
 
-## 3.7 event_kode_unit & event_kiosk (keanggotaan perangkat pada event)
-
-### Kode unit kerja per event (FR-EVT-03, revisi S29)
-
-Sampai S28b, sebuah perangkat melayani event semata-mata karena unit tempat ia
-dipasang termasuk cakupan event. Dua akibatnya nyata di lapangan: setiap
-perangkat di unit itu ikut terseret ke kegiatan yang tidak ada hubungannya
-dengan ruangan tempat ia berdiri, dan panitia tidak punya cara menyatakan
-"perangkat inilah yang melayani apel pagi".
-
-Sejak S29 keanggotaan dinyatakan **eksplisit**. Tiap unit kerja dalam cakupan
-sebuah event memperoleh satu kode pendek, dan perangkat bergabung dengan
-mengetikkannya.
-
-| **Kolom**      | **Tipe**             | **Keterangan**                              |
-|----------------|----------------------|---------------------------------------------|
-| id             | bigint, PK           |                                             |
-| event_absen_id | bigint, FK           | cascade on delete                           |
-| unit_kerja_id  | bigint, FK           | cascade on delete                           |
-| kode           | varchar(8), unik     | 8 karakter, abjad tanpa 0/O dan 1/I         |
-| direset_oleh   | bigint, FK, nullable | null on delete                              |
-| direset_pada   | timestamp, nullable  |                                             |
-|                |                      | unik per pasangan event × unit              |
-
-**Kode ini bukan kode aktivasi perangkat.** Keduanya mudah tertukar, padahal
-menjawab pertanyaan yang berbeda:
-
-|              | Kode aktivasi (S04)                             | Kode unit kerja (S29)                    |
-|--------------|-------------------------------------------------|------------------------------------------|
-| Menjawab     | boleh-tidaknya sebuah mesin menjadi titik absen | event mana yang dilayani titik absen itu |
-| Dipakai      | sekali, ditukar dengan `device_token`           | berkali-kali, oleh beberapa perangkat    |
-| Disimpan     | hash                                             | **apa adanya**                           |
-| Masa hidup   | sampai ditukarkan                                | selama eventnya berjalan                 |
-
-Kodenya sengaja **tidak** di-hash: berbeda dari `device_token`, kode ini justru
-harus dapat dibaca ulang admin untuk dibacakan kepada petugas di ruangan lain.
-
-**Mode Terbuka bukan jalan pintas.** Mode Terbuka (FR-SET-06) melonggarkan kode
-*aktivasi*, bukan kode unit kerja — dua mekanisme yang tujuannya mirip tetapi
-cakupannya terpisah total. Perangkat ad-hoc yang masuk lewat Mode Terbuka tetap
-harus mengetikkan kode untuk membuka Absen Event; yang terbuka baginya tanpa
-kode hanyalah Absen Umum. Membiarkan yang pertama melonggarkan yang kedua
-berarti, selama Mode Terbuka menyala, mesin mana pun yang dapat menjangkau
-alamat server langsung menjadi titik absen sebuah kegiatan.
-
-**Penyelarasan saat cakupan berubah.** Unit yang baru masuk cakupan memperoleh
-kode baru; unit yang keluar kehilangan kodenya. Unit yang **tetap** dalam
-cakupan mempertahankan kode lamanya — panitia sudah membacakannya kepada
-petugas, dan menggantinya diam-diam hanya karena admin menambah unit lain akan
-membuat seluruh perangkat di unit itu gagal bergabung tanpa penjelasan.
-
-**Reset kode.** Berwenang atas kode = berwenang atas eventnya, pagar yang sama
-dengan mengubah dan menutup event: Superadmin dan Admin Dinas untuk event mana
-pun, Admin UPT hanya untuk event yang menyentuh unitnya sendiri dan bukan event
-bercakupan "semua unit" (matriks peran SRS §6). Reset **tidak memutus perangkat
-yang sudah bergabung**: ia menutup pintu bagi yang belum masuk — kode yang
-telanjur beredar ke luar ruangan — bukan mengusir titik absen yang sedang
-melayani antrean pegawai di tengah apel. Untuk memutus perangkat tertentu,
-cabut aksesnya lewat Kelola Perangkat Absen (FR-USR-03).
-
-Kode salah dan event yang sudah ditutup dijawab **pesan yang sama**. Membedakan
-keduanya akan mengubah kolom kode menjadi alat menebak: penebak langsung tahu
-ia sudah menemukan kode yang benar.
-
-### event_kiosk (keanggotaan perangkat)
+## 3.7 event_kiosk (perangkat yang melayani sebuah event)
 
 | **Kolom**            | **Tipe**              | **Keterangan**                            |
 |----------------------|-----------------------|-------------------------------------------|
 | id                   | bigint, PK            |                                           |
 | event_absen_id       | bigint, FK            | cascade on delete                         |
 | kiosk_id             | bigint, FK            | cascade on delete                         |
-| unit_kerja_id        | bigint, FK, nullable  | lewat kode unit mana perangkat bergabung  |
+| unit_kerja_id        | bigint, FK, nullable  | unit asal perangkat saat ia melayani      |
 | ip_address           | varchar(45), nullable | alamat IP terbaru; 45 menampung IPv6      |
-| aktif_pada           | timestamp             | pertama kali kiosk melayani event ini     |
-| bergabung_pada       | timestamp, nullable   | penggabungan terakhir                     |
+| aktif_pada           | timestamp             | pertama kali perangkat melayani event ini |
+| bergabung_pada       | timestamp, nullable   | peninggalan penukaran kode per event      |
 | terakhir_aktif_pada  | timestamp             | aktivitas terbaru                         |
 |                      |                       | unik per pasangan event × kiosk           |
 
-**Tabel ini berubah makna pada S29**: dari catatan "perangkat ini pernah
-melayani event" menjadi **daftar keanggotaan** yang menentukan boleh-tidaknya
-sebuah perangkat membuka layar Absen Event. Perangkat yang unitnya tercakup
-namun belum mengetikkan kode tidak ada di sini, dan karenanya tidak melayani
-event tersebut.
+**Kembali menjadi apa yang namanya janjikan (revisi S49).** Antara S29 dan S48
+tabel ini merangkap sebagai *daftar keanggotaan* yang menentukan boleh-tidaknya
+sebuah perangkat membuka layar Absen Event; keanggotaan itu lahir dari
+penukaran kode per event, dan `catatKioskAktif()` sengaja hanya MEMPERBARUI
+baris yang sudah ada agar membuka layar saja tidak cukup untuk menjadi anggota.
+
+Kode kini menempel pada unit kerja dan hanya diketikkan sekali untuk
+memperkenalkan perangkat (§3.1), sehingga perangkat yang sudah dikenali
+otomatis melayani kegiatan yang sedang berjalan. `catatKioskAktif()` karena itu
+**menyisipkan** barisnya saat perangkat membuka layar Absen Event, beserta unit
+asal dan alamat IP-nya. Yang tersimpan di sini bukan lagi izin, melainkan
+jawaban atas "komputer mana saja yang dipakai pada kegiatan ini, dari unit
+mana, dan dari alamat berapa".
+
+**Jumlah perangkat per unit tidak dibatasi** (poin 6 revisi S49). Sebuah UPT
+boleh memakai tiga komputer hari Rabu dan empat hari Kamis; masing-masing
+memperoleh barisnya sendiri di sini dan pada Daftar Perangkat.
 
 **Satu baris per pasangan event × kiosk, bukan satu baris per kunjungan.**
-`aktif_pada` menahan waktu pertama, `bergabung_pada` mengikuti penggabungan
-terakhir, sedangkan `ip_address` dan `terakhir_aktif_pada` bergerak mengikuti
-aktivitas terbaru — perangkat dapat berpindah alamat IP di tengah satu event,
-dan yang dicari panitia saat menelusuri absen mencurigakan adalah alamat
-terkininya.
+`aktif_pada` menahan waktu pertama, sedangkan `ip_address` dan
+`terakhir_aktif_pada` bergerak mengikuti aktivitas terbaru — perangkat dapat
+berpindah alamat IP di tengah satu event, dan yang dicari panitia saat
+menelusuri absen mencurigakan adalah alamat terkininya. Event yang sudah
+ditutup tidak dicatat sama sekali.
 
-**Keanggotaan lahir satu-satunya dari penukaran kode.**
-`EventAbsenService::catatKioskAktif()` hanya MEMPERBARUI baris yang sudah ada;
-ia tidak pernah menyisipkan. Bila membuka layar saja sudah cukup untuk tercatat
-sebagai anggota, kodenya kehilangan seluruh gunanya. Event yang sudah ditutup
-tidak dicatat sama sekali.
+`bergabung_pada` tidak lagi punya arti tersendiri: ia diisi sama dengan
+`aktif_pada` saat baris lahir, dan dipertahankan agar baris lama tetap terbaca.
 
 **Detail event (FR-EVT-05).** `GET /admin/kelola-absen/event/{event}/detail`
-menjawab JSON berisi kode unit kerja beserta jumlah perangkat yang memakainya,
-daftar perangkat terhubung (titik, unit, alamat IP, waktu aktif terakhir),
-jumlah absen masuk, dan status entry. Dijawab sebagai JSON karena dimuat modal
-di atas daftar event yang sudah tampil. Hak melihat lebih longgar daripada hak
-mengubah: Admin UPT dapat membuka detail event bercakupan semua unit, walau
-tidak dapat mengubahnya — dan tombol reset kodenya tidak ditampilkan, mengikuti
-medan `boleh_reset` yang ikut pada payload.
+menjawab JSON berisi daftar perangkat yang melayani event (titik, unit kerja,
+alamat IP, waktu aktif terakhir), jumlah absen masuk, dan status entry.
+Dijawab sebagai JSON karena dimuat modal di atas daftar event yang sudah
+tampil, dan terbuka bagi seluruh peran admin.
 
 ## 3.8 absensi
 
@@ -654,6 +599,7 @@ medan `boleh_reset` yang ikut pada payload.
 | event_absen_id       | bigint, FK           |                                                 |
 | pegawai_id           | bigint, FK → pegawai |                                                 |
 | kiosk_id             | bigint, FK → kiosk   |                                                 |
+| ip_address           | varchar(45), nullable | Alamat perangkat SAAT TAP (S49); null bila tap datang dari layar absen di peramban admin |
 | jenis                | enum                 | datang \| pulang                                |
 | metode               | enum                 | manual \| rfid                                  |
 | waktu                | datetime             |                                                 |
@@ -668,6 +614,17 @@ Keunikan itu ditegakkan **di basis data**, bukan hanya di kode, supaya dua
 kiosk yang men-tap orang yang sama bersamaan tidak dapat menyelinapkan baris
 kembar. `kiosk_id` memakai `nullOnDelete` agar perangkat dapat dilepas tanpa
 menghapus riwayat absensinya.
+
+**`ip_address` disimpan pada barisnya sendiri, bukan dibaca ulang dari
+`kiosk.ip_terakhir` saat rekap dirakit.** Kolom itu bergerak: satu perangkat
+berpindah jaringan, dipindahkan ke ruangan lain, atau menerima alamat DHCP yang
+berbeda keesokan harinya — dan rekap bulan lalu akan ikut berubah mengikuti
+keadaan hari ini. Sejalan dengan `status_ketepatan` dan `hari_libur`, yang juga
+ditetapkan saat tap dan tidak pernah diturunkan ulang.
+
+Rekap Absen dan Absen Umum menampilkannya berdampingan dengan nama perangkat
+dan unit asalnya, sehingga "dari mesin mana kehadiran ini masuk" terjawab tanpa
+menelusuri tabel lain (poin 6 revisi S49).
 
 ### Tap kedua ditolak, bukan menimpa (revisi FR-TAP-05, S28a)
 
@@ -720,26 +677,45 @@ Pratinjau tidak dicerminkan (`transform: scaleX(-1)` tidak dipakai di mana pun,
 baik pada elemen video maupun saat menggambar ke kanvas). Foto absen adalah
 dokumen: nama pada tanda pengenal dan sisi tubuh harus sama dengan kenyataan.
 
-### Mode Terbuka — perangkat tanpa kode aktivasi (FR-SET-06)
+### Mode Pendaftaran Perangkat (FR-SET-06, revisi S49)
 
-Bawaannya mati. Ketika dinyalakan admin:
+Sakelar ini memilih **jalur masuk** perangkat absen, dan kedua jalurnya tidak
+pernah berlaku bersamaan.
 
-- Layar aktivasi menawarkan "Masuk Tanpa Kode Aktivasi" beserta pemilih unit
-  kerja. Unitnya diminta, bukan ditebak dari alamat IP — tebakan yang keliru
-  mengarahkan seluruh absen ke unit yang salah, dan petugas yang berdiri di
-  lokasi jelas tahu ia sedang berada di mana.
-- Perangkat dibuatkan entri `kiosk` bertanda `sumber = ad_hoc`, memperoleh
-  device token sendiri, dan alamat IP-nya dicatat persis seperti perangkat
-  terdaftar. Ia muncul pada halaman Perangkat Absen dengan lencana "Ad-hoc"
-  dan pada daftar perangkat terhubung sebuah event.
-- Aktivasinya masuk audit trail (NFR-09) dengan keterangan bahwa Mode Terbuka
-  sedang menyala.
-- Panel admin menampilkan spanduk peringatan pada SETIAP halaman selama mode
-  ini menyala. Ia dipasang di kerangka `AdminLayout`, bukan di satu layar saja:
-  mode ini gampang dinyalakan untuk satu kegiatan lalu terlupakan, dan justru
-  itulah keadaan yang berbahaya.
+| Sakelar | Jalur masuk | Perangkatnya |
+|---------|-------------|--------------|
+| **Mati** (bawaan) | Kode unit kerja (§3.1) | Dibuatkan sendiri oleh sistem, `sumber = ad_hoc` |
+| **Menyala** | Kode aktivasi sekali pakai (S04) | Harus sudah didaftarkan admin, `sumber = terdaftar` |
+
+Bawaannya sengaja **dibalik** dari sebelum S49, ketika sakelar yang sama bernama
+"wajib kode aktivasi" dan menyala secara bawaan. Yang dulu terjadi bila ia
+dimatikan adalah *Mode Terbuka*: mesin mana pun yang menjangkau alamat server
+boleh masuk dengan memilih unit dari sebuah daftar — pelonggaran NFR-03 yang
+disengaja, dan karena itu diiringi spanduk peringatan pada setiap halaman
+admin.
+
+Jalur bawaan kini tetap menuntut kode, sehingga pelonggaran itu tidak ada lagi,
+dan bersamanya hilang pula spanduk peringatan serta butir Perhatian di
+Dashboard. Yang tersisa sebagai peringatan hanyalah verifikasi wajah yang
+dimatikan — pengaman yang memang masih dapat dilonggarkan.
+
+Alasan mematikan pendaftaran sebagai bawaan adalah kenyataan lapangan: jumlah
+komputer yang dipakai sebuah UPT berubah dari hari ke hari — tiga mesin hari
+Rabu, empat hari Kamis — sehingga menuntut pendaftaran di muka hanya
+menghasilkan daftar yang selalu ketinggalan. Fiturnya dipertahankan **utuh**
+untuk instansi yang kelak ingin mengunci daftar mesinnya; menyalakannya tidak
+memutus perangkat yang sudah memegang device token.
+
+Catatan yang berlaku pada kedua jalur:
+
+- Perangkat memperoleh device token sendiri, alamat IP-nya dicatat, dan ia
+  muncul pada halaman Perangkat Absen. Yang membedakan hanya kolom `sumber`.
+- Masuknya tercatat pada audit trail (NFR-09) beserta unit dan alamat IP-nya.
 - Pemeriksaan settingnya diulang di controller, bukan hanya di layar. Rute yang
-  terbuka bukan berarti fiturnya menyala.
+  terbuka bukan berarti jalurnya berlaku.
+- Halaman Perangkat Absen menyatakan ketika mode pendaftaran sedang mati, sebab
+  kode aktivasi yang diterbitkan di sana tidak akan diterima perangkat mana pun
+  — admin harus mengetahuinya sebelum membacakan kode kepada petugas di lokasi.
 
 Mode ini melonggarkan NFR-03 dengan sengaja dan hanya untuk keadaan darurat.
 ### Validasi ulang di server (FR-TAP-05, FR-TAP-06)
@@ -825,54 +801,63 @@ langsung terkunci dan badge berubah menjadi "Entry Ditutup" (FR-EVT-04).
 Sebaliknya, event yang baru dibuka membuka kembali kolom tap dengan
 sendirinya.
 
-### Satu sesi absen umum per unit kerja per tanggal, dijamin basis data
+### Satu sesi absen umum per tanggal, dijamin basis data
 
-Sesi harian dibuka sendiri pada tap pertama. Dua titik absen di unit yang sama
-yang men-tap pertama kali dalam hitungan milidetik sama-sama melihat "sesi
-belum ada" dan keduanya membuatnya — lalu tap berikutnya jatuh ke salah satu
-dari dua sesi itu secara tak tentu.
+Sesi harian dibuka sendiri pada tap pertama. Dua titik absen yang men-tap
+pertama kali dalam hitungan milidetik sama-sama melihat "sesi belum ada" dan
+keduanya membuatnya — lalu tap berikutnya jatuh ke salah satu dari dua sesi itu
+secara tak tentu.
 
 Akibatnya bukan sekadar dua baris event: penolakan tap ganda (FR-TAP-05) tidak
 pernah kena, karena baris kedua tercatat pada sesi yang berbeda dan kunci unik
 `(event, pegawai, jenis)` tidak bertabrakan. Di layar, gejalanya adalah tap
 kedua yang diterima tanpa peringatan apa pun.
 
-Cakupan sesi tersimpan pada tabel pivot `event_unit_kerja`, sehingga kunci
-uniknya tidak dapat dirakit dari kolom biasa. Kolom `event_absen.kunci_sesi`
-menyimpannya sebagai satu nilai — `umum:{unit_kerja_id}:{YYYY-MM-DD}` — dengan
-indeks unik, dan null untuk event kegiatan yang memang boleh berapa pun
-jumlahnya. `AbsenUmumService::buatSesi()` menangkap pelanggarannya dan
-mengembalikan sesi yang menang, sehingga balapan berakhir sebagai satu sesi
-tanpa galat.
+Kolom `event_absen.kunci_sesi` menyimpan penanda sesi sebagai satu nilai —
+`umum:{YYYY-MM-DD}` — dengan indeks unik, dan null untuk event kegiatan yang
+memang boleh berapa pun jumlahnya. `AbsenUmumService::buatSesi()` menangkap
+pelanggarannya dan mengembalikan sesi yang menang, sehingga balapan berakhir
+sebagai satu sesi tanpa galat.
 
-### Unit bawaan Absen Umum adalah simpul OPD (S29)
+### Sesi Absen Umum adalah satu untuk seluruh dinas (revisi S49)
 
-Pilihan pertama pada layar dan pemantauan Absen Umum bagi peran lintas unit
-adalah **simpul OPD sendiri** (`DISNAKERTRANS`) — bukan salah satu unit level
-teratas. Absen harian berlaku bagi seluruh pegawai dinas, sehingga bawaan yang
-benar adalah sesi yang mencakup semuanya; cakupannya lewat
-`UnitKerja::idsDenganTurunan()` meliputi `DISNAKER`, seluruh UPT, seluruh
-bidang, beserta seksi/subbag di bawahnya.
+Sampai S48, sesi harian dipecah per unit kerja: `kunci_sesi` berbentuk
+`umum:{unit_kerja_id}:{YYYY-MM-DD}`, satu baris per UPT/bidang per hari, dan
+layar admin menawarkan pemilih unit dengan simpul OPD sebagai bawaannya.
 
-Sebelum S29, bawaannya jatuh ke unit pertama menurut abjad — "Bidang Hubungan
-Industrial dan Jaminan Sosial" — semata-mata karena itulah baris pertama
-daftar, dan admin yang tidak menyadarinya memantau sesi yang salah sepanjang
-hari.
+Pemecahan itu tidak pernah menjawab pertanyaan siapa pun — absen umum terbuka
+bagi setiap pegawai dinas tanpa kecuali — dan justru melahirkan pekerjaan yang
+harus diulang belasan kali: membuka sesi, menutupnya, dan memasang override
+satu-satu per unit. Ia juga melahirkan kelas cacat tersendiri: tampilan
+"agregat OPD" yang tidak punya satu sesi tunggal untuk dibaca statusnya, dan
+sesi hantu berkunci OPD yang tidak akan pernah ditemukan perangkat mana pun.
 
-Simpul OPD memang **bukan** anggota `levelTeratas()`; ia justru induk dari
-seluruh anggotanya (§3.1). Karena itu ia ditambahkan terpisah pada
-`AbsenUmumService::unitTersedia()` dan diizinkan terpisah pada
-`unitTerpilih()` — sebagai pengecualian yang dinyatakan, bukan pintu terbuka:
-seksi/subbag tetap tidak dapat menjadi pemilik sesi harian.
+Sejak S49 sesinya **satu per tanggal**, dan konsekuensinya:
 
-Pengecualian ini hanya berlaku bagi peran lintas unit. Admin UPT tetap terkunci
-pada unitnya sendiri; memantau kehadiran seluruh dinas berada di luar
-cakupannya (FR-REK-02).
+- Perangkat unit mana pun jatuh ke sesi yang sama; tidak ada lagi pencarian
+  sesi per unit (`sesiUntukKiosk()`, `sesiUntukAdmin()` dan `unitTerpilih()`
+  hilang seluruhnya).
+- Buka sesi dan override buka/tutup paksa berlaku bagi seluruh dinas sekaligus,
+  dan karena itu terbatas pada peran lintas unit.
+- Hari kerja dan hari libur jendela Absen Umum dibaca pada **tingkat dinas**
+  (simpul OPD). Hari libur khusus sebuah UPT tidak lagi menutup jendela bagi
+  UPT itu sendiri — ia tetap tercatat sebagai penanda `absensi.hari_libur` pada
+  tap pegawainya, yang memakai unit pegawainya masing-masing, dan di sanalah
+  pembedaan itu memang berarti.
+- Unit kerja pada layar Absen Umum dan tab Rekap Umum menjadi **penyaring
+  tampilan**. Penyaring dipotong hak peran, tidak pernah memperluasnya: Admin
+  UPT yang menyaring unit lain melihat irisan kosong, bukan unit yang bukan
+  haknya.
 
-**Sesi OPD berdiri sendiri, terpisah dari sesi per-UPT.** Perangkat absen di
-sebuah UPT tetap jatuh ke sesi UPT-nya (`AbsenUmumService::sesiUntukKiosk()`),
-karena itulah satuan tempat kehadiran hariannya direkap. Yang berpindah hanyalah
-bawaan layar admin.
+Migration `gabungkan_sesi_absen_umum_menjadi_satu_per_tanggal` melebur sesi
+lama pada tanggal yang sama menjadi satu: absensi dipindahkan ke sesi induk
+(tap yang LEBIH AWAL bertahan bila seorang pegawai sempat tercatat pada dua
+sesi unit berbeda di hari yang sama), baris `event_kiosk` ikut dipindahkan
+tanpa duplikat, pivot unit dibuang, dan override yang paling belakangan
+dipasang menang. Peleburannya sengaja tidak punya jalan mundur — sesi yang
+sudah menyatu tidak menyimpan jejak unit asalnya, dan menebaknya kembali pada
+catatan kehadiran lebih buruk daripada memulihkan dari backup.
+
 ### Batas laju dihitung per perangkat, bukan per alamat IP
 
 Endpoint titik absen — identifikasi tap, simpan absen, daftar presensi, dan
@@ -956,13 +941,19 @@ dengan syarat akses yang berbeda:
 
 | | Absen Event (`/kiosk/event`) | Absen Umum (`/kiosk/umum`) |
 |---|---|---|
-| Syarat akses | perangkat sudah bergabung lewat kode unit kerja | selalu terbuka |
+| Syarat akses | ada kegiatan yang sedang dibuka | selalu terbuka |
 | Terikat status event? | ya — entry ditutup, layarnya ikut menutup | tidak |
-| Longgar lewat Mode Terbuka? | **tidak** | ya (Mode Terbuka mengatur aktivasi perangkatnya) |
 | Sesi dibuat saat layar dibuka? | tidak berlaku | tidak — sesi lahir pada tap pertama |
 
-Perangkat yang belum bergabung dan membuka `/kiosk/event` **dipulangkan ke
-beranda**, bukan disuguhi layar tap kosong yang tampak rusak di mata petugas.
+**Sejak S49 tidak ada lagi kode per event yang harus ditukarkan lebih dahulu.**
+Kode menempel pada unit kerja dan sudah diketikkan sekali saat perangkat
+diperkenalkan (§3.1), sehingga setiap perangkat yang dikenali langsung melayani
+kegiatan yang sedang berjalan — dan barisnya pada `event_kiosk` lahir saat
+layarnya dibuka, beserta unit asal dan alamat IP-nya (§3.7).
+
+Perangkat yang membuka `/kiosk/event` ketika tidak ada kegiatan **dipulangkan
+ke beranda**, bukan disuguhi layar tap kosong yang tampak rusak di mata
+petugas.
 
 **Modenya ditentukan default rute, bukan masukan peramban.**
 `Route::defaults('mode', …)` memasangnya saat rute didaftarkan, dan
@@ -1235,10 +1226,10 @@ Umum adalah dua halaman".
 |------------|----------------------------------------|---------------------------------------------------------------------------------|
 | GET        | /                                      | Halaman depan: Absen Umum, Absen Event, dan Masuk Admin. Terbuka tanpa autentikasi (S30) |
 | POST       | /admin/login                           | Login akun admin                                                                |
-| POST       | /kiosk/aktivasi                        | Aktivasi perangkat kiosk, menghasilkan device_token                             |
+| POST       | /kiosk/aktivasi/unit                   | Tukarkan KODE UNIT KERJA dengan device_token; jalur bawaan sejak S49 (FR-EVT-03) |
+| POST       | /kiosk/aktivasi                        | Tukarkan kode aktivasi sekali pakai; hanya selagi Mode Pendaftaran menyala (FR-SET-06) |
+| POST       | /kiosk/lepas                           | Lepaskan perangkat dari titik absen dan cabut device_token                       |
 | GET        | /kiosk                                 | Pengalihan ke halaman depan; alamat lama beranda perangkat (S29 → S30)           |
-| POST       | /kiosk/event/gabung                    | Tukarkan kode unit kerja dengan keanggotaan pada eventnya (FR-EVT-03)            |
-| POST       | /kiosk/event/keluar                    | Lepaskan perangkat dari event yang sedang dilayaninya                            |
 | GET        | /kiosk/{mode}                           | Layar tap; `mode` = `event` atau `umum` (lihat §3.8, "Dua macam titik absen")    |
 | POST       | /kiosk/{mode}/tap/identifikasi          | Kenali pegawai dari UID kartu RFID atau NIP yang diketik (FR-TAP-03)            |
 | POST       | /kiosk/{mode}/absen                     | Kirim hasil absen; seluruh syarat diperiksa ulang di server (FR-TAP-05)          |
@@ -1246,13 +1237,12 @@ Umum adalah dua halaman".
 | GET        | /kiosk/{mode}/absen/{absensi}/foto      | Foto absen untuk Daftar e-Presensi, terbatas titik absen pada event yang sama (NFR-04) |
 | GET        | /admin/dashboard                       | Kartu statistik dan tren kehadiran, terfilter peran (FR-DASH-01, FR-DASH-02)     |
 | GET        | /admin/dashboard/aktivitas             | Feed aktivitas absen terbaru untuk pembaruan berkala (FR-DASH-03)                |
-| GET        | /admin/kelola-absen/event              | Daftar event (terfilter sesuai peran)                                           |
+| GET        | /admin/kelola-absen/event              | Daftar event; sama untuk seluruh peran admin (FR-EVT-02)                         |
 | POST       | /admin/kelola-absen/event              | Buat event baru (FR-EVT-01, FR-EVT-02)                                          |
-| GET        | /admin/kelola-absen/event/{event}/detail| Detail event: kiosk terhubung, jumlah masuk, status (FR-EVT-05)                 |
+| GET        | /admin/kelola-absen/event/{event}/detail| Detail event: perangkat yang melayani beserta unit dan IP, jumlah masuk, status (FR-EVT-05) |
 | PATCH      | /admin/kelola-absen/event/{event}      | Ubah event yang masih aktif                                                     |
 | DELETE     | /admin/kelola-absen/event/{event}      | Hapus permanen event yang belum menautkan absensi                               |
 | POST       | /admin/kelola-absen/event/{event}/tutup| Tutup entry event (FR-EVT-04)                                                   |
-| POST       | /admin/kelola-absen/event/{event}/kode/{kode}/reset | Terbitkan ulang kode unit kerja event (FR-EVT-03)                   |
 | GET        | /admin/kelola-absen/absen-umum         | Pemantauan sesi absen harian tanpa event kegiatan                                |
 | POST       | /admin/kelola-absen/absen-umum/buka    | Buka sesi absen umum hari ini tanpa menunggu tap pertama                         |
 | POST       | /admin/kelola-absen/absen-umum/override| Pasang/cabut override buka-tutup paksa hari ini (FR-SET-07)                     |
@@ -1262,6 +1252,7 @@ Umum adalah dua halaman".
 | POST       | /admin/kelola-absen/absen-umum/tap/identifikasi | Kembaran /kiosk/tap/identifikasi, dipagari sesi admin                   |
 | POST       | /admin/kelola-absen/absen-umum/absen   | Kembaran /kiosk/absen, dipagari sesi admin                                       |
 | GET        | /admin/kelola-absen/absen-umum/presensi| Kembaran /kiosk/presensi, dipagari sesi admin                                    |
+| POST       | /admin/kelola-absen/unit-kerja/{unit_kerja}/kode | Ganti kode perangkat unit kerja (FR-EVT-03); Superadmin/Admin Dinas   |
 | GET        | /admin/perangkat                       | Kelola perangkat absen (FR-USR-02, FR-USR-03)                                    |
 | POST       | /admin/perangkat                       | Daftarkan perangkat beserta kode aktivasinya                                     |
 | PATCH      | /admin/perangkat/{perangkat}           | Ubah nama titik atau unit kerja perangkat                                        |
@@ -1767,7 +1758,7 @@ keenamnya, bukan dari hue baru.
 | Navy | `utama`, `sidebar`, `info` | struktural, tinta |
 | Teal | `aksen` | aksi utama |
 | Emerald | `berhasil` | tepat waktu, sukses |
-| Amber | `peringatan` | terlambat biasa, Mode Terbuka |
+| Amber | `peringatan` | terlambat biasa, peringatan operasional |
 | **Rose** | `galat` `#E11D48` | GAGAL: verifikasi wajah, tap ditolak, hapus, terlambat parah |
 | **Cyan** | `langit` `#0891B2` | info netral: catatan sistem, "sedang memeriksa" |
 

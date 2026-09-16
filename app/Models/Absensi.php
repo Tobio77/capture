@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'event_absen_id',
     'pegawai_id',
     'kiosk_id',
+    'ip_address',
     'jenis',
     'metode',
     'waktu',

@@ -56,7 +56,7 @@ class SettingAbsenTest extends TestCase
                 'jam_tutup_pulang' => '18:00',
             ])->all(),
 
-            'wajib_kode_aktivasi' => true,
+            'pendaftaran_perangkat_aktif' => false,
 
             'ambang_kehadiran_minimum' => 80,
             'ambang_keterlambatan_maksimum' => 15,

@@ -67,19 +67,19 @@ SI-ABSEN adalah aplikasi web dengan dua front-end: (1) Panel Admin untuk Superad
 
 | **Kode**  | **Deskripsi**                                                                                                                                                                                                                                            | **Prioritas** |
 |-----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|
-| FR-EVT-01 | Admin dapat membuat event baru dengan atribut: nama, tanggal, jam mulai, toleransi keterlambatan (menit), cakupan unit kerja (satu/lebih unit, atau “semua unit” — opsi “semua unit” hanya tersedia untuk Superadmin/Admin Dinas), dan catatan opsional. | Tinggi        |
-| FR-EVT-02 | Admin UPT hanya dapat memilih unit kerjanya sendiri sebagai cakupan event.                                                                                                                                                                               | Tinggi        |
-| FR-EVT-03 | Sistem mencatat setiap kiosk yang login/aktif pada suatu event beserta alamat IP dan waktu aktivasi.                                                                                                                                                     | Tinggi        |
+| FR-EVT-01 **(revisi S49)** | Admin dapat membuat event baru dengan atribut: nama, tanggal, jam mulai, toleransi keterlambatan (menit), dan catatan opsional. **Tidak ada lagi medan cakupan:** setiap event berlaku bagi SELURUH unit kerja Disnakertrans, termasuk unit yang ditambahkan setelah event dibuat. | Tinggi        |
+| FR-EVT-02 **(revisi S49)** | Membuat, mengubah, menutup, dan menghapus event terbatas pada Superadmin dan Admin Dinas — tindakan itu kini berdampak pada seluruh dinas sekaligus. Admin UPT tetap dapat MEMBACA daftar dan detail event, sebab pegawainya berhak hadir pada setiap kegiatan yang ada di sana. | Tinggi        |
+| FR-EVT-03 **(revisi S49)** | Setiap unit kerja memiliki satu **kode perangkat** yang tetap, dapat dibaca ulang admin dan diganti Superadmin/Admin Dinas. Sebuah komputer mengetikkannya SEKALI untuk dikenali sebagai titik absen unit tersebut; sesudah itu ia melayani Absen Umum maupun Absen Event tanpa mengetik apa pun lagi. Jumlah perangkat per unit tidak dibatasi, dan sistem mencatat setiap perangkat yang melayani sebuah event beserta unit asal, alamat IP, dan waktu aktifnya. | Tinggi        |
 | FR-EVT-04 | Admin dapat menutup (close) event yang sedang aktif; setelah ditutup, tap baru pada kiosk untuk event tersebut ditolak sistem. Bila absen umum (FR-SET-05) menyala, tap sesudahnya dilayani sesi absen harian unit tersebut — bukan dicatat pada event yang sudah ditutup. | Tinggi        |
 | FR-EVT-05 | Admin dapat melihat detail event: daftar kiosk terhubung, jumlah absen masuk, dan status entry (dibuka/ditutup).                                                                                                                                         | Tinggi        |
-| FR-EVT-06 | Sistem hanya mengizinkan satu event kegiatan berstatus “aktif” per cakupan unit kerja pada satu waktu, untuk mencegah ambiguitas saat tap. Sesi absen umum (FR-SET-05) tidak ikut dihitung: ia justru mengalah ketika ada kegiatan yang berjalan.        | Sedang        |
+| FR-EVT-06 **(revisi S49)** | Sistem hanya mengizinkan SATU event kegiatan berstatus “aktif” pada satu waktu, untuk mencegah ambiguitas saat tap. Karena setiap event kini mencakup seluruh dinas, dua event aktif selalu beririsan. Sesi absen umum (FR-SET-05) tidak ikut dihitung: keduanya dua layar terpisah yang berjalan berdampingan. | Sedang        |
 
 ## 3.4 Kelola Absen — Rekap Absen
 
 | **Kode**  | **Deskripsi**                                                                                                                                                                                                   | **Prioritas** |
 |-----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|
 | FR-REK-01 | Admin dapat memilih event tertentu dan melihat daftar e-presensi (No, NIP, Nama, Unit Kerja, Jam Masuk, Jam Pulang, Metode, Status Tepat/Terlambat, Foto) yang diperbarui secara live selama event berlangsung. Menu Rekap Absen punya **dua tab**: “Rekap Event” dan “Rekap Umum” (kehadiran harian per unit kerja dan tanggal). Tab harian membaca sumber baris yang sama dengan menu Absen Umum, bukan salinannya. | Tinggi        |
-| FR-REK-02 | Admin UPT hanya melihat rekap absen untuk unit kerjanya sendiri, walaupun event bercakupan semua unit.                                                                                                          | Tinggi        |
+| FR-REK-02 **(revisi S49)** | Admin UPT hanya melihat rekap absen untuk pegawai unit kerjanya sendiri, walaupun eventnya berlaku bagi seluruh dinas. Pembatasan berlaku pada ISI rekap, bukan pada akses eventnya — setiap admin boleh membuka rekap event mana pun. Unit kerja juga tersedia sebagai penyaring tampilan; penyaring itu mempersempit, tidak pernah memperluas, hak baca seseorang. | Tinggi        |
 | FR-REK-03 | Admin dapat mencetak rekap absen per event.                                                                                                                                                                     | Sedang        |
 
 ## 3.5 Kelola Absen — Setting Absen
@@ -90,8 +90,8 @@ SI-ABSEN adalah aplikasi web dengan dua front-end: (1) Panel Admin untuk Superad
 | FR-SET-02 | Admin dapat menetapkan toleransi keterlambatan default (menit) yang berlaku untuk event baru, dan dapat dioverride per-event saat pembuatan event. | Tinggi        |
 | FR-SET-03 | Admin dapat menetapkan ambang kecocokan wajah (persentase) yang digunakan modul verifikasi wajah di sisi klien.                                    | Tinggi        |
 | FR-SET-04 | Admin dapat memilih tingkat kompresi foto absen (dimensi maksimum piksel dan kualitas JPEG) untuk membatasi ukuran berkas yang disimpan.           | Tinggi        |
-| FR-SET-05 | Admin dapat menyalakan/mematikan absen umum harian beserta jam masuknya. Saat menyala, sistem membuka sesi absen harian per unit kerja ketika tidak ada event kegiatan yang berjalan, sehingga pegawai dapat mencatat kehadiran rutin tanpa admin membuat event lebih dahulu. | Sedang        |
-| FR-SET-06 | Admin dapat mematikan kewajiban kode aktivasi perangkat ("Mode Terbuka"); bawaannya menyala. Saat dimatikan, perangkat yang membuka layar absen tanpa kode dibuatkan entri sendiri bertanda sumber `ad_hoc`, memilih unit kerjanya di layar aktivasi, dan alamat IP-nya dicatat sama seperti perangkat terdaftar — tercermin pada halaman Perangkat Absen maupun daftar perangkat terhubung sebuah event. Selama mode ini menyala, panel admin menampilkan peringatan yang selalu terlihat pada setiap halaman. | Sedang        |
+| FR-SET-05 **(revisi S49)** | Admin dapat menyalakan/mematikan absen umum harian beserta jam masuknya; bawaannya menyala. Saat menyala, sistem membuka SATU sesi absen harian untuk seluruh dinas per tanggal, sehingga pegawai unit mana pun dapat mencatat kehadiran rutin tanpa admin membuat event lebih dahulu. Mematikan lalu menyalakannya kembali MELANJUTKAN sesi hari itu beserta seluruh kehadiran yang sudah masuk — yang ditahan sakelar ini hanya penerimaan tap, bukan sesinya. | Sedang        |
+| FR-SET-06 **(revisi S49)** | Admin dapat menyalakan **Mode Pendaftaran Perangkat**; bawaannya MATI. Saat mati, perangkat masuk dengan mengetikkan kode unit kerjanya (FR-EVT-03), dibuatkan entri sendiri bertanda sumber `ad_hoc`, dan alamat IP-nya dicatat — tercermin pada halaman Perangkat Absen maupun daftar perangkat sebuah event. Saat menyala, perangkat harus didaftarkan admin lebih dahulu dan menukarkan kode aktivasi sekali pakai miliknya sendiri, dan kode unit kerja tidak lagi diterima. Fiturnya dipertahankan utuh untuk instansi yang kelak ingin mengunci daftar mesinnya. | Sedang        |
 | FR-SET-07 | Admin dapat mengatur **dua jendela jam** absen umum yang berdiri sendiri — datang (bawaan 06:00–09:00) dan pulang (bawaan 15:00–18:00) — beserta **override manual** buka/tutup paksa untuk kasus khusus. Urutan resolusinya tetap: absen umum yang dimatikan pada FR-SET-05 selalu tertutup; selebihnya override mengalahkan jadwal; tanpa override, jendela jam yang menentukan. Override menempel pada sesi harian sehingga **tidak terbawa ke hari berikutnya**, dan layar admin menyebut sumber statusnya (jadwal atau override) agar "tertutup karena di luar jam" dapat dibedakan dari "tertutup karena seseorang menutupnya". Jendela ini hanya berlaku bagi absen umum; kegiatan tetap dibuka dan ditutup oleh status entry (FR-EVT-04). | Sedang        |
 
 ## 3.6 Kelola Absen — Setting Unit Kerja
@@ -182,10 +182,11 @@ SI-ABSEN adalah aplikasi web dengan dua front-end: (1) Panel Admin untuk Superad
 | **Menu / Fitur**     | **Superadmin**  | **Admin Dinas**                       | **Admin UPT**     | **Kiosk**                   |
 |----------------------|-----------------|---------------------------------------|-------------------|-----------------------------|
 | Dashboard            | Ya (semua unit) | Ya (semua unit)                       | Ya (unit sendiri) | Tidak                       |
-| Kelola Absen ­– Event | Ya (semua unit) | Ya (semua unit, termasuk lintas unit) | Ya (unit sendiri) | Tidak                       |
+| Kelola Absen ­– Event | Ya              | Ya                                    | Lihat saja        | Tidak                       |
 | Rekap Absen          | Ya              | Ya                                    | Ya (unit sendiri) | Ya (tampilan live saat tap) |
 | Setting Absen        | Ya              | Ya                                    | Tidak             | Tidak                       |
 | Setting Unit Kerja   | Ya              | Ya                                    | Lihat saja        | Tidak                       |
+| — Kode perangkat     | Ya (baca & ganti) | Ya (baca & ganti)                   | Tidak             | Ditukarkan sekali saat masuk |
 | Kelola Pegawai       | Ya              | Ya                                    | Ya (unit sendiri) | Tidak                       |
 | Kelola User/Role     | Ya              | Ya (kiosk saja)                       | Tidak             | Tidak                       |
 | Laporan              | Ya              | Ya                                    | Ya (unit sendiri) | Tidak                       |
@@ -197,7 +198,7 @@ SI-ABSEN adalah aplikasi web dengan dua front-end: (1) Panel Admin untuk Superad
 |------------------|-----------------------------------------------------------------------------------------------|
 | Tepat Waktu      | Waktu tap ≤ jam mulai event + toleransi keterlambatan                                         |
 | Terlambat        | Waktu tap \> jam mulai event + toleransi keterlambatan                                        |
-| Tanpa Keterangan | Pegawai terdaftar pada unit kerja cakupan event namun tidak tercatat tap hingga event ditutup |
+| Tanpa Keterangan | Pegawai aktif mana pun yang tidak tercatat tap hingga event ditutup — sejak S49 setiap event berlaku bagi seluruh dinas |
 
 
 # 8. Catatan Revisi

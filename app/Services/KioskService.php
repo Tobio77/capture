@@ -16,11 +16,24 @@ use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Cookie as CookiePeramban;
 
 /**
- * Aktivasi dan autentikasi perangkat kiosk (FR-AUTH-01, FR-USR-03, NFR-03).
+ * Masuknya perangkat absen dan autentikasinya (FR-AUTH-01, FR-USR-03, NFR-03).
  *
- * Kiosk didaftarkan lebih dulu oleh Superadmin/Admin Dinas (FR-USR-02); sistem
- * menerbitkan kode aktivasi sekali pakai, lalu perangkat menukarkan kode itu
- * dengan device_token miliknya sendiri.
+ * Dua jalur, dan yang berlaku ditentukan Mode Pendaftaran Perangkat
+ * ({@see SettingAbsenService::pendaftaranPerangkatAktif()}):
+ *
+ *   - **Kode unit kerja** — jalur bawaan sejak S49. Sebuah komputer
+ *     mengetikkan kode UPT tempat ia berdiri, dan langsung dikenali sebagai
+ *     perangkat unit itu ({@see self::masukDenganKodeUnit()}). Tidak ada yang
+ *     perlu didaftarkan lebih dahulu, sebab jumlah komputer yang dipakai
+ *     sebuah UPT memang berubah dari hari ke hari.
+ *   - **Kode aktivasi sekali pakai** — jalur lama, kini opsional. Admin
+ *     mendaftarkan tiap perangkat (FR-USR-02), sistem menerbitkan kode sekali
+ *     pakai, lalu perangkat menukarkannya dengan device_token miliknya sendiri
+ *     ({@see self::aktifkan()}).
+ *
+ * Apa pun jalurnya, yang dipegang perangkat sesudahnya sama: satu device_token
+ * dalam cookie, dan sebuah baris pada Daftar Perangkat yang menyebut unit,
+ * alamat IP, serta kapan terakhir ia aktif.
  */
 class KioskService
 {
@@ -47,27 +60,34 @@ class KioskService
     public function __construct(protected LogAktivitasService $log) {}
 
     /**
-     * Daftarkan perangkat yang masuk tanpa kode aktivasi (Mode Terbuka, FR-SET-06).
+     * Perangkat memperkenalkan diri dengan kode unit kerjanya (FR-EVT-03,
+     * FR-SET-06 revisi S49).
      *
-     * Perangkat semacam ini tidak pernah ditinjau siapa pun, sehingga ia
-     * ditandai `sumber = ad_hoc` dan namanya menyebut asal-usulnya. Selebihnya
-     * ia diperlakukan sama persis dengan perangkat terdaftar — device token
-     * sendiri, alamat IP tercatat, dan muncul pada Daftar Perangkat maupun
-     * daftar perangkat terhubung sebuah event.
+     * Barisnya dibuat di sini, bukan didaftarkan admin lebih dahulu. Jumlah
+     * komputer yang dipakai sebuah UPT tidak dibatasi dan memang berubah dari
+     * hari ke hari — tiga mesin hari Rabu, empat hari Kamis — sehingga menuntut
+     * pendaftaran di muka hanya akan menghasilkan daftar yang selalu
+     * ketinggalan keadaan di lapangan. Yang dituntut sistem cukup satu: kode
+     * unit yang sah, dan itulah yang menautkan perangkat ke unit yang benar.
      *
-     * Unit kerja diminta di layar aktivasi, bukan ditebak dari alamat IP:
-     * tebakan yang keliru mengarahkan seluruh absen ke unit yang salah, dan
-     * petugas yang berdiri di lokasi jelas tahu ia sedang berada di mana.
+     * Semua yang masuk lewat jalur ini ditandai `sumber = ad_hoc`: ia tidak
+     * pernah melewati peninjauan seorang admin, dan Daftar Perangkat harus
+     * dapat membedakannya dari perangkat yang memang didaftarkan. Selebihnya
+     * ia diperlakukan sama persis — device token sendiri, alamat IP tercatat,
+     * dan muncul pada rekap sebagai asal sebuah tap.
+     *
+     * Namanya menyebut unit dan alamat IP-nya, sebab itulah dua keterangan
+     * yang dipakai admin mengenali mesin yang tidak pernah dinamainya sendiri.
      *
      * @return array{kiosk: Kiosk, token: string}
      */
-    public function masukTanpaKode(UnitKerja $unitKerja, Request $request): array
+    public function masukDenganKodeUnit(UnitKerja $unitKerja, Request $request): array
     {
         $token = Str::random(64);
         $waktu = Carbon::now();
 
         $kiosk = Kiosk::create([
-            'nama_titik' => 'Perangkat Ad-hoc — '.$unitKerja->nama,
+            'nama_titik' => "Perangkat {$unitKerja->kode} — {$request->ip()}",
             'sumber' => SumberKiosk::AdHoc,
             'unit_kerja_id' => $unitKerja->id,
             'aktif' => true,
@@ -83,8 +103,7 @@ class KioskService
 
         $this->log->catat(
             AksiLog::AktivasiKiosk,
-            "Perangkat ad-hoc masuk tanpa kode aktivasi pada unit {$unitKerja->nama} dari IP {$request->ip()} ".
-            '(Mode Terbuka sedang menyala).',
+            "Perangkat masuk dengan kode unit {$unitKerja->kode} — {$unitKerja->nama} dari IP {$request->ip()}.",
             kiosk: $kiosk,
             subjek: $kiosk,
         );
@@ -231,7 +250,8 @@ class KioskService
      * Cookie penyimpan device token (perbaikan M-3).
      *
      * Dirakit di satu tempat, bukan di dua cabang AktivasiController, supaya
-     * aktivasi berkode dan Mode Terbuka tidak dapat berbeda diam-diam.
+     * jalur kode unit kerja dan jalur kode aktivasi tidak dapat berbeda
+     * diam-diam.
      *
      * `secure` DISEBUT EKSPLISIT, tidak diwariskan dari config/session.php.
      * Sebelum audit pra-deploy, kedua panggilan `Cookie::make` menyebutkan

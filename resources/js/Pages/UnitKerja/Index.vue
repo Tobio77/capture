@@ -120,9 +120,28 @@ const ubahStatus = (unit) => {
     )
   }
 }
+/*
+ * Ganti kode perangkat sebuah unit (FR-EVT-03).
+ *
+ * Konfirmasinya menyebut akibat yang sesungguhnya, bukan sekadar bertanya:
+ * admin yang mengira sedang mengusir perangkat justru harus mencabut aksesnya
+ * di menu Perangkat Absen — yang ditutup penggantian kode hanyalah pintu bagi
+ * mesin yang BELUM masuk.
+ */
+const gantiKode = (unit) => {
+  const pesan = unit.kode_perangkat
+    ? `Ganti kode perangkat unit ${unit.kode}?\n\nKode lama (${unit.kode_perangkat}) langsung berhenti berlaku, sehingga komputer yang belum terhubung harus memakai kode baru. Perangkat yang sudah terhubung TIDAK terputus.`
+    : `Terbitkan kode perangkat untuk unit ${unit.kode}?`
+
+  if (window.confirm(pesan)) {
+    router.post(`/kelola-absen/unit-kerja/${unit.id}/kode`, {}, { preserveScroll: true })
+  }
+}
+
 const kolom = [
   { label: 'Kode', kelas: 'px-6' },
   { label: 'Nama Unit Kerja', kelas: 'px-6' },
+  { label: 'Kode Perangkat', kelas: 'px-6' },
   { label: 'Pegawai', kelas: 'px-6 text-right' },
   { label: 'Perangkat', kelas: 'px-6 text-right' },
   { label: 'Status', kelas: 'px-6' },
@@ -133,7 +152,7 @@ const kolom = [
 <template>
   <AdminLayout
     judul="Setting Unit Kerja"
-    deskripsi="Unit kerja yang berpartisipasi dalam Capture beserta jumlah pegawai dan perangkat absen terdaftar."
+    deskripsi="Unit kerja beserta kode perangkatnya — kode inilah yang diketikkan sebuah komputer untuk dikenali sebagai titik absen unit tersebut."
   >
     <template v-if="dapat_mengubah" #aksi>
       <button type="button" class="tombol tombol-utama" @click="bukaTambah">
@@ -191,6 +210,20 @@ const kolom = [
             membawahi {{ unit.jumlah_unit_turunan }} unit
           </span>
         </td>
+        <!--
+          Kode perangkat ditampilkan APA ADANYA, tidak disembunyikan seperti
+          device token: kode ini justru harus dapat dibacakan admin lewat
+          telepon kepada petugas di UPT lain yang sedang memasang komputernya.
+        -->
+        <td class="px-6 py-3">
+          <span
+            v-if="unit.kode_perangkat"
+            class="font-display text-sm font-semibold tracking-[0.15em] text-utama"
+          >
+            {{ unit.kode_perangkat }}
+          </span>
+          <span v-else class="text-xs text-redup">Belum ada</span>
+        </td>
         <td class="px-6 py-3 text-right font-display tabular-nums text-sekunder">
           {{ unit.jumlah_pegawai }}
         </td>
@@ -204,6 +237,9 @@ const kolom = [
         </td>
         <td v-if="dapat_mengubah" class="whitespace-nowrap px-6 py-3 text-right">
           <TombolAksi ikon="ubah" warna="teal" @click="bukaUbah(unit)">Ubah</TombolAksi>
+          <TombolAksi ikon="kunci" warna="teal" @click="gantiKode(unit)">
+            {{ unit.kode_perangkat ? 'Ganti Kode' : 'Terbitkan Kode' }}
+          </TombolAksi>
           <TombolAksi
             :ikon="unit.aktif ? 'cabut' : 'cek'"
             :warna="unit.aktif ? 'amber' : 'emerald'"

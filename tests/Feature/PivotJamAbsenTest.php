@@ -124,7 +124,7 @@ class PivotJamAbsenTest extends TestCase
     #[Test]
     public function absen_umum_menampilkan_kedua_jam_dari_pivot_yang_sama(): void
     {
-        $sesi = app(AbsenUmumService::class)->buka($this->upt->id);
+        $sesi = app(AbsenUmumService::class)->buka();
 
         $this->isiKehadiran($sesi, '07:16:00', '15:04:00');
 

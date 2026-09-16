@@ -19,7 +19,10 @@ class UnitKerjaService
     /** Jumlah unit level teratas per halaman pada daftar Setting Unit Kerja. */
     public const int PER_HALAMAN = 15;
 
-    public function __construct(protected LogAktivitasService $log) {}
+    public function __construct(
+        protected LogAktivitasService $log,
+        protected KodeUnitService $kodeUnit,
+    ) {}
 
     /**
      * Daftar unit kerja level teratas beserta jumlah pegawai dan kiosk
@@ -77,6 +80,20 @@ class UnitKerjaService
                     'kode' => $unit->kode,
                     'nama' => $unit->nama,
                     'aktif' => $unit->aktif,
+
+                    /*
+                     * Kode perangkat (FR-EVT-03). Ditampilkan apa adanya,
+                     * bukan disembunyikan seperti device_token: kode ini
+                     * justru harus dapat dibacakan admin kepada petugas di
+                     * UPT lain yang hendak memasang komputer absennya.
+                     *
+                     * Unit yang belum punya kode — nonaktif saat migration
+                     * berjalan, atau baru lahir dari sinkronisasi — bernilai
+                     * null; layar menawarkan penerbitannya lewat tombol yang
+                     * sama dengan penggantian.
+                     */
+                    'kode_perangkat' => KodeUnitService::format($unit->kode_perangkat),
+                    'kode_direset_pada' => $unit->kode_perangkat_direset_pada?->toIso8601String(),
 
                     /*
                      * Hari kerja yang tersimpan pada unit ini, dan hari kerja
@@ -141,6 +158,14 @@ class UnitKerjaService
             'aktif' => true,
             'hari_kerja' => self::hariKerja($data),
         ]);
+
+        /*
+         * Kode perangkat terbit bersamaan dengan unitnya (FR-EVT-03). Tanpa
+         * ini, unit yang baru dibuat tidak punya satu kode pun untuk
+         * dibacakan, dan tidak satu perangkat pun dapat masuk atas namanya —
+         * kegagalan yang baru ketahuan saat petugas berdiri di depan layar.
+         */
+        $this->kodeUnit->pastikanAda($unitKerja);
 
         $this->log->catat(
             AksiLog::Buat,

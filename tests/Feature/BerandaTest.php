@@ -20,6 +20,11 @@ use Tests\TestCase;
  * harian, petugas yang membuka titik absen kegiatan, dan admin yang menuju
  * panel — sehingga yang perlu dijaga di sini adalah ketiganya menemukan
  * jalannya, dan tidak ada yang melihat lebih daripada haknya.
+ *
+ * Sejak S49 tidak ada lagi kolom kode di halaman ini: kode menempel pada unit
+ * kerja dan sudah diketikkan sekali di layar masuk perangkat, sehingga
+ * perangkat yang dikenali langsung melayani kegiatan yang sedang dibuka.
+ * Yang tersisa hanyalah dua kemungkinan — ada kegiatan, atau tidak.
  */
 class BerandaTest extends TestCase
 {
@@ -49,19 +54,11 @@ class BerandaTest extends TestCase
         ]);
     }
 
-    protected function eventAktif(string $nama = 'Apel Pagi'): EventAbsen
-    {
-        $event = EventAbsen::factory()->create(['nama' => $nama]);
-        $event->unitKerja()->attach($this->upt);
-
-        return $event;
-    }
-
     #[Test]
     public function terbuka_tanpa_autentikasi_apa_pun(): void
     {
         /*
-         * Inti halaman ini. Mesin yang belum pernah diaktifkan harus dapat
+         * Inti halaman ini. Mesin yang belum pernah dikenali harus dapat
          * membukanya — kalau tidak, petugas tidak punya tempat untuk memulai.
          */
         $this->get('/')
@@ -73,26 +70,25 @@ class BerandaTest extends TestCase
     }
 
     #[Test]
-    public function perangkat_yang_belum_aktif_tidak_melihat_daftar_event(): void
+    public function perangkat_yang_belum_dikenali_tidak_melihat_kegiatan_yang_dibuka(): void
     {
         /*
-         * Mengikuti keputusan yang sama pada layar aktivasi: nama kegiatan
-         * beserta unit penyelenggaranya adalah keterangan internal. Kodenya
-         * tetap penentu, tetapi daftar ini mempersempit tebakan — jadi ia ikut
-         * dipagari.
+         * Nama kegiatan adalah keterangan internal, dan tidak ada alasan
+         * membocorkannya kepada mesin mana pun yang kebetulan dapat
+         * menjangkau alamat server.
          */
-        $this->eventAktif();
+        EventAbsen::factory()->create(['nama' => 'Apel Pagi']);
 
         $this->get('/')
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->has('event_aktif', 0)->etc());
+            ->assertInertia(fn (Assert $page) => $page->where('event_aktif', null)->etc());
     }
 
     #[Test]
-    public function perangkat_aktif_melihat_dirinya_dan_daftar_event(): void
+    public function perangkat_dikenali_melihat_dirinya_dan_kegiatan_yang_dibuka(): void
     {
         $this->perangkat();
-        $this->eventAktif('Apel Pagi Senin');
+        EventAbsen::factory()->create(['nama' => 'Apel Pagi Senin']);
 
         $this->withCookie(KioskService::NAMA_COOKIE, self::TOKEN)
             ->get('/')
@@ -107,81 +103,83 @@ class BerandaTest extends TestCase
                  */
                 ->where('perangkat.unit_kerja.nama', 'UPT BLK Surabaya')
                 ->missing('perangkat.unit_kerja.kode')
-                ->has('event_aktif', 1)
-                ->where('event_aktif.0.nama', 'Apel Pagi Senin')
-                ->where('event_aktif.0.cakupan_label', 'UPT BLK Surabaya')
-
-                // Belum bergabung: kartunya menawarkan kolom kode, bukan
-                // pintasan ke layar tap.
-                ->where('event_diikuti', null)
+                ->where('event_aktif.nama', 'Apel Pagi Senin')
                 ->etc());
     }
 
     #[Test]
-    public function kode_event_tidak_pernah_ikut_pada_daftar(): void
+    public function kode_unit_kerja_tidak_pernah_ikut_pada_halaman_depan(): void
     {
-        // Yang membedakan petugas yang berhak dari yang tidak justru kodenya.
+        // Kode adalah kunci masuk perangkat; halaman yang terbuka untuk siapa
+        // pun bukan tempatnya dibacakan.
         $this->perangkat();
-        $event = $this->eventAktif();
-
-        $kode = $event->kodeUnit()->first()?->kode;
-
-        $respons = $this->withCookie(KioskService::NAMA_COOKIE, self::TOKEN)->get('/');
-
-        $respons->assertOk();
-
-        if ($kode !== null) {
-            $respons->assertDontSee($kode);
-        }
-
-        $respons->assertInertia(fn (Assert $page) => $page
-            ->has('event_aktif.0', fn (Assert $satu) => $satu
-                ->hasAll(['id', 'nama', 'tanggal', 'jam_mulai', 'cakupan_label']))
-            ->etc());
-    }
-
-    #[Test]
-    public function perangkat_yang_sudah_bergabung_langsung_ditawari_layar_eventnya(): void
-    {
-        $perangkat = $this->perangkat();
-        $event = $this->eventAktif('Rapat Koordinasi');
-
-        $this->gabungkanKeEvent($event, $perangkat);
+        EventAbsen::factory()->create();
 
         $this->withCookie(KioskService::NAMA_COOKIE, self::TOKEN)
             ->get('/')
             ->assertOk()
+            ->assertDontSee($this->upt->fresh()->kode_perangkat)
             ->assertInertia(fn (Assert $page) => $page
-                ->where('event_diikuti.nama', 'Rapat Koordinasi')
+                ->has('event_aktif', fn (Assert $satu) => $satu
+                    ->hasAll(['id', 'nama', 'tanggal', 'jam_mulai', 'toleransi_menit']))
                 ->etc());
+    }
+
+    #[Test]
+    public function perangkat_dikenali_tidak_perlu_bergabung_lebih_dahulu(): void
+    {
+        /*
+         * Inti perubahan S49. Sampai S48, membuka layar Absen Event menuntut
+         * penukaran kode per event lebih dulu — perangkat yang belum
+         * bergabung dipulangkan ke beranda. Kini ia langsung masuk.
+         */
+        $this->perangkat();
+        EventAbsen::factory()->create(['nama' => 'Rapat Koordinasi']);
+
+        $this->withCookie(KioskService::NAMA_COOKIE, self::TOKEN)
+            ->get('/kiosk/event')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('event.nama', 'Rapat Koordinasi')
+                ->etc());
+    }
+
+    #[Test]
+    public function tanpa_kegiatan_layar_absen_event_dipulangkan_ke_beranda(): void
+    {
+        $this->perangkat();
+
+        $this->withCookie(KioskService::NAMA_COOKIE, self::TOKEN)
+            ->get('/kiosk/event')
+            ->assertRedirect('/')
+            ->assertSessionHas('gagal');
     }
 
     #[Test]
     public function event_yang_sudah_ditutup_tidak_ikut_ditawarkan(): void
     {
         $this->perangkat();
-        EventAbsen::factory()->ditutup()->create(['nama' => 'Apel Kemarin'])
-            ->unitKerja()->attach($this->upt);
+        EventAbsen::factory()->ditutup()->create(['nama' => 'Apel Kemarin']);
 
         $this->withCookie(KioskService::NAMA_COOKIE, self::TOKEN)
             ->get('/')
-            ->assertInertia(fn (Assert $page) => $page->has('event_aktif', 0)->etc());
+            ->assertInertia(fn (Assert $page) => $page->where('event_aktif', null)->etc());
     }
 
     #[Test]
-    public function sesi_absen_umum_harian_tidak_muncul_sebagai_event(): void
+    public function sesi_absen_umum_harian_tidak_muncul_sebagai_kegiatan(): void
     {
         /*
          * Sesi harian dibuka sistem, bukan admin, dan punya pintunya sendiri
-         * pada kartu Absen Umum. Membiarkannya masuk daftar akan memenuhi
-         * halaman depan dengan satu baris per unit per hari.
+         * pada kartu Absen Umum. Membiarkannya masuk akan membuat kartu Absen
+         * Event menawarkan sesuatu yang bukan kegiatan.
          */
         $this->perangkat();
-        app(AbsenUmumService::class)->buka($this->upt->id);
+        app(AbsenUmumService::class)->buka();
 
         $this->withCookie(KioskService::NAMA_COOKIE, self::TOKEN)
             ->get('/')
-            ->assertInertia(fn (Assert $page) => $page->has('event_aktif', 0)->etc());
+            ->assertInertia(fn (Assert $page) => $page->where('event_aktif', null)->etc());
     }
 
     #[Test]

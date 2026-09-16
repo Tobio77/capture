@@ -136,20 +136,21 @@ function pilihEvent() {
 const filter = reactive({ ...(props.umum?.filter ?? {}) })
 const barisUmum = ref(props.umum?.baris ?? [])
 
-const opsiUnit = computed(() =>
-  (props.umum?.unit_kerja ?? []).map((u) => ({ nilai: u.id, label: u.nama, keterangan: u.kode })),
-)
-
 /*
- * Nama unit yang sedang dibaca. Nama sesi yang tersimpan berbunyi "Absen
- * Umum — <unit>", dan itu tepat pada lembar rekap yang dibaca lepas dari
- * layarnya; di sini tab yang sedang terbuka sudah menyatakan jenisnya,
- * sehingga separuh depannya hanya pengulangan yang memakan tempat.
+ * Penyaring tampilan, bukan pemilih sesi: sejak S49 sesi absen umum satu untuk
+ * seluruh dinas, dan pilihan ini hanya mempersempit baris mana yang terbaca.
+ * Butir "Semua unit kerja" karena itu ada di depan daftarnya.
  */
+const opsiUnit = computed(() => [
+  { nilai: '', label: 'Semua unit kerja' },
+  ...(props.umum?.unit_kerja ?? []).map((u) => ({ nilai: u.id, label: u.nama, keterangan: u.kode })),
+])
+
+/** Unit yang sedang disaring, atau kalimat cakupan penuh bila tidak ada. */
 const namaUnit = computed(
   () =>
     (props.umum?.unit_kerja ?? []).find((u) => u.id === props.umum?.filter?.unit_kerja_id)?.nama ??
-    '',
+    'Seluruh unit kerja',
 )
 
 const kueriUmum = computed(() => ({
@@ -259,6 +260,11 @@ const KOLOM_REKAP = [
   { kunci: 'jam_masuk', label: 'Jam Masuk' },
   { kunci: 'jam_pulang', label: 'Jam Pulang' },
   { kunci: 'metode', label: 'Metode' },
+
+  // Asal tap (S49) — lihat catatan pada TabelRekap.vue.
+  { kunci: 'perangkat', label: 'Perangkat' },
+  { kunci: 'ip_address', label: 'Alamat IP' },
+
   { kunci: 'status_label', label: 'Status' },
 ]
 

@@ -125,19 +125,15 @@ class PerhatianDashboardService
             ];
         }
 
-        if ($setting['wajib_kode_aktivasi'] === false) {
-            $butir[] = [
-                'jenis' => 'mode_terbuka',
-                'nada' => 'amber',
-                'ikon' => 'peringatan',
-                'judul' => 'Mode Terbuka menyala',
-                'keterangan' => 'Perangkat dapat mengabsen tanpa kode aktivasi'
-                    .$this->lamanya(SettingAbsenService::KUNCI_TERBUKA_SEJAK)
-                    .'. Mesin mana pun yang menjangkau alamat aplikasi dapat menjadi titik absen.',
-                'aksi' => 'Nonaktifkan',
-                'url' => '/admin/kelola-absen/setting',
-            ];
-        }
+        /*
+         * Butir "Mode Terbuka menyala" yang dulu berdampingan di sini sudah
+         * tidak ada. Sampai S48, mematikan "wajib kode aktivasi" membuat mesin
+         * mana pun yang menjangkau alamat aplikasi dapat menjadi titik absen —
+         * pelonggaran yang memang pantas diperingatkan terus-menerus. Jalur
+         * masuk bawaan kini selalu menuntut kode unit kerja
+         * ({@see \App\Services\KodeUnitService}), sehingga tidak ada lagi
+         * keadaan yang perlu diperingatkan di sini.
+         */
 
         return $butir;
     }

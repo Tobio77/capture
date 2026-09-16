@@ -52,42 +52,26 @@
   "beranda": {
     "perangkat": {
       "nama_titik": "Aula Senam BLK Surabaya",
-      "sumber": "terdaftar",
       "unit_kerja": {
         "nama": "UPT BLK Surabaya"
       }
     },
-    "event_diikuti": null,
-    "event_aktif": [
-      {
-        "id": 12,
-        "nama": "Apel Pagi Senin",
-        "tanggal": "2026-09-07",
-        "jam_mulai": "07:30",
-        "cakupan_label": "UPT BLK Surabaya"
-      }
-    ],
+    "event_aktif": {
+      "id": 12,
+      "nama": "Apel Pagi Senin",
+      "tanggal": "2026-09-07",
+      "jam_mulai": "07:30",
+      "toleransi_menit": 15
+    },
     "absen_umum_aktif": true,
-    "aktivasi_tanpa_kode": false,
-    "panjang_kode": 8,
+    "mode_pendaftaran": false,
     "waktu_server": "2026-09-07T07:35:00+07:00",
     "jam_masuk": "07:30",
     "toleransi_menit": 15
   },
   "aktivasi": {
-    "mode_terbuka": true,
-    "unit_kerja": [
-      {
-        "id": 2,
-        "kode": "BLK-SBY",
-        "nama": "UPT BLK Surabaya"
-      },
-      {
-        "id": 7,
-        "kode": "BID-HIJS",
-        "nama": "Bidang Hubungan Industrial dan Jaminan Sosial"
-      }
-    ]
+    "mode_pendaftaran": false,
+    "panjang_kode": 8
   },
   "kiosk_utama": {
     "mode": "umum",
@@ -152,26 +136,13 @@
     ],
     "event": {
       "id": 20,
-      "nama": "Absen Umum — UPT BLK Surabaya",
+      "nama": "Absen Umum — 07 September 2026",
       "tanggal": "2026-09-07",
       "jam_mulai": "07:30",
       "toleransi_menit": 15
     }
   },
   "absen_umum_layar": {
-    "unit_kerja": [
-      {
-        "id": 1,
-        "kode": "DISNAKERTRANS",
-        "nama": "Dinas Tenaga Kerja dan Transmigrasi"
-      },
-      {
-        "id": 2,
-        "kode": "BLK-SBY",
-        "nama": "UPT BLK Surabaya"
-      }
-    ],
-    "unit_kerja_id": 2,
     "absen_umum_aktif": true,
     "metode": {
       "manual": true,
@@ -233,7 +204,7 @@
     ],
     "event": {
       "id": 20,
-      "nama": "Absen Umum — UPT BLK Surabaya",
+      "nama": "Absen Umum — 07 September 2026",
       "tanggal": "2026-09-07",
       "jam_mulai": "07:30",
       "toleransi_menit": 15

@@ -327,13 +327,17 @@ class IdentifikasiTapTest extends TestCase
     }
 
     #[Test]
-    public function membuka_layar_event_tidak_pernah_menjadikan_perangkat_anggota(): void
+    public function membuka_layar_event_langsung_mencatat_perangkat(): void
     {
         /*
-         * FR-EVT-03 (revisi S29). Keanggotaan lahir satu-satunya dari
-         * penukaran kode unit kerja. Bila membuka layar saja sudah cukup untuk
-         * tercatat sebagai anggota, kodenya kehilangan seluruh gunanya —
-         * siapa pun yang tahu alamatnya menjadi titik absen event itu.
+         * FR-EVT-03, FR-EVT-05 (revisi S49). Sampai S48 kasus ini menguji
+         * kebalikannya: membuka layar TIDAK boleh menjadikan perangkat
+         * anggota, sebab keanggotaan lahir dari penukaran kode per event.
+         *
+         * Kode kini menempel pada unit kerja dan sudah ditukarkan sekali saat
+         * perangkat diperkenalkan, sehingga membuka layar memang sudah cukup —
+         * dan barisnya lahir di situ, beserta unit asal dan alamat IP-nya,
+         * yang justru menjadi jawaban "mesin mana saja yang dipakai".
          */
         $lain = Kiosk::factory()->diaktifkan('token-perangkat-kedua')->create([
             'nama_titik' => 'Lobi BLK Surabaya',
@@ -342,9 +346,12 @@ class IdentifikasiTapTest extends TestCase
 
         $this->withCookie(KioskService::NAMA_COOKIE, 'token-perangkat-kedua')
             ->get('/kiosk/event')
-            ->assertRedirect('/');
+            ->assertOk();
 
-        $this->assertDatabaseMissing('event_kiosk', ['kiosk_id' => $lain->id]);
+        $this->assertDatabaseHas('event_kiosk', [
+            'kiosk_id' => $lain->id,
+            'unit_kerja_id' => $this->unitKerja->id,
+        ]);
     }
 
     #[Test]
@@ -408,17 +415,15 @@ class IdentifikasiTapTest extends TestCase
     }
 
     #[Test]
-    public function tap_ditolak_bila_perangkat_belum_bergabung_ke_event(): void
+    public function perangkat_kedua_di_unit_yang_sama_ikut_melayani_kegiatan(): void
     {
         /*
-         * FR-EVT-03 (revisi S29). Sebelumnya cukup unit perangkat tercakup
-         * event; kini tercakup TIDAK berarti melayani. Perangkat kedua di unit
-         * yang sama — meja registrasi yang belum diberi kode — tidak boleh
-         * ikut menampung tap kegiatan yang tidak dilayaninya.
+         * Poin 6 revisi S49: jumlah perangkat per unit tidak dibatasi. Satu
+         * UPT kerap membuka beberapa meja registrasi pada kegiatan yang sama,
+         * dan tidak satu pun di antaranya perlu diberi kode tersendiri.
          *
-         * Absen umum dimatikan supaya yang diuji benar-benar penolakannya;
-         * dengan absen umum menyala, tap perangkat ini tetap dilayani sesi
-         * harian pada alamat yang berbeda.
+         * Sampai S48 kasus ini menguji kebalikannya: perangkat yang belum
+         * menukarkan kode per event ditolak dengan EVENT_TIDAK_AKTIF.
          */
         $this->matikanAbsenUmum();
 
@@ -429,13 +434,14 @@ class IdentifikasiTapTest extends TestCase
 
         Pegawai::factory()->create([
             'nip' => '199001012020011001',
+            'nama' => 'Ahmad Fauzi',
             'unit_kerja_id' => $this->unitKerja->id,
         ]);
 
         $this->withCookie(KioskService::NAMA_COOKIE, 'token-perangkat-kedua')
             ->post('/kiosk/event/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
-            ->assertStatus(409)
-            ->assertJson(['code' => 'EVENT_TIDAK_AKTIF']);
+            ->assertOk()
+            ->assertJson(['success' => true, 'data' => ['nama' => 'Ahmad Fauzi']]);
     }
 
     #[Test]
@@ -550,18 +556,22 @@ class IdentifikasiTapTest extends TestCase
     }
 
     #[Test]
-    public function pegawai_di_luar_cakupan_event_tidak_dapat_diidentifikasi(): void
+    public function pegawai_unit_lain_dapat_diidentifikasi_pada_kegiatan_yang_sama(): void
     {
         /*
-         * Perbaikan H-1/M-1. Sebelumnya endpoint ini menjawab nama, NIP,
-         * jabatan, dan unit kerja bagi NIP mana pun yang dikenal sistem —
-         * 120 permintaan per menit per perangkat, dan NIP pegawai negeri
-         * berformat terstruktur sehingga dapat ditelusuri. Satu perangkat
-         * cukup untuk memanen direktori seluruh dinas.
+         * Pelonggaran yang DISENGAJA sejak S49, dan disebut di sini supaya ia
+         * tidak lolos tanpa keputusan.
          *
-         * Jawabannya sengaja sama dengan ID yang tidak dikenal: perangkat
-         * tidak perlu tahu apakah sebuah NIP ada tetapi di luar cakupan, atau
-         * memang tidak ada sama sekali.
+         * Sampai S48 endpoint ini menolak pegawai di luar cakupan event —
+         * perbaikan H-1/M-1, yang menahan satu perangkat memanen direktori
+         * seluruh dinas lewat NIP yang berformat terstruktur. Cakupan setiap
+         * event kini SELURUH dinas, sehingga penolakan itu tidak lagi punya
+         * dasar: pegawai dari UPT mana pun memang berhak mengabsen pada
+         * kegiatan yang sedang dibuka, dan menolaknya berarti menolak orang
+         * yang sah berdiri di depan layar.
+         *
+         * Yang menahan pemanenan sekarang adalah ada-tidaknya kegiatan yang
+         * dibuka, beserta pembatasan laju pada endpointnya.
          */
         $unitLain = UnitKerja::factory()->create(['kode' => 'BLK-MJK']);
 
@@ -571,13 +581,10 @@ class IdentifikasiTapTest extends TestCase
             'unit_kerja_id' => $unitLain->id,
         ]);
 
-        $jawaban = $this->denganToken()
+        $this->denganToken()
             ->post('/kiosk/event/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
-            ->assertNotFound()
-            ->assertJson(['success' => false, 'code' => 'ID_TIDAK_DIKENAL']);
-
-        // Tidak ada keterangan apa pun tentang orangnya yang ikut bocor.
-        $this->assertStringNotContainsString('Pegawai Unit Seberang', $jawaban->getContent());
+            ->assertOk()
+            ->assertJson(['success' => true, 'data' => ['nama' => 'Pegawai Unit Seberang']]);
     }
 
     #[Test]

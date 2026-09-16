@@ -9,7 +9,6 @@ use App\Enums\JenisEvent;
 use App\Enums\OverrideAbsenUmum;
 use App\Enums\StatusEvent;
 use App\Models\EventAbsen;
-use App\Models\Kiosk;
 use App\Models\Pegawai;
 use App\Models\UnitKerja;
 use App\Models\User;
@@ -25,18 +24,28 @@ use Illuminate\Support\Collection;
  * (event, pegawai, jenis) itulah yang membuat satu pegawai tidak dapat
  * mencatat "datang" dua kali. Absen harian karena itu tidak dibuat sebagai
  * jalur terpisah, melainkan sebagai satu sesi event berjenis
- * {@see JenisEvent::Umum} per unit kerja per tanggal, yang dibuka sistem
- * sendiri saat pertama kali dibutuhkan.
+ * {@see JenisEvent::Umum} yang dibuka sistem sendiri saat pertama kali
+ * dibutuhkan.
  *
- * Akibatnya seluruh mesin yang sudah ada — pencatatan, verifikasi wajah,
- * foto, rekap, laporan — bekerja pada absen umum tanpa perubahan, sementara
- * kunci uniknya tetap berarti "satu kali datang per hari".
+ * **Sejak S49 sesi itu SATU untuk seluruh dinas, bukan satu per unit kerja.**
+ * Absen umum terbuka bagi setiap pegawai Dinas Tenaga Kerja dan Transmigrasi
+ * tanpa kecuali, sehingga memecahnya per UPT hanya melahirkan pekerjaan yang
+ * tidak dituntut siapa pun: admin harus membuka, menutup, dan meng-override
+ * belasan sesi satu-satu, dan tiap tambahan unit menambah satu lagi yang bisa
+ * terlewat. Yang tersisa dari unit kerja adalah perannya sebagai DIMENSI
+ * PEMBACAAN — penyaring dan pengelompokan pada rekap dan laporan (FR-REK-02,
+ * FR-LAP-02), bukan penentu siapa yang boleh mengabsen.
  *
- * Sesi umum tidak pernah menghalangi kegiatan, dan sejak revisi S29 juga tidak
- * pernah didahului kegiatan: keduanya dua layar terpisah pada perangkat absen,
- * dipilih petugas dari beranda, bukan satu layar yang berpindah isi sendiri
- * (lihat {@see TitikAbsenService}). FR-EVT-06 pun hanya berlaku antar event
- * kegiatan — sesi harian tidak pernah ikut dihitung bentrok.
+ * Sakelar Absen Umum pada Setting Absen boleh dimatikan dan dinyalakan kembali
+ * kapan saja tanpa memutus apa pun: yang dimatikannya adalah penerimaan tap,
+ * bukan sesinya. Sesi hari itu tetap berdiri beserta seluruh absensi yang
+ * sudah masuk, dan menyala kembali berarti melanjutkan — bukan memulai dari
+ * nol (lihat {@see self::sesi()}).
+ *
+ * Sesi umum tidak pernah menghalangi kegiatan, dan tidak pernah didahului
+ * kegiatan: keduanya dua layar terpisah pada perangkat absen, dipilih petugas
+ * dari beranda (lihat {@see TitikAbsenService}). FR-EVT-06 pun hanya berlaku
+ * antar event kegiatan — sesi harian tidak pernah ikut dihitung bentrok.
  */
 class AbsenUmumService
 {
@@ -56,183 +65,66 @@ class AbsenUmumService
     }
 
     /**
-     * Apakah id ini simpul OPD sendiri — pilihan bawaan admin lintas unit
-     * pada layar Absen Umum (lihat unitTersedia()), yang berarti "SELURUH
-     * unit kerja", bukan satu unit tersendiri.
-     */
-    public function adalahOpd(?int $unitKerjaId): bool
-    {
-        return $unitKerjaId !== null && $unitKerjaId === UnitKerja::idOpd();
-    }
-
-    /**
-     * Id seluruh unit level teratas yang aktif — target "sebar" ketika
-     * admin memilih simpul OPD: buka paksa/tutup paksa/rekap berlaku bagi
-     * SETIAP unit ini satu-satu, bukan satu sesi ganjil berkunci OPD yang
-     * tidak akan pernah ditemukan kiosk mana pun (lihat catatan pada
-     * sesi()).
-     *
-     * @return Collection<int, int>
-     */
-    protected function unitSemuaId(): Collection
-    {
-        return UnitKerja::query()->levelTeratas()->aktif()->pluck('id');
-    }
-
-    /**
-     * Sesi absen umum sebuah unit kerja pada satu tanggal.
+     * Sesi absen umum dinas pada satu tanggal.
      *
      * `$buat` sengaja tidak default true: layar dan pemantauan hanya membaca,
      * sehingga perangkat yang menyala sepanjang hari libur tidak meninggalkan
      * sesi kosong. Sesi baru lahir ketika benar-benar ada yang akan mengabsen.
+     *
+     * Sesi yang SUDAH ADA selalu dikembalikan, bahkan ketika sakelar Absen
+     * Umum sedang dimatikan. Inilah yang membuat "matikan lalu nyalakan lagi"
+     * melanjutkan proses absensi alih-alih memulainya dari awal: yang ditahan
+     * sakelar itu hanya kelahiran sesi baru dan penerimaan tap
+     * ({@see self::status()}), tidak pernah sesi yang sudah berjalan.
      */
-    public function sesi(int $unitKerjaId, ?Carbon $tanggal = null, bool $buat = false): ?EventAbsen
+    public function sesi(?Carbon $tanggal = null, bool $buat = false): ?EventAbsen
     {
-        /*
-         * Simpul OPD sendiri BUKAN unit tempat sesi macam apa pun berdiri —
-         * tidak ada satu pun perangkat yang pernah menaut langsung ke OPD,
-         * hanya ke UPT/bidang di bawahnya. Sebelum pagar ini, memanggil
-         * fungsi ini dengan id OPD (idTeratasUntuk() kembali null untuk
-         * ancestor, jatuh ke `?? $unitKerjaId` mentah) diam-diam membuat
-         * SATU sesi ganjil berkunci OPD yang tidak akan pernah ditemukan
-         * kiosk mana pun — persis bug yang membuat panel admin terlihat
-         * "terbuka" sementara setiap kiosk sungguhan menolak tap (lihat
-         * unitTersedia(): OPD adalah PILIHAN BAWAAN admin lintas unit).
-         * Yang benar bagi OPD adalah rekapSemuaUnit()/bukaSemua()/
-         * aturOverrideSemua() — SATU sesi PER UNIT, bukan satu sesi ganjil
-         * yang berpura-pura mewakili semuanya.
-         */
-        if ($this->adalahOpd($unitKerjaId)) {
-            return null;
-        }
-
         $tanggal ??= Carbon::today();
-        $unitTeratas = UnitKerja::idTeratasUntuk($unitKerjaId) ?? $unitKerjaId;
 
         $sesi = EventAbsen::query()
             ->umum()
-            ->where('kunci_sesi', self::kunci($unitTeratas, $tanggal))
+            ->where('kunci_sesi', self::kunci($tanggal))
             ->first();
 
         if ($sesi !== null || ! $buat) {
             return $sesi;
         }
 
-        return $this->aktif() ? $this->buatSesi($unitTeratas, $tanggal) : null;
+        return $this->aktif() ? $this->buatSesi($tanggal) : null;
     }
 
     /**
-     * Penanda satu sesi harian: satu unit kerja, satu tanggal.
+     * Penanda satu sesi harian: satu tanggal, satu dinas.
      *
-     * Cakupan sesi tersimpan pada tabel pivot, sehingga kunci uniknya tidak
-     * dapat dirakit dari kolom biasa. Nilai ini yang menempati kolom unik
-     * `event_absen.kunci_sesi`.
+     * Nilai ini yang menempati kolom unik `event_absen.kunci_sesi`, dan
+     * keunikan kolom itulah yang menjamin dua perangkat yang men-tap bersamaan
+     * tidak melahirkan dua sesi untuk hari yang sama.
+     *
+     * Bentuknya tetap berawalan `umum:` seperti sebelum S49, hanya tanpa
+     * segmen unit kerja — migration penggabungan menulis ulang kunci sesi lama
+     * ke bentuk ini.
      */
-    public static function kunci(int $unitKerjaId, Carbon $tanggal): string
+    public static function kunci(Carbon $tanggal): string
     {
-        return "umum:{$unitKerjaId}:{$tanggal->toDateString()}";
+        return 'umum:'.$tanggal->toDateString();
     }
 
     /**
-     * Sesi absen umum yang melayani sebuah perangkat absen.
+     * Unit kerja yang mewakili "dinas" pada pertanyaan kalender.
+     *
+     * Jendela Absen Umum kini satu untuk semuanya, sehingga hari kerja dan
+     * hari liburnya pun dibaca pada tingkat dinas: simpul OPD. Hari libur
+     * khusus sebuah UPT tidak lagi menutup jendela bagi UPT itu sendiri — ia
+     * tetap tercatat sebagai penanda `Absensi.hari_libur` pada tap pegawainya
+     * ({@see AbsensiService::catat()}), yang memakai unit pegawainya masing-
+     * masing, dan di sanalah pembedaan itu memang berarti.
+     *
+     * Null pada instalasi yang belum pernah menyinkronkan WORKA; kalender
+     * menjawabnya dengan hari libur nasional dan hari kerja bawaan.
      */
-    public function sesiUntukKiosk(Kiosk $kiosk, bool $buat = false): ?EventAbsen
+    public function unitDinas(): ?int
     {
-        if ($kiosk->unit_kerja_id === null) {
-            return null;
-        }
-
-        return $this->sesi($kiosk->unit_kerja_id, buat: $buat);
-    }
-
-    /**
-     * Sesi absen umum yang dilayani layar absen di peramban admin.
-     *
-     * Admin UPT terkunci pada unitnya sendiri; peran lintas unit memilih unit
-     * mana yang sedang dilayaninya. Tanpa pilihan, tidak ada sesi — layar
-     * absen menampilkan pemilih unit alih-alih menerima tap sembarangan.
-     */
-    public function sesiUntukAdmin(User $pelaku, ?int $unitKerjaId = null, bool $buat = false): ?EventAbsen
-    {
-        $unit = $this->unitTerpilih($pelaku, $unitKerjaId);
-
-        return $unit === null ? null : $this->sesi($unit, buat: $buat);
-    }
-
-    /**
-     * Unit kerja yang boleh dilayani seorang admin pada layar absen umum.
-     */
-    public function unitTerpilih(User $pelaku, ?int $unitKerjaId): ?int
-    {
-        if (! $pelaku->lintasUnit()) {
-            // Pilihan Admin UPT diabaikan: cakupannya sudah ditentukan akun.
-            return UnitKerja::idTeratasUntuk($pelaku->unit_kerja_id);
-        }
-
-        if ($unitKerjaId === null) {
-            return null;
-        }
-
-        // Simpul OPD sendiri bukan anggota `levelTeratas()` — ia induknya —
-        // sehingga harus diizinkan terpisah; lihat self::unitTersedia().
-        if ($unitKerjaId === UnitKerja::idOpd()) {
-            return $unitKerjaId;
-        }
-
-        return UnitKerja::query()->levelTeratas()->whereKey($unitKerjaId)->exists()
-            ? $unitKerjaId
-            : null;
-    }
-
-    /**
-     * Unit yang dapat dipilih pada layar dan pemantauan absen umum.
-     *
-     * Pilihan pertama bagi peran lintas unit adalah SIMPUL OPD sendiri —
-     * `DISNAKERTRANS`, induk seluruh UPT dan bidang — bukan salah satu unit
-     * level teratas. Absen harian berlaku bagi seluruh pegawai dinas, sehingga
-     * bawaan yang benar adalah sesi yang mencakup semuanya; sebelum revisi
-     * S29, bawaannya jatuh ke unit pertama menurut abjad ("Bidang Hubungan
-     * Industrial…") semata-mata karena itulah baris pertama daftar, dan admin
-     * yang tidak menyadarinya memantau sesi yang salah.
-     *
-     * Simpul OPD memang bukan anggota `levelTeratas()` — ia justru induk dari
-     * seluruh anggotanya — dan karena itu ditambahkan terpisah di sini.
-     * Cakupannya lewat {@see UnitKerja::idsDenganTurunan()} sudah meliputi
-     * `DISNAKER`, seluruh UPT, seluruh bidang, beserta seksi/subbag di
-     * bawahnya.
-     *
-     * Sesi OPD berdiri sendiri, terpisah dari sesi per-UPT: perangkat absen di
-     * sebuah UPT tetap jatuh ke sesi UPT-nya ({@see self::sesiUntukKiosk()}),
-     * karena itulah satuan tempat kehadiran hariannya direkap.
-     *
-     * @return Collection<int, array<string, mixed>>
-     */
-    public function unitTersedia(User $pelaku): Collection
-    {
-        $teratas = UnitKerja::query()
-            ->levelTeratas()
-            ->aktif()
-            ->when(
-                ! $pelaku->lintasUnit(),
-                fn ($q) => $q->whereIn('id', UnitKerja::idTeratasMenaungi($pelaku->unit_kerja_id)),
-            )
-            ->orderBy('nama')
-            ->get(['id', 'kode', 'nama'])
-            ->map(fn (UnitKerja $unit) => $unit->only(['id', 'kode', 'nama']));
-
-        if (! $pelaku->lintasUnit()) {
-            return $teratas;
-        }
-
-        $opd = UnitKerja::query()
-            ->whereKey(UnitKerja::idOpd())
-            ->first(['id', 'kode', 'nama']);
-
-        // Instalasi yang belum pernah menyinkronkan WORKA belum punya simpul
-        // OPD; daftarnya tetap terisi unit level teratas apa adanya.
-        return $opd === null
-            ? $teratas
-            : $teratas->prepend($opd->only(['id', 'kode', 'nama']))->values();
+        return UnitKerja::idOpd();
     }
 
     /**
@@ -244,29 +136,23 @@ class AbsenUmumService
      *   1. Absen umum dimatikan pada Setting Absen → tertutup, tanpa kecuali.
      *   2. Sesi hari ini membawa override admin → override menang, apa pun
      *      kata kalender maupun jadwal.
-     *   3. Bukan hari kerja bagi unit ini (akhir pekan atau hari libur
-     *      terdaftar) → tertutup otomatis. Revisi kebijakan S39: sebelum ini,
-     *      hari libur hanya menandai tanpa menutup, dan satu-satunya yang
-     *      membuka jendelanya kembali adalah override di langkah 2 — sengaja
+     *   3. Bukan hari kerja dinas (akhir pekan atau hari libur terdaftar) →
+     *      tertutup otomatis. Revisi kebijakan S39: sebelum itu, hari libur
+     *      hanya menandai tanpa menutup, dan satu-satunya yang membuka
+     *      jendelanya kembali adalah override di langkah 2 — sengaja
      *      diperiksa lebih dahulu supaya petugas piket yang memang ditugaskan
      *      tetap bisa dibukakan.
      *   4. Selebihnya → di dalam jendela jam bawaan berarti terbuka.
-     *
-     * `$unitKerjaId` diminta eksplisit dari pemanggil, bukan diturunkan dari
-     * `$sesi`: langkah 3 harus berlaku bahkan SEBELUM sesi harian lahir —
-     * sebelum tap pertama, unit sudah diketahui (kiosk tahu unitnya sendiri,
-     * admin sudah memilih unit di layar), sedangkan sesinya belum tentu ada.
      */
     public function status(
         JenisAbsen $jenis,
-        ?int $unitKerjaId,
         ?EventAbsen $sesi = null,
         ?Carbon $waktu = null,
     ): StatusAbsenUmum {
         $setting = $this->setting->ambil();
         $waktu ??= Carbon::now();
 
-        $alasanLibur = $this->kalender->alasanLibur($unitKerjaId, $waktu->copy()->startOfDay());
+        $alasanLibur = $this->kalender->alasanLibur($this->unitDinas(), $waktu->copy()->startOfDay());
 
         /*
          * Jadwal HARI YANG DIEVALUASI ($waktu), bukan selalu "hari ini" —
@@ -317,11 +203,11 @@ class AbsenUmumService
      *
      * @return array<string, StatusAbsenUmum>
      */
-    public function statusSemua(?int $unitKerjaId, ?EventAbsen $sesi = null, ?Carbon $waktu = null): array
+    public function statusSemua(?EventAbsen $sesi = null, ?Carbon $waktu = null): array
     {
         return [
-            JenisAbsen::Datang->value => $this->status(JenisAbsen::Datang, $unitKerjaId, $sesi, $waktu),
-            JenisAbsen::Pulang->value => $this->status(JenisAbsen::Pulang, $unitKerjaId, $sesi, $waktu),
+            JenisAbsen::Datang->value => $this->status(JenisAbsen::Datang, $sesi, $waktu),
+            JenisAbsen::Pulang->value => $this->status(JenisAbsen::Pulang, $sesi, $waktu),
         ];
     }
 
@@ -351,46 +237,15 @@ class AbsenUmumService
     }
 
     /**
-     * Override yang berlaku SERAGAM di seluruh unit kerja pada satu tanggal,
-     * atau null bila belum ada sesi sama sekali, atau overridenya berbeda
-     * antar unit.
-     *
-     * Tampilan aggregate OPD (lihat sesi(), rekapSemuaUnit()) tidak punya
-     * satu sesi tunggal untuk dibaca override-nya — dipakai untuk tetap
-     * memperlihatkan status jendela dan pilihan tombol paksa yang benar
-     * pada tampilan itu (lihat AbsenUmumController::index()) alih-alih diam-
-     * diam selalu berkata "mengikuti jadwal" walau override sesungguhnya
-     * sudah dipasang lewat aturOverrideSemua() pada tiap unit.
-     */
-    public function overrideSemuaSeragam(?Carbon $tanggal = null): ?OverrideAbsenUmum
-    {
-        $tanggal ??= Carbon::today();
-        $kunciSemua = $this->unitSemuaId()->map(fn (int $id) => self::kunci($id, $tanggal))->all();
-
-        // get()->pluck() sengaja dipakai, bukan pluck() langsung pada query
-        // builder — hanya lewat model yang terhidrasi barisnya benar-benar
-        // melalui cast enum kolomnya, sebab pluck() query builder membaca
-        // nilai kolom mentah.
-        $overrideUnik = EventAbsen::query()
-            ->umum()
-            ->whereIn('kunci_sesi', $kunciSemua)
-            ->get()
-            ->pluck('override_absen')
-            ->unique();
-
-        return $overrideUnik->count() === 1 ? $overrideUnik->first() : null;
-    }
-
-    /**
      * Pasang atau cabut override pada sesi hari ini.
      *
      * Sesinya dibuat bila belum ada: admin yang menekan "buka paksa" pukul
      * lima sore memang bermaksud membuka sesi hari ini, dan menolak karena
      * "sesinya belum lahir" hanya akan membingungkan.
      */
-    public function aturOverride(int $unitKerjaId, ?OverrideAbsenUmum $override, User $pelaku): ?EventAbsen
+    public function aturOverride(?OverrideAbsenUmum $override, User $pelaku, ?Carbon $tanggal = null): ?EventAbsen
     {
-        $sesi = $this->sesi($unitKerjaId, buat: true);
+        $sesi = $this->sesi($tanggal, buat: true);
 
         if ($sesi === null) {
             return null;
@@ -415,21 +270,6 @@ class AbsenUmumService
     }
 
     /**
-     * Sama seperti aturOverride(), tetapi bagi SELURUH unit kerja sekaligus
-     * — dipakai ketika admin lintas unit memilih simpul OPD (lihat catatan
-     * pada sesi()). Satu baris log per unit, sebab masing-masing memang
-     * sesi yang berbeda — audit trail yang menyebut satu "sesi gabungan"
-     * palsu tidak akan bisa ditelusuri ke sesi mana yang sesungguhnya
-     * berubah.
-     */
-    public function aturOverrideSemua(?OverrideAbsenUmum $override, User $pelaku): void
-    {
-        foreach ($this->unitSemuaId() as $id) {
-            $this->aturOverride($id, $override, $pelaku);
-        }
-    }
-
-    /**
      * Rekap sebuah sesi absen umum, lengkap dengan ringkasannya.
      *
      * Satu-satunya tempat pertanyaan "siapa saja yang absen umum pada tanggal
@@ -439,72 +279,40 @@ class AbsenUmumService
      * membuat salinan kedua itu tidak sepadan risikonya. Satu jawaban berarti
      * satu tempat untuk diperbaiki, dan satu tempat untuk diuji.
      *
-     * Cakupannya mengikuti peran (FR-REK-02): Admin UPT hanya melihat
-     * pegawainya sendiri, walaupun sesi yang dibacanya milik unit yang
-     * menaunginya.
+     * `$unitKerjaId` adalah PENYARING TAMPILAN, bukan pembatas hak: sejak sesi
+     * menjadi satu untuk seluruh dinas, unit kerja hanya berguna untuk
+     * mempersempit apa yang sedang dibaca admin. Pembatasan hak yang
+     * sesungguhnya tetap datang dari peran ({@see self::cakupan()}, FR-REK-02).
      *
      * @return array{sesi: ?EventAbsen, baris: Collection<int, array<string, mixed>>, ringkasan: array<string, mixed>}
      */
     public function rekapHarian(
         User $pelaku,
-        ?int $unitKerjaId,
         ?Carbon $tanggal = null,
         string $cari = '',
+        ?int $unitKerjaId = null,
     ): array {
-        if ($this->adalahOpd($unitKerjaId)) {
-            return $this->rekapSemuaUnit($pelaku, $tanggal, $cari);
-        }
-
-        $sesi = $unitKerjaId === null ? null : $this->sesi($unitKerjaId, $tanggal);
+        $sesi = $this->sesi($tanggal);
+        $cakupan = $this->cakupanTampilan($pelaku, $unitKerjaId);
 
         $baris = $sesi === null
             ? collect()
-            : $this->saring($this->absensi->rekap($sesi, $this->cakupan($pelaku)), $cari);
+            : $this->saring($this->absensi->rekap($sesi, $cakupan), $cari);
 
         return [
             'sesi' => $sesi,
             'baris' => $baris,
-            'ringkasan' => $this->ringkasan($baris, $unitKerjaId),
-        ];
-    }
-
-    /**
-     * Rekap Absen Umum lintas SELURUH unit kerja sekaligus, satu tanggal —
-     * dipakai ketika admin lintas unit memilih simpul OPD (lihat catatan
-     * pada sesi() dan unitTersedia()). `sesi` selalu null pada hasilnya:
-     * tidak ada satu sesi tunggal yang mewakili semuanya, hanya kumpulan
-     * sesi per unit yang digabung jadi satu tabel — kolom `unit_kerja` pada
-     * tiap baris (sudah disertakan AbsensiService::rekap()) sudah cukup
-     * membedakan asalnya, tidak perlu kolom tambahan seperti rekapRentang().
-     *
-     * @return array{sesi: null, baris: Collection<int, array<string, mixed>>, ringkasan: array<string, mixed>}
-     */
-    public function rekapSemuaUnit(User $pelaku, ?Carbon $tanggal = null, string $cari = ''): array
-    {
-        $tanggal ??= Carbon::today();
-        $cakupan = $this->cakupan($pelaku);
-
-        $kunciSemua = $this->unitSemuaId()->map(fn (int $id) => self::kunci($id, $tanggal))->all();
-
-        $sesiSemua = EventAbsen::query()->umum()->whereIn('kunci_sesi', $kunciSemua)->get();
-
-        $baris = $sesiSemua->flatMap(fn (EventAbsen $sesi) => $this->absensi->rekap($sesi, $cakupan));
-        $baris = $this->saring($baris, $cari);
-
-        return [
-            'sesi' => null,
-            'baris' => $baris,
-            'ringkasan' => $this->ringkasanSemuaUnit($baris),
+            'ringkasan' => $this->ringkasan($baris, $cakupan),
         ];
     }
 
     /**
      * Rekap Absen Umum lintas BEBERAPA hari sekaligus (Bagian 4, revisi
-     * rentang tanggal) — satu unit, satu baris per sesi harian yang memang
-     * ada dalam rentangnya. `tanggal`/`tanggal_label` ditambahkan pada tiap
-     * baris supaya pegawai yang sama pada hari berbeda tetap terbedakan di
-     * tabel — TabelRekap.vue menampilkan kolom itu hanya ketika rentangnya
-     * lebih dari satu hari.
+     * rentang tanggal) — satu baris per sesi harian yang memang ada dalam
+     * rentangnya. `tanggal`/`tanggal_label` ditambahkan pada tiap baris supaya
+     * pegawai yang sama pada hari berbeda tetap terbedakan di tabel;
+     * TabelRekap.vue menampilkan kolom itu hanya ketika rentangnya lebih dari
+     * satu hari.
      *
      * Berdiri terpisah dari rekapHarian() alih-alih menjadikannya kasus
      * `$sampai === null`: rentang tidak punya konsep "sesi tunggal" (tombol
@@ -516,22 +324,16 @@ class AbsenUmumService
      */
     public function rekapRentang(
         User $pelaku,
-        ?int $unitKerjaId,
         Carbon $dari,
         Carbon $sampai,
         string $cari = '',
+        ?int $unitKerjaId = null,
     ): array {
-        if ($unitKerjaId === null) {
-            return ['baris' => collect(), 'ringkasan' => $this->absensi->ringkasanRekap(collect())];
-        }
-
-        $unitTeratas = UnitKerja::idTeratasUntuk($unitKerjaId) ?? $unitKerjaId;
-        $cakupan = $this->cakupan($pelaku);
-
+        $cakupan = $this->cakupanTampilan($pelaku, $unitKerjaId);
         $kunciSemua = [];
 
         for ($hari = $dari->copy(); $hari->lte($sampai); $hari->addDay()) {
-            $kunciSemua[] = self::kunci($unitTeratas, $hari);
+            $kunciSemua[] = self::kunci($hari);
         }
 
         $sesiSemua = EventAbsen::query()->umum()->whereIn('kunci_sesi', $kunciSemua)->orderBy('tanggal')->get();
@@ -565,6 +367,52 @@ class AbsenUmumService
     }
 
     /**
+     * Cakupan yang benar-benar dipakai menyaring baris: hak peran DIPOTONG
+     * penyaring tampilan, tidak pernah diperluas olehnya.
+     *
+     * Admin UPT yang menyaring unit lain karena itu tidak melihat apa pun,
+     * bukan melihat unit yang bukan haknya — irisan kosong adalah jawaban yang
+     * benar, dan lebih aman daripada mengabaikan penyaringnya.
+     *
+     * @return array<int, int>|null
+     */
+    public function cakupanTampilan(User $pelaku, ?int $unitKerjaId): ?array
+    {
+        $peran = $this->cakupan($pelaku);
+
+        if ($unitKerjaId === null) {
+            return $peran;
+        }
+
+        $disaring = UnitKerja::idsDenganTurunan($unitKerjaId);
+
+        return $peran === null ? $disaring : array_values(array_intersect($peran, $disaring));
+    }
+
+    /**
+     * Unit kerja yang dapat dipilih sebagai penyaring rekap absen umum.
+     *
+     * Admin UPT hanya melihat unit yang menaunginya — menawarkan unit lain
+     * pada penyaring hanya akan menghasilkan tabel kosong yang tampak rusak.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function unitTersedia(User $pelaku): Collection
+    {
+        return UnitKerja::query()
+            ->levelTeratas()
+            ->aktif()
+            ->when(
+                ! $pelaku->lintasUnit(),
+                fn ($q) => $q->whereIn('id', UnitKerja::idTeratasMenaungi($pelaku->unit_kerja_id)),
+            )
+            ->orderBy('nama')
+            ->get(['id', 'kode', 'nama'])
+            ->map(fn (UnitKerja $unit) => $unit->only(['id', 'kode', 'nama']))
+            ->values();
+    }
+
+    /**
      * @param  Collection<int, array<string, mixed>>  $baris
      * @return Collection<int, array<string, mixed>>
      */
@@ -585,16 +433,23 @@ class AbsenUmumService
     /**
      * Ringkasan sesi, ditambah jumlah pegawai yang belum mencatat kehadiran.
      *
+     * Penyebutnya mengikuti cakupan yang sedang dibaca: tanpa penyaring ia
+     * seluruh pegawai aktif dinas, dengan penyaring ia pegawai aktif pada
+     * cakupan itu saja. Menghitungnya selalu atas seluruh dinas akan membuat
+     * "belum absen" pada tampilan tersaring tampak jauh lebih buruk daripada
+     * keadaan sebenarnya.
+     *
      * @param  Collection<int, array<string, mixed>>  $baris
+     * @param  array<int, int>|null  $cakupan
      * @return array<string, mixed>
      */
-    protected function ringkasan(Collection $baris, ?int $unitKerjaId): array
+    protected function ringkasan(Collection $baris, ?array $cakupan): array
     {
         $ringkasan = $this->absensi->ringkasanRekap($baris);
 
-        $jumlahPegawai = $unitKerjaId === null ? 0 : Pegawai::query()
+        $jumlahPegawai = Pegawai::query()
             ->where('aktif', true)
-            ->whereIn('unit_kerja_id', UnitKerja::idsDenganTurunan($unitKerjaId))
+            ->when($cakupan !== null, fn ($q) => $q->whereIn('unit_kerja_id', $cakupan))
             ->count();
 
         $ringkasan['pegawai'] = $jumlahPegawai;
@@ -604,32 +459,14 @@ class AbsenUmumService
     }
 
     /**
-     * Sama seperti ringkasan(), tetapi lintas SELURUH unit kerja — dipakai
-     * rekapSemuaUnit(). "Pegawai aktif" di sini berarti pegawai aktif
-     * mana pun di seluruh dinas, bukan cakupan satu unit.
-     */
-    protected function ringkasanSemuaUnit(Collection $baris): array
-    {
-        $ringkasan = $this->absensi->ringkasanRekap($baris);
-
-        $jumlahPegawai = Pegawai::query()->where('aktif', true)->count();
-
-        $ringkasan['pegawai'] = $jumlahPegawai;
-        $ringkasan['belum_absen'] = max(0, $jumlahPegawai - $ringkasan['hadir']);
-
-        return $ringkasan;
-    }
-
-    /**
-     * Riwayat sesi absen umum sebuah unit, terbaru lebih dahulu.
+     * Riwayat sesi absen umum, terbaru lebih dahulu.
      *
      * @return Collection<int, array<string, mixed>>
      */
-    public function riwayat(int $unitKerjaId, int $batas = 14): Collection
+    public function riwayat(int $batas = 14): Collection
     {
         return EventAbsen::query()
             ->umum()
-            ->whereHas('unitKerja', fn ($unit) => $unit->where('unit_kerja.id', $unitKerjaId))
             ->withCount('absensi')
             ->orderByDesc('tanggal')
             ->limit($batas)
@@ -647,32 +484,20 @@ class AbsenUmumService
      * Buka sesi hari ini secara eksplisit, dipakai tombol "Buka Sesi" pada
      * halaman pemantauan.
      */
-    public function buka(int $unitKerjaId, ?Carbon $tanggal = null): ?EventAbsen
+    public function buka(?Carbon $tanggal = null): ?EventAbsen
     {
-        return $this->sesi($unitKerjaId, $tanggal, buat: true);
+        return $this->sesi($tanggal, buat: true);
     }
 
     /**
-     * Sama seperti buka(), tetapi bagi SELURUH unit kerja sekaligus — dipakai
-     * ketika admin lintas unit memilih simpul OPD (lihat catatan pada
-     * sesi()).
-     */
-    public function bukaSemua(?Carbon $tanggal = null): void
-    {
-        foreach ($this->unitSemuaId() as $id) {
-            $this->buka($id, $tanggal);
-        }
-    }
-
-    /**
-     * Sesi baru untuk satu unit pada satu tanggal.
+     * Sesi baru untuk satu tanggal.
      *
      * Jam masuk dan toleransi disalin dari Setting Absen saat sesi dibuat,
      * mengikuti perlakuan yang sama pada event kegiatan (FR-SET-02): menggeser
      * setting global tidak boleh mengubah penilaian tepat/terlambat sesi yang
      * sudah berjalan.
      */
-    protected function buatSesi(int $unitKerjaId, Carbon $tanggal): EventAbsen
+    protected function buatSesi(Carbon $tanggal): EventAbsen
     {
         $setting = $this->setting->ambil();
 
@@ -680,18 +505,20 @@ class AbsenUmumService
         // dibuka untuk tanggal yang berbeda dari hari permintaan berjalan.
         $jamMasuk = $this->setting->jadwalUntukHari($tanggal->dayOfWeekIso)['jam_masuk'];
 
-        $unit = UnitKerja::query()->find($unitKerjaId);
-        $kunci = self::kunci($unitKerjaId, $tanggal);
+        $kunci = self::kunci($tanggal);
 
         try {
-            $sesi = EventAbsen::create([
-                'nama' => 'Absen Umum'.($unit === null ? '' : " — {$unit->nama}"),
+            return EventAbsen::create([
+                'nama' => 'Absen Umum — '.$tanggal->translatedFormat('d F Y'),
                 'jenis' => JenisEvent::Umum,
                 'kunci_sesi' => $kunci,
                 'tanggal' => $tanggal->toDateString(),
                 'jam_mulai' => $jamMasuk.':00',
                 'toleransi_menit' => $setting['toleransi_default_menit'],
-                'cakupan' => CakupanEvent::Unit,
+
+                // Sesi harian berlaku bagi seluruh dinas, sama seperti event
+                // kegiatan sejak S49; tidak ada baris pivot unit kerja.
+                'cakupan' => CakupanEvent::SemuaUnit,
                 'status' => StatusEvent::Aktif,
 
                 // Tidak ada pembuat: sesi ini dibuka sistem, bukan seorang admin.
@@ -699,20 +526,15 @@ class AbsenUmumService
             ]);
         } catch (UniqueConstraintViolationException) {
             /*
-             * Titik absen lain di unit yang sama membuka sesi hari ini lebih
-             * dahulu, terpaut milidetik. Tanpa kunci unik, keduanya akan lahir
-             * dan tap berikutnya jatuh ke salah satunya secara tak tentu —
-             * membuat penolakan tap ganda (FR-TAP-05) tidak pernah kena.
+             * Titik absen lain membuka sesi hari ini lebih dahulu, terpaut
+             * milidetik. Tanpa kunci unik, keduanya akan lahir dan tap
+             * berikutnya jatuh ke salah satunya secara tak tentu — membuat
+             * penolakan tap ganda (FR-TAP-05) tidak pernah kena.
              */
             return EventAbsen::query()
                 ->umum()
                 ->where('kunci_sesi', $kunci)
-                ->firstOrFail()
-                ->load('unitKerja:id,kode,nama');
+                ->firstOrFail();
         }
-
-        $sesi->unitKerja()->attach($unitKerjaId);
-
-        return $sesi->load('unitKerja:id,kode,nama');
     }
 }

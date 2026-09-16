@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\SimpanPerangkatRequest;
 use App\Models\Kiosk;
 use App\Services\PerangkatAbsenService;
+use App\Services\SettingAbsenService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,6 +34,15 @@ class PerangkatAbsenController extends Controller
                 $filter,
                 fn ($nilai) => $nilai !== null,
             ),
+
+            /*
+             * FR-SET-06. Selagi mode ini mati — keadaan bawaan sejak S49 —
+             * kode aktivasi yang diterbitkan di halaman ini TIDAK akan
+             * diterima perangkat mana pun: jalur masuknya adalah kode unit
+             * kerja. Admin harus mengetahuinya SEBELUM membacakan kode kepada
+             * petugas di lokasi, bukan setelah kodenya ditolak di sana.
+             */
+            'mode_pendaftaran' => app(SettingAbsenService::class)->pendaftaranPerangkatAktif(),
         ]);
     }
 

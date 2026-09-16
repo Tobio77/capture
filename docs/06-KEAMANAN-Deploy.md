@@ -87,29 +87,37 @@ di atas yang membuat jejak audit benar-benar append-only.
 
 ### 1.5 Perangkat absen
 
-- Terbitkan kode aktivasi **per perangkat** lewat Kelola Perangkat Absen. Kode
-  disimpan sebagai hash dan hanya ditampilkan sekali; bila terlewat, terbitkan
-  ulang.
-- Pastikan **Mode Terbuka mati** sebelum go-live. Ia hanya untuk keadaan
-  darurat.
+- Jalur masuk bawaan sejak S49 adalah **kode unit kerja** (Setting → Unit
+  Kerja). Bacakan kodenya hanya kepada petugas yang memang memasang komputer
+  absen unit itu; kode yang telanjur tersebar ke luar unit diganti lewat tombol
+  Ganti Kode, dan penggantian TIDAK memutus perangkat yang sudah terhubung.
+- Bila **Mode Pendaftaran Perangkat** dinyalakan, terbitkan kode aktivasi per
+  perangkat lewat Kelola Perangkat Absen. Kode itu disimpan sebagai hash dan
+  hanya ditampilkan sekali; bila terlewat, terbitkan ulang.
+- Tinjau Daftar Perangkat secara berkala. Jumlah perangkat per unit tidak
+  dibatasi, sehingga daftarnya bertambah sendiri — cabut akses mesin yang sudah
+  tidak dipakai (FR-USR-03).
 - Pastikan **verifikasi wajah menyala** sebelum go-live.
 
 ---
 
-## 2. Dua sakelar yang harus dijaga
+## 2. Sakelar yang harus dijaga
 
-Keduanya melonggarkan pengaman, keduanya mudah dinyalakan untuk satu apel pagi
-lalu terlupakan. Sejak audit, keduanya memasang spanduk permanen di Panel Admin
-dan butir di panel Perhatian dashboard yang menyebut **sudah berapa lama**.
+Ia melonggarkan pengaman, mudah dimatikan untuk satu apel pagi lalu terlupakan.
+Sejak audit, ia memasang spanduk permanen di Panel Admin dan butir di panel
+Perhatian dashboard yang menyebut **sudah berapa lama**.
 
-| Sakelar | Akibat bila dimatikan/dinyalakan | Nada peringatan |
+| Sakelar | Akibat bila dimatikan | Nada peringatan |
 |---|---|---|
 | **Verifikasi Wajah** (mati) | Kehadiran dicatat tanpa membuktikan wajah — cukup menyebut NIP. | Rose (gagal) |
-| **Mode Terbuka** (nyala) | Mesin mana pun yang menjangkau alamat aplikasi dapat menjadi titik absen tanpa kode. | Amber (peringatan) |
 
-Bila keduanya berlaku bersamaan, perangkat ad-hoc **tidak** dapat mempromosikan
-foto referensi wajah (pagar H-2) — tetapi kombinasi itu tetap tidak boleh
-dibiarkan berjalan lebih dari satu kegiatan.
+**Mode Terbuka sudah tidak ada sejak S49.** Sampai S48, mematikan "wajib kode
+aktivasi" membuat mesin mana pun yang menjangkau alamat aplikasi dapat menjadi
+titik absen tanpa kode — pelonggaran yang memang pantas diperingatkan
+terus-menerus. Penggantinya, Mode Pendaftaran Perangkat, tidak melonggarkan apa
+pun: jalur bawaannya tetap menuntut kode unit kerja, sehingga yang dipilih
+sakelar itu adalah cara kerja, bukan tingkat pengamanan. Spanduk dan butir
+Perhatian yang menyertainya ikut dibuang.
 
 ---
 

@@ -197,12 +197,12 @@ class FotoDanSesiAbsenUmumTest extends TestCase
          */
         $absenUmum = app(AbsenUmumService::class);
 
-        $pertama = $absenUmum->buka($this->upt->id);
+        $pertama = $absenUmum->buka();
 
         // Meniru titik absen lain yang membuka sesi hari yang sama.
         $kembar = EventAbsen::factory()->make([
             'jenis' => JenisEvent::Umum,
-            'kunci_sesi' => AbsenUmumService::kunci($this->upt->id, Carbon::today()),
+            'kunci_sesi' => AbsenUmumService::kunci(Carbon::today()),
             'tanggal' => Carbon::today()->toDateString(),
         ]);
 
@@ -222,7 +222,7 @@ class FotoDanSesiAbsenUmumTest extends TestCase
         $absenUmum = app(AbsenUmumService::class);
 
         $ids = collect(range(1, 5))
-            ->map(fn () => $absenUmum->buka($this->upt->id)->id)
+            ->map(fn () => $absenUmum->buka()->id)
             ->unique();
 
         $this->assertCount(1, $ids);

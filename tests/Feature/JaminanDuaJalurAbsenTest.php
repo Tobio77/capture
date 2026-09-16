@@ -313,7 +313,7 @@ class JaminanDuaJalurAbsenTest extends TestCase
 
         $this->assertSame(2, Absensi::query()->count());
 
-        $sesiUmum = app(AbsenUmumService::class)->sesi($this->upt->id);
+        $sesiUmum = app(AbsenUmumService::class)->sesi();
 
         $this->assertNotNull($sesiUmum);
         $this->assertNotSame($this->kegiatan->id, $sesiUmum->id);

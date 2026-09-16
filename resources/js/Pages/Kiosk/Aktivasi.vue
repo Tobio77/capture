@@ -2,42 +2,52 @@
 import { computed } from 'vue'
 import { Head, useForm, usePage } from '@inertiajs/vue3'
 import Ikon from '@/Components/Ikon.vue'
-import Pilihan from '@/Components/UI/Pilihan.vue'
 
 const props = defineProps({
-  // FR-SET-06: perangkat boleh masuk tanpa kode selagi mode ini menyala.
-  mode_terbuka: { type: Boolean, default: false },
-  unit_kerja: { type: Array, default: () => [] },
+  /*
+   * FR-SET-06. Menentukan kode mana yang diminta layar ini:
+   *   false (bawaan) → kode unit kerja, dan perangkatnya dikenali sendiri
+   *   true           → kode aktivasi sekali pakai milik perangkat terdaftar
+   */
+  mode_pendaftaran: { type: Boolean, default: false },
+  panjang_kode: { type: Number, default: 8 },
 })
 
 const page = usePage()
 const flash = computed(() => page.props.flash)
 
-const form = useForm({
-  kode_aktivasi: '',
-})
+const form = useForm({ kode: '' })
 
-const formTerbuka = useForm({
-  unit_kerja_id: props.unit_kerja[0]?.id ?? null,
-})
-
-const opsiUnit = computed(() =>
-  props.unit_kerja.map((unit) => ({ nilai: unit.id, label: unit.nama, keterangan: unit.kode })),
-)
-
-const masukTanpaKode = () => formTerbuka.post('/kiosk/aktivasi/terbuka')
+const medan = computed(() => (props.mode_pendaftaran ? 'kode_aktivasi' : 'kode'))
+const galat = computed(() => form.errors[medan.value])
 
 // Tampilkan sebagai XXXX-XXXX; server menormalkan lagi sebelum dicocokkan.
 const rapikan = (event) => {
-  const bersih = event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8)
-  form.kode_aktivasi = bersih.length > 4 ? `${bersih.slice(0, 4)}-${bersih.slice(4)}` : bersih
+  const bersih = event.target.value
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, props.panjang_kode)
+
+  form.kode = bersih.length > 4 ? `${bersih.slice(0, 4)}-${bersih.slice(4)}` : bersih
 }
 
-const kirim = () => form.post('/kiosk/aktivasi')
+/*
+ * Dua alamat, dua nama medan — dan keduanya dikirim dari satu kolom isian.
+ * Yang membedakan hanya mode pendaftaran; petugas di depan layar cukup
+ * mengetikkan kode yang ada di tangannya.
+ */
+const kirim = () => {
+  if (props.mode_pendaftaran) {
+    form.transform((data) => ({ kode_aktivasi: data.kode })).post('/kiosk/aktivasi')
+    return
+  }
+
+  form.transform((data) => data).post('/kiosk/aktivasi/unit')
+}
 </script>
 
 <template>
-  <Head title="Aktivasi Perangkat" />
+  <Head title="Hubungkan Perangkat" />
 
   <div class="latar-pastel flex min-h-screen items-center justify-center bg-kertas px-4 py-12 text-utama">
     <div class="w-full max-w-lg">
@@ -50,10 +60,19 @@ const kirim = () => form.post('/kiosk/aktivasi')
       </div>
 
       <div class="panel mt-8 p-7">
-        <h2 class="font-display text-lg font-semibold text-utama">Aktivasi Perangkat</h2>
+        <h2 class="font-display text-lg font-semibold text-utama">
+          {{ mode_pendaftaran ? 'Aktivasi Perangkat' : 'Hubungkan Perangkat' }}
+        </h2>
         <p class="mt-1 text-sm text-redup">
-          Masukkan kode aktivasi yang diberikan admin untuk titik absen ini.
-          Perangkat cukup diaktifkan satu kali.
+          <template v-if="mode_pendaftaran">
+            Masukkan kode aktivasi yang diberikan admin untuk titik absen ini.
+            Perangkat cukup diaktifkan satu kali.
+          </template>
+          <template v-else>
+            Masukkan kode unit kerja tempat perangkat ini berada. Seluruh absen
+            yang dilayaninya akan tercatat atas nama unit tersebut. Perangkat
+            cukup dihubungkan satu kali.
+          </template>
         </p>
 
         <div
@@ -71,10 +90,13 @@ const kirim = () => form.post('/kiosk/aktivasi')
 
         <form class="mt-6 space-y-5" @submit.prevent="kirim">
           <div>
-            <label for="kode" class="block text-sm font-medium text-utama">Kode Aktivasi<span class="ml-0.5 text-galat-teks" aria-hidden="true">*</span></label>
+            <label for="kode" class="block text-sm font-medium text-utama">
+              {{ mode_pendaftaran ? 'Kode Aktivasi' : 'Kode Unit Kerja' }}
+              <span class="ml-0.5 text-galat-teks" aria-hidden="true">*</span>
+            </label>
             <input
               id="kode"
-              :value="form.kode_aktivasi"
+              :value="form.kode"
               type="text"
               inputmode="latin"
               autocomplete="off"
@@ -84,8 +106,8 @@ const kirim = () => form.post('/kiosk/aktivasi')
               class="kolom-isian mt-1 px-4 py-3.5 text-center font-display text-2xl uppercase tracking-[0.3em]"
               @input="rapikan"
             />
-            <p v-if="form.errors.kode_aktivasi" class="mt-1.5 text-sm text-peringatan-teks">
-              {{ form.errors.kode_aktivasi }}
+            <p v-if="galat" class="mt-1.5 text-sm text-peringatan-teks">
+              {{ galat }}
             </p>
           </div>
 
@@ -94,44 +116,19 @@ const kirim = () => form.post('/kiosk/aktivasi')
             :disabled="form.processing"
             class="tombol tombol-utama w-full py-3"
           >
-            {{ form.processing ? 'Memproses…' : 'Aktifkan Perangkat' }}
+            {{ form.processing ? 'Memproses…' : mode_pendaftaran ? 'Aktifkan Perangkat' : 'Hubungkan Perangkat' }}
           </button>
         </form>
 
-        <!--
-          Mode Terbuka. Ditempatkan DI BAWAH kolom kode, bukan di atasnya:
-          jalur yang benar tetap jalur berkode, dan yang ini adalah jalan
-          keluar darurat — bukan pintu utama.
-        -->
-        <div v-if="mode_terbuka" class="mt-6 rounded-lg border border-peringatan bg-peringatan-lembut p-4">
-          <p class="flex items-center gap-1.5 text-sm font-semibold text-peringatan-teks">
-            <Ikon nama="peringatan" ukuran="h-4 w-4" /> Mode Terbuka sedang menyala
-          </p>
-          <p class="mt-1 text-xs text-peringatan-teks">
-            Perangkat dapat masuk tanpa kode aktivasi. Pilih unit kerja tempat perangkat ini
-            berada — seluruh absen yang dilayaninya akan tercatat pada unit tersebut.
-          </p>
-
-          <div class="mt-3">
-            <Pilihan v-model="formTerbuka.unit_kerja_id" :opsi="opsiUnit" placeholder="Pilih unit kerja…" />
-            <p v-if="formTerbuka.errors.unit_kerja_id" class="mt-1.5 text-xs text-peringatan-teks">
-              {{ formTerbuka.errors.unit_kerja_id }}
-            </p>
-          </div>
-
-          <button
-            type="button"
-            :disabled="formTerbuka.processing || !formTerbuka.unit_kerja_id"
-            class="mt-3 w-full rounded-md border border-peringatan px-4 py-2.5 text-sm font-semibold text-peringatan-teks transition hover:bg-peringatan-lembut active:scale-[0.99] disabled:opacity-50"
-            @click="masukTanpaKode"
-          >
-            {{ formTerbuka.processing ? 'Memproses…' : 'Masuk Tanpa Kode Aktivasi' }}
-          </button>
-        </div>
-
         <p class="mt-6 border-t border-garis pt-4 text-xs text-redup">
-          Kode aktivasi diterbitkan admin melalui menu Perangkat Absen dan berlaku 24 jam.
-          Alamat IP perangkat ini tercatat otomatis saat aktivasi.
+          <template v-if="mode_pendaftaran">
+            Kode aktivasi diterbitkan admin melalui menu Perangkat Absen dan berlaku 24 jam.
+          </template>
+          <template v-else>
+            Kode unit kerja diterbitkan sekali dan tetap berlaku. Mintakan kepada admin
+            dinas bila belum memilikinya.
+          </template>
+          Alamat IP perangkat ini tercatat otomatis dan muncul pada rekap absensi.
         </p>
       </div>
     </div>

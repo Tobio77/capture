@@ -4,7 +4,6 @@ namespace Tests\Feature\Admin;
 
 use App\Enums\AksiLog;
 use App\Enums\CakupanEvent;
-use App\Enums\PeranPengguna;
 use App\Enums\StatusEvent;
 use App\Models\Absensi;
 use App\Models\EventAbsen;
@@ -22,6 +21,20 @@ use Tests\TestCase;
 
 /**
  * CRUD event absensi (FR-EVT-01, FR-EVT-02).
+ *
+ * **Sejak S49 setiap event berlaku bagi SELURUH dinas.** Tidak ada lagi medan
+ * cakupan, tidak ada daftar unit yang dicentang, dan tidak ada event yang
+ * "bukan urusan" sebuah UPT — pegawainya justru berhak hadir di dalamnya.
+ *
+ * Dua akibatnya diuji di sini:
+ *
+ *   - FR-EVT-06 menyusut menjadi satu kalimat: karena setiap event mencakup
+ *     segalanya, dua event aktif selalu beririsan, sehingga hanya boleh ada
+ *     SATU kegiatan yang menerima tap pada satu waktu.
+ *   - Hak mengubah berpindah ke peran lintas unit. Membuat, menutup, atau
+ *     menghapus sebuah event kini berdampak pada seluruh dinas sekaligus, dan
+ *     itu keputusan Admin Dinas — bukan wewenang satu UPT (matriks peran
+ *     SRS §6). Membacanya tetap terbuka bagi seluruh peran admin.
  */
 class EventTest extends TestCase
 {
@@ -55,101 +68,71 @@ class EventTest extends TestCase
             'tanggal' => '2026-09-07',
             'jam_mulai' => '07:30',
             'toleransi_menit' => 15,
-            'cakupan' => 'unit',
-            'unit_kerja_id' => [],
             'catatan' => null,
         ], $ubahan);
     }
 
+    /* ---------------------------------------------------------------------
+     * Pembuatan — selalu berlaku bagi seluruh dinas.
+     * ------------------------------------------------------------------- */
+
     #[Test]
-    public function superadmin_dapat_membuat_event_dengan_cakupan_unit_terpilih(): void
+    public function event_baru_selalu_berlaku_bagi_seluruh_unit_kerja(): void
     {
-        ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
+        $this->hirarki();
 
         $this->actingAs(User::factory()->superadmin()->create())
-            ->post(self::URL, $this->isian(['unit_kerja_id' => [$upt->id, $lain->id]]))
+            ->post(self::URL, $this->isian())
             ->assertRedirect()
             ->assertSessionHas('sukses');
 
         $event = EventAbsen::sole();
 
-        $this->assertSame('Apel Pagi Senin', $event->nama);
-        $this->assertSame(CakupanEvent::Unit, $event->cakupan);
-        $this->assertSame(15, $event->toleransi_menit);
-        $this->assertEqualsCanonicalizing(
-            [$upt->id, $lain->id],
-            $event->unitKerja->pluck('id')->all(),
-        );
+        $this->assertSame(CakupanEvent::SemuaUnit, $event->cakupan);
+        $this->assertTrue($event->berlakuUntukSemuaUnit());
     }
 
     #[Test]
-    public function pemilih_unit_menawarkan_simpul_opd_bagi_peran_lintas_unit(): void
+    public function event_tidak_menyimpan_baris_pivot_unit_kerja(): void
     {
-        // Sama seperti pemilih unit Absen Umum: peran lintas unit boleh
-        // memilih simpul OPD sendiri, berarti SELURUH unit kerja sekaligus
-        // (revisi terkini) — bukan salah satu UPT/bidang.
+        /*
+         * Menyalin seluruh unit ke pivot akan basi begitu unit baru
+         * disinkronkan dari WORKA — dan lebih buruk lagi, ia menghidupkan
+         * kembali gagasan "event punya daftar unit" yang justru dihapus.
+         */
+        $this->hirarki();
+
+        $this->actingAs(User::factory()->superadmin()->create())->post(self::URL, $this->isian());
+
+        $this->assertDatabaseCount('event_unit_kerja', 0);
+    }
+
+    #[Test]
+    public function unit_yang_lahir_setelah_event_dibuat_ikut_tercakup(): void
+    {
         ['opd' => $opd] = $this->hirarki();
 
-        $this->actingAs(User::factory()->superadmin()->create())
-            ->get(self::URL)
-            ->assertInertia(fn (Assert $page) => $page
-                ->where('unit_kerja.0.id', $opd->id)
-                ->etc());
-    }
-
-    #[Test]
-    public function admin_upt_tidak_ditawari_simpul_opd(): void
-    {
-        ['upt' => $upt] = $this->hirarki();
-
-        $this->actingAs(User::factory()->adminUpt($upt)->create())
-            ->get(self::URL)
-            ->assertInertia(fn (Assert $page) => $page
-                ->has('unit_kerja', 1)
-                ->where('unit_kerja.0.id', $upt->id)
-                ->etc());
-    }
-
-    #[Test]
-    public function event_yang_mencakup_simpul_opd_berlaku_bagi_seluruh_unit_kerja(): void
-    {
-        // Memilih "Dinas Tenaga Kerja dan Transmigrasi" pada daftar unit
-        // (bukan cakupan "Semua Unit") harus tetap mencakup SELURUH unit
-        // kerja — termasuk unit yang bukan turunan langsungnya yang dipilih
-        // panitia — sebab idsDenganTurunan() dari akar OPD memang mencakup
-        // semuanya.
-        ['opd' => $opd, 'upt' => $upt, 'lain' => $lain] = $this->hirarki();
-
-        $this->actingAs(User::factory()->superadmin()->create())
-            ->post(self::URL, $this->isian(['unit_kerja_id' => [$opd->id]]))
-            ->assertSessionHas('sukses');
+        $this->actingAs(User::factory()->superadmin()->create())->post(self::URL, $this->isian());
 
         $event = EventAbsen::sole();
+        $baru = UnitKerja::factory()->create(['kode' => 'UPT-BARU', 'induk_id' => $opd->id]);
 
-        $this->assertSame(CakupanEvent::Unit, $event->cakupan);
-
-        $tercakup = app(EventAbsenService::class)->unitTercakup($event);
-
-        $this->assertContains($upt->id, $tercakup);
-        $this->assertContains($lain->id, $tercakup);
+        $this->assertContains($baru->id, app(EventAbsenService::class)->unitTercakup($event));
     }
 
     #[Test]
-    public function cakupan_semua_unit_tidak_menyimpan_baris_pivot(): void
+    public function formulir_tidak_lagi_menawarkan_pilihan_cakupan(): void
     {
-        ['upt' => $upt] = $this->hirarki();
+        $this->hirarki();
 
         $this->actingAs(User::factory()->superadmin()->create())
-            ->post(self::URL, $this->isian([
-                'cakupan' => 'semua_unit',
-                'unit_kerja_id' => [$upt->id],
-            ]))
-            ->assertSessionHas('sukses');
-
-        // Menyalin seluruh unit akan basi begitu unit baru masuk dari WORKA;
-        // cakupan "semua unit" sengaja tidak menyimpan pivot sama sekali.
-        $this->assertDatabaseCount('event_unit_kerja', 0);
-        $this->assertTrue(EventAbsen::sole()->berlakuUntukSemuaUnit());
+            ->get(self::URL)
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Event/Index')
+                ->missing('unit_kerja')
+                ->missing('cakupan_tertanam')
+                ->missing('boleh_semua_unit')
+                ->etc());
     }
 
     #[Test]
@@ -177,13 +160,10 @@ class EventTest extends TestCase
     #[Test]
     public function toleransi_event_berdiri_sendiri_setelah_setting_berubah(): void
     {
-        ['upt' => $upt] = $this->hirarki();
+        $this->hirarki();
         $admin = User::factory()->superadmin()->create();
 
-        $this->actingAs($admin)->post(self::URL, $this->isian([
-            'unit_kerja_id' => [$upt->id],
-            'toleransi_menit' => 10,
-        ]));
+        $this->actingAs($admin)->post(self::URL, $this->isian(['toleransi_menit' => 10]));
 
         app(SettingAbsenService::class)->simpan([
             'metode_manual_aktif' => true,
@@ -199,360 +179,208 @@ class EventTest extends TestCase
     }
 
     #[Test]
-    public function admin_upt_hanya_dapat_memilih_unitnya_sendiri(): void
+    public function jam_mulai_harus_berformat_jam_menit(): void
     {
-        ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
+        $this->hirarki();
 
-        // FR-EVT-02
-        $this->actingAs(User::factory()->adminUpt($upt)->create())
-            ->post(self::URL, $this->isian(['unit_kerja_id' => [$lain->id]]))
-            ->assertSessionHasErrors('unit_kerja_id');
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->post(self::URL, $this->isian(['jam_mulai' => 'pagi']))
+            ->assertSessionHasErrors('jam_mulai');
+    }
+
+    /* ---------------------------------------------------------------------
+     * Hak per peran (FR-EVT-02).
+     * ------------------------------------------------------------------- */
+
+    #[Test]
+    public function admin_upt_tidak_dapat_membuat_event(): void
+    {
+        // Event berdampak pada seluruh dinas; membuatnya bukan wewenang satu
+        // UPT (matriks peran SRS §6).
+        $this->hirarki();
+
+        $this->actingAs(User::factory()->adminUpt()->create())
+            ->post(self::URL, $this->isian())
+            ->assertForbidden();
 
         $this->assertDatabaseCount('event_absen', 0);
     }
 
     #[Test]
-    public function admin_upt_dapat_membuat_event_untuk_unitnya(): void
-    {
-        ['upt' => $upt, 'seksi' => $seksi] = $this->hirarki();
-
-        // Akunnya menempel pada seksi, tetapi cakupan yang boleh dipilih
-        // adalah unit level teratas yang menaunginya.
-        $this->actingAs(User::factory()->adminUpt($seksi)->create())
-            ->post(self::URL, $this->isian(['unit_kerja_id' => [$upt->id]]))
-            ->assertSessionHas('sukses');
-
-        $this->assertSame($upt->id, EventAbsen::sole()->unitKerja->sole()->id);
-    }
-
-    #[Test]
-    public function admin_upt_tidak_dapat_memakai_cakupan_semua_unit(): void
-    {
-        ['upt' => $upt] = $this->hirarki();
-
-        $this->actingAs(User::factory()->adminUpt($upt)->create())
-            ->post(self::URL, $this->isian(['cakupan' => 'semua_unit']))
-            ->assertSessionHasErrors('cakupan');
-    }
-
-    #[Test]
-    public function admin_upt_hanya_ditawari_unit_kerjanya_pada_formulir(): void
-    {
-        ['upt' => $upt] = $this->hirarki();
-
-        $this->actingAs(User::factory()->adminUpt($upt)->create())
-            ->get(self::URL)
-            ->assertInertia(fn (Assert $page) => $page
-                ->has('unit_kerja', 1)
-                ->where('unit_kerja.0.id', $upt->id)
-                ->where('boleh_semua_unit', false)
-                ->etc());
-    }
-
-    #[Test]
-    public function unit_kerja_yang_dipilih_harus_level_teratas(): void
-    {
-        ['seksi' => $seksi] = $this->hirarki();
-
-        // Event diselenggarakan pada tingkat UPT/bidang, bukan seksi.
-        $this->actingAs(User::factory()->superadmin()->create())
-            ->post(self::URL, $this->isian(['unit_kerja_id' => [$seksi->id]]))
-            ->assertSessionHasErrors('unit_kerja_id');
-    }
-
-    #[Test]
-    public function cakupan_unit_tanpa_pilihan_ditolak(): void
+    public function admin_upt_tidak_dapat_mengubah_menutup_atau_menghapus(): void
     {
         $this->hirarki();
+        $event = EventAbsen::factory()->create(['nama' => 'Apel Pagi']);
+        $adminUpt = User::factory()->adminUpt()->create();
 
-        $this->actingAs(User::factory()->superadmin()->create())
-            ->post(self::URL, $this->isian(['unit_kerja_id' => []]))
-            ->assertSessionHasErrors('unit_kerja_id');
+        $this->actingAs($adminUpt)
+            ->patch(self::URL."/{$event->id}", $this->isian(['nama' => 'Diubah']))
+            ->assertForbidden();
+
+        $this->actingAs($adminUpt)->post(self::URL."/{$event->id}/tutup")->assertForbidden();
+        $this->actingAs($adminUpt)->delete(self::URL."/{$event->id}")->assertForbidden();
+
+        $this->assertSame('Apel Pagi', $event->refresh()->nama);
+        $this->assertTrue($event->aktif());
     }
 
     #[Test]
-    public function admin_upt_hanya_melihat_event_yang_menyentuh_unitnya(): void
+    public function admin_upt_tetap_melihat_seluruh_event(): void
     {
-        ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
+        /*
+         * Tidak ada lagi penyaringan per unit pada daftar: setiap event
+         * berlaku bagi seluruh dinas, sehingga menyembunyikannya dari sebuah
+         * UPT berarti menyembunyikan kegiatan yang pegawainya justru wajib
+         * hadiri.
+         */
+        $this->hirarki();
 
-        $milikSendiri = EventAbsen::factory()->create(['nama' => 'Apel BLK Singosari']);
-        $milikSendiri->unitKerja()->attach($upt);
+        EventAbsen::factory()->create(['nama' => 'Apel Pagi']);
+        EventAbsen::factory()->ditutup()->create(['nama' => 'Rapat Koordinasi']);
 
-        $milikLain = EventAbsen::factory()->create(['nama' => 'Apel BLK Surabaya']);
-        $milikLain->unitKerja()->attach($lain);
-
-        EventAbsen::factory()->semuaUnit()->create(['nama' => 'Apel Gabungan Dinas']);
-
-        $this->actingAs(User::factory()->adminUpt($upt)->create())
+        $this->actingAs(User::factory()->adminUpt()->create())
             ->get(self::URL)
             ->assertInertia(fn (Assert $page) => $page
-                // Event "semua unit" ikut karena mencakup unitnya juga.
                 ->has('daftar.data', 2)
+                ->where('boleh_kelola', false)
                 ->etc());
+    }
+
+    #[Test]
+    public function admin_upt_dapat_membuka_detail_event(): void
+    {
+        $this->hirarki();
+        $event = EventAbsen::factory()->create();
+
+        // Boleh melihat walau tidak boleh mengubah.
+        $this->actingAs(User::factory()->adminUpt()->create())
+            ->getJson(self::URL."/{$event->id}/detail")
+            ->assertOk();
     }
 
     #[Test]
     public function admin_dinas_dapat_mengubah_event(): void
     {
-        ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
-        $event = EventAbsen::factory()->create(['nama' => 'Nama Lama']);
-        $event->unitKerja()->attach($upt);
+        $this->hirarki();
+        $event = EventAbsen::factory()->create(['nama' => 'Apel Pagi']);
 
-        $this->actingAs(User::factory()->create(['role' => PeranPengguna::AdminDinas]))
-            ->patch(self::URL."/{$event->id}", $this->isian([
-                'nama' => 'Nama Baru',
-                'unit_kerja_id' => [$lain->id],
-            ]))
+        $this->actingAs(User::factory()->adminDinas()->create())
+            ->patch(self::URL."/{$event->id}", $this->isian(['nama' => 'Apel Pagi Direvisi']))
             ->assertSessionHas('sukses');
 
-        $event->refresh()->load('unitKerja');
-
-        $this->assertSame('Nama Baru', $event->nama);
-        $this->assertSame($lain->id, $event->unitKerja->sole()->id);
-    }
-
-    #[Test]
-    public function admin_upt_tidak_dapat_mengubah_event_unit_lain(): void
-    {
-        ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
-        $event = EventAbsen::factory()->create();
-        $event->unitKerja()->attach($lain);
-
-        $this->actingAs(User::factory()->adminUpt($upt)->create())
-            ->patch(self::URL."/{$event->id}", $this->isian(['unit_kerja_id' => [$upt->id]]))
-            ->assertForbidden();
-    }
-
-    #[Test]
-    public function admin_upt_tidak_dapat_mengubah_event_semua_unit(): void
-    {
-        ['upt' => $upt] = $this->hirarki();
-        $event = EventAbsen::factory()->semuaUnit()->create();
-
-        // Boleh melihat, tetapi event lintas unit bukan miliknya untuk diubah.
-        $this->actingAs(User::factory()->adminUpt($upt)->create())
-            ->patch(self::URL."/{$event->id}", $this->isian(['unit_kerja_id' => [$upt->id]]))
-            ->assertForbidden();
+        $this->assertSame('Apel Pagi Direvisi', $event->refresh()->nama);
     }
 
     #[Test]
     public function event_yang_sudah_ditutup_tidak_dapat_diubah(): void
     {
-        ['upt' => $upt] = $this->hirarki();
+        $this->hirarki();
         $event = EventAbsen::factory()->ditutup()->create(['nama' => 'Apel Selesai']);
-        $event->unitKerja()->attach($upt);
 
         $this->actingAs(User::factory()->superadmin()->create())
-            ->patch(self::URL."/{$event->id}", $this->isian([
-                'nama' => 'Diubah',
-                'unit_kerja_id' => [$upt->id],
-            ]))
+            ->patch(self::URL."/{$event->id}", $this->isian(['nama' => 'Diubah']))
             ->assertForbidden();
 
         $this->assertSame('Apel Selesai', $event->refresh()->nama);
     }
 
-    #[Test]
-    public function jam_mulai_harus_berformat_jam_menit(): void
-    {
-        ['upt' => $upt] = $this->hirarki();
-
-        $this->actingAs(User::factory()->superadmin()->create())
-            ->post(self::URL, $this->isian([
-                'unit_kerja_id' => [$upt->id],
-                'jam_mulai' => 'pagi',
-            ]))
-            ->assertSessionHasErrors('jam_mulai');
-    }
-
     /* ---------------------------------------------------------------------
-     * FR-EVT-06 — tidak boleh ada dua event aktif yang cakupan dan rentang
-     * waktunya bertumpang tindih.
+     * FR-EVT-06 — hanya satu kegiatan aktif pada satu waktu.
      * ------------------------------------------------------------------- */
 
     #[Test]
-    public function event_unit_bentrok_dengan_event_unit_lain_yang_beririsan(): void
+    public function event_kedua_ditolak_selama_yang_pertama_masih_aktif(): void
     {
-        ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
+        $this->hirarki();
+        EventAbsen::factory()->create(['nama' => 'Apel Pagi', 'tanggal' => '2026-09-07']);
 
-        $sudahAda = EventAbsen::factory()->create([
-            'nama' => 'Apel Pagi Gabungan',
-            'tanggal' => '2026-09-07',
-            'jam_mulai' => '07:30',
-        ]);
-        $sudahAda->unitKerja()->attach([$upt->id, $lain->id]);
-
-        // Irisan pivot pada BLK-SGS; pesan menyebut event yang bentrok.
         $this->actingAs(User::factory()->superadmin()->create())
-            ->post(self::URL, $this->isian([
-                'nama' => 'Apel Susulan',
-                'unit_kerja_id' => [$upt->id],
-            ]))
-            ->assertSessionHasErrors(['cakupan' => 'Event "Apel Pagi Gabungan" (07-09-2026, mencakup BLK-SGS, BLK-SBY) masih aktif dan cakupannya beririsan. Tutup event tersebut lebih dulu.']);
+            ->post(self::URL, $this->isian(['nama' => 'Rapat Koordinasi']))
+            ->assertSessionHasErrors('nama');
 
-        $this->assertDatabaseCount('event_absen', 1);
+        $this->assertSame(1, EventAbsen::query()->kegiatan()->count());
     }
 
     #[Test]
-    public function event_unit_bentrok_dengan_event_semua_unit_yang_aktif(): void
+    public function pesan_bentrok_menyebut_event_yang_menghalangi(): void
     {
-        ['upt' => $upt] = $this->hirarki();
-
-        // "Semua unit" mencakup segalanya, jadi unit mana pun ikut bentrok.
-        EventAbsen::factory()->semuaUnit()->create([
-            'nama' => 'Apel Gabungan Dinas',
-            'tanggal' => '2026-09-07',
-            'jam_mulai' => '07:30',
-            'toleransi_menit' => 15,
-        ]);
+        // Admin harus tahu MANA yang harus ditutup lebih dulu, bukan sekadar
+        // bahwa ada yang menghalangi.
+        $this->hirarki();
+        EventAbsen::factory()->create(['nama' => 'Apel Pagi', 'tanggal' => '2026-09-07']);
 
         $this->actingAs(User::factory()->superadmin()->create())
-            ->post(self::URL, $this->isian([
-                'jam_mulai' => '07:40',
-                'unit_kerja_id' => [$upt->id],
-            ]))
-            ->assertSessionHasErrors('cakupan');
-
-        $this->assertDatabaseCount('event_absen', 1);
+            ->post(self::URL, $this->isian(['nama' => 'Rapat Koordinasi']))
+            ->assertSessionHasErrors(['nama' => 'Event "Apel Pagi" (07-09-2026) masih dibuka dan berlaku bagi seluruh unit kerja. Tutup event tersebut lebih dulu.']);
     }
 
     #[Test]
-    public function event_semua_unit_bentrok_dengan_event_unit_yang_aktif(): void
+    public function tanggal_berbeda_tidak_membuka_jalan_bagi_event_kedua(): void
     {
-        ['upt' => $upt] = $this->hirarki();
+        /*
+         * Yang menentukan adalah STATUS, bukan jadwal: perangkat yang
+         * menghadapi dua event aktif tidak tahu tap yang diterimanya milik
+         * kegiatan yang mana, betapapun jauh jarak tanggalnya.
+         */
+        $this->hirarki();
+        EventAbsen::factory()->create(['nama' => 'Apel Pagi', 'tanggal' => '2026-09-07']);
 
-        $sudahAda = EventAbsen::factory()->create([
-            'tanggal' => '2026-09-07',
-            'jam_mulai' => '07:30',
-            'toleransi_menit' => 15,
-        ]);
-        $sudahAda->unitKerja()->attach($upt);
-
-        // Arah sebaliknya: yang baru bercakupan semua unit.
         $this->actingAs(User::factory()->superadmin()->create())
-            ->post(self::URL, $this->isian([
-                'cakupan' => 'semua_unit',
-                'jam_mulai' => '07:35',
-            ]))
-            ->assertSessionHasErrors('cakupan');
-    }
-
-    #[Test]
-    public function unit_sama_ditolak_selama_event_lama_belum_ditutup(): void
-    {
-        ['upt' => $upt] = $this->hirarki();
-        $admin = User::factory()->superadmin()->create();
-
-        $sudahAda = EventAbsen::factory()->create([
-            'nama' => 'Apel Pagi',
-            'tanggal' => '2026-09-07',
-            'jam_mulai' => '07:30',
-        ]);
-        $sudahAda->unitKerja()->attach($upt);
-
-        // Jadwal berbeda tidak menolong: selama keduanya aktif, kiosk pada
-        // unit itu tetap menghadapi dua event sekaligus.
-        $this->actingAs($admin)
-            ->post(self::URL, $this->isian([
-                'nama' => 'Apel Sore',
-                'jam_mulai' => '16:00',
-                'unit_kerja_id' => [$upt->id],
-            ]))
-            ->assertSessionHasErrors('cakupan');
-
-        $this->assertDatabaseCount('event_absen', 1);
-
-        // Menutup event yang lebih dulu berjalan membuka jalan.
-        $sudahAda->update(['status' => StatusEvent::Ditutup, 'ditutup_pada' => now()]);
-
-        $this->actingAs($admin)
-            ->post(self::URL, $this->isian([
-                'nama' => 'Apel Sore',
-                'jam_mulai' => '16:00',
-                'unit_kerja_id' => [$upt->id],
-            ]))
-            ->assertSessionHas('sukses');
-
-        $this->assertDatabaseCount('event_absen', 2);
-    }
-
-    #[Test]
-    public function unit_berbeda_tidak_dianggap_bentrok(): void
-    {
-        ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
-
-        $sudahAda = EventAbsen::factory()->create(['tanggal' => '2026-09-07', 'jam_mulai' => '07:30']);
-        $sudahAda->unitKerja()->attach($upt);
-
-        // Cakupan tidak beririsan, jadi dua event aktif berdampingan tetap sah.
-        $this->actingAs(User::factory()->superadmin()->create())
-            ->post(self::URL, $this->isian([
-                'jam_mulai' => '07:30',
-                'unit_kerja_id' => [$lain->id],
-            ]))
-            ->assertSessionHas('sukses');
-
-        $this->assertDatabaseCount('event_absen', 2);
+            ->post(self::URL, $this->isian(['nama' => 'Apel Bulan Depan', 'tanggal' => '2026-10-07']))
+            ->assertSessionHasErrors('nama');
     }
 
     #[Test]
     public function event_yang_sudah_ditutup_tidak_menghalangi_event_baru(): void
     {
-        ['upt' => $upt] = $this->hirarki();
+        $this->hirarki();
+        EventAbsen::factory()->ditutup()->create(['nama' => 'Apel Kemarin']);
 
-        $ditutup = EventAbsen::factory()->ditutup()->create([
-            'tanggal' => '2026-09-07',
-            'jam_mulai' => '07:30',
-        ]);
-        $ditutup->unitKerja()->attach($upt);
-
-        // Hanya event aktif yang menimbulkan ambiguitas saat tap.
         $this->actingAs(User::factory()->superadmin()->create())
-            ->post(self::URL, $this->isian([
-                'jam_mulai' => '07:30',
-                'unit_kerja_id' => [$upt->id],
-            ]))
+            ->post(self::URL, $this->isian(['nama' => 'Apel Hari Ini']))
+            ->assertSessionHas('sukses');
+    }
+
+    #[Test]
+    public function sesi_absen_umum_tidak_dihitung_bentrok(): void
+    {
+        // FR-EVT-06 berlaku antar kegiatan saja; sesi harian yang selalu aktif
+        // tidak boleh membuat admin mustahil membuat apel.
+        $this->hirarki();
+        EventAbsen::factory()->umum()->create(['kunci_sesi' => 'umum:2026-09-07']);
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->post(self::URL, $this->isian())
             ->assertSessionHas('sukses');
     }
 
     #[Test]
     public function event_tidak_bentrok_dengan_dirinya_sendiri_saat_diubah(): void
     {
-        ['upt' => $upt] = $this->hirarki();
-
-        $event = EventAbsen::factory()->create(['tanggal' => '2026-09-07', 'jam_mulai' => '07:30']);
-        $event->unitKerja()->attach($upt);
+        $this->hirarki();
+        $event = EventAbsen::factory()->create(['nama' => 'Apel Pagi']);
 
         $this->actingAs(User::factory()->superadmin()->create())
-            ->patch(self::URL."/{$event->id}", $this->isian([
-                'nama' => 'Nama Diperbarui',
-                'jam_mulai' => '07:30',
-                'unit_kerja_id' => [$upt->id],
-            ]))
+            ->patch(self::URL."/{$event->id}", $this->isian(['nama' => 'Apel Pagi Direvisi']))
             ->assertSessionHas('sukses');
 
-        $this->assertSame('Nama Diperbarui', $event->refresh()->nama);
+        $this->assertSame('Apel Pagi Direvisi', $event->refresh()->nama);
     }
 
     /* ---------------------------------------------------------------------
-     * Kiosk terhubung & detail event (FR-EVT-03, FR-EVT-05).
+     * Perangkat yang melayani & detail event (FR-EVT-03, FR-EVT-05).
      * ------------------------------------------------------------------- */
 
     #[Test]
-    public function detail_event_memuat_kiosk_terhubung_beserta_ip_dan_jumlah_masuk(): void
+    public function detail_event_memuat_perangkat_beserta_unit_ip_dan_jumlah_masuk(): void
     {
         ['upt' => $upt] = $this->hirarki();
         $event = EventAbsen::factory()->create(['nama' => 'Apel Pagi']);
-        $event->unitKerja()->attach($upt);
 
         $kiosk = Kiosk::factory()->create([
             'nama_titik' => 'Aula BLK Singosari',
             'unit_kerja_id' => $upt->id,
         ]);
-
-        // Perangkat bergabung lewat kode, lalu jejaknya diperbarui saat ia
-        // benar-benar melayani (FR-EVT-03).
-        $this->gabungkanKeEvent($event, $kiosk);
 
         app(EventAbsenService::class)->catatKioskAktif($event, $kiosk, '10.10.4.21');
 
@@ -574,22 +402,43 @@ class EventTest extends TestCase
     }
 
     #[Test]
-    public function kiosk_yang_kembali_aktif_tidak_menambah_baris_baru(): void
+    public function perangkat_tercatat_saat_pertama_melayani_tanpa_menukar_kode(): void
+    {
+        /*
+         * Inti perubahan S49: keanggotaan tidak lagi lahir dari penukaran kode
+         * per event. Perangkat yang sudah dikenali langsung melayani kegiatan
+         * yang sedang dibuka, dan barisnya lahir saat itu juga.
+         */
+        ['upt' => $upt] = $this->hirarki();
+        $event = EventAbsen::factory()->create();
+        $kiosk = Kiosk::factory()->create(['unit_kerja_id' => $upt->id]);
+
+        $this->assertDatabaseCount('event_kiosk', 0);
+
+        app(EventAbsenService::class)->catatKioskAktif($event, $kiosk, '10.10.4.21');
+
+        $this->assertDatabaseHas('event_kiosk', [
+            'event_absen_id' => $event->id,
+            'kiosk_id' => $kiosk->id,
+            'unit_kerja_id' => $upt->id,
+            'ip_address' => '10.10.4.21',
+        ]);
+    }
+
+    #[Test]
+    public function perangkat_yang_kembali_aktif_tidak_menambah_baris_baru(): void
     {
         ['upt' => $upt] = $this->hirarki();
         $event = EventAbsen::factory()->create();
-        $event->unitKerja()->attach($upt);
         $kiosk = Kiosk::factory()->create(['unit_kerja_id' => $upt->id]);
         $layanan = app(EventAbsenService::class);
-
-        $this->gabungkanKeEvent($event, $kiosk);
 
         $layanan->catatKioskAktif($event, $kiosk, '10.10.4.21');
         $pertama = DB::table('event_kiosk')->sole();
 
         $this->travel(5)->minutes();
 
-        // Kiosk berpindah alamat IP dalam event yang sama.
+        // Perangkat berpindah alamat IP dalam event yang sama.
         $layanan->catatKioskAktif($event, $kiosk, '10.10.4.99');
 
         $this->assertDatabaseCount('event_kiosk', 1);
@@ -602,29 +451,54 @@ class EventTest extends TestCase
     }
 
     #[Test]
-    public function kiosk_tidak_dicatat_pada_event_yang_sudah_ditutup(): void
+    public function perangkat_dari_beberapa_unit_tercatat_terpisah(): void
+    {
+        // Poin 6: jumlah perangkat tidak dibatasi, tetapi semuanya tercatat —
+        // beserta unit asal dan alamat IP masing-masing.
+        ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
+        $event = EventAbsen::factory()->create();
+        $layanan = app(EventAbsenService::class);
+
+        foreach ([[$upt, '10.0.1.5'], [$lain, '10.0.2.7']] as [$unit, $ip]) {
+            $layanan->catatKioskAktif(
+                $event,
+                Kiosk::factory()->create(['unit_kerja_id' => $unit->id]),
+                $ip,
+            );
+        }
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->getJson(self::URL."/{$event->id}/detail")
+            ->assertOk()
+            ->assertJsonCount(2, 'kiosk');
+
+        $this->assertEqualsCanonicalizing(
+            [$upt->id, $lain->id],
+            DB::table('event_kiosk')->pluck('unit_kerja_id')->all(),
+        );
+    }
+
+    #[Test]
+    public function perangkat_tidak_dicatat_pada_event_yang_sudah_ditutup(): void
     {
         ['upt' => $upt] = $this->hirarki();
         $event = EventAbsen::factory()->ditutup()->create();
-        $event->unitKerja()->attach($upt);
         $kiosk = Kiosk::factory()->create(['unit_kerja_id' => $upt->id]);
 
         app(EventAbsenService::class)->catatKioskAktif($event, $kiosk, '10.10.4.21');
 
-        // Tidak ada kiosk yang sah "terhubung" ke entry yang sudah selesai.
+        // Tidak ada perangkat yang sah "terhubung" ke entry yang sudah selesai.
         $this->assertDatabaseCount('event_kiosk', 0);
     }
 
     #[Test]
-    public function daftar_event_menampilkan_jumlah_kiosk_terhubung(): void
+    public function daftar_event_menampilkan_jumlah_perangkat_terhubung(): void
     {
         ['upt' => $upt] = $this->hirarki();
         $event = EventAbsen::factory()->create();
-        $event->unitKerja()->attach($upt);
         $layanan = app(EventAbsenService::class);
 
         foreach (Kiosk::factory()->count(2)->create(['unit_kerja_id' => $upt->id]) as $kiosk) {
-            $this->gabungkanKeEvent($event, $kiosk);
             $layanan->catatKioskAktif($event, $kiosk, '10.10.4.21');
         }
 
@@ -635,30 +509,6 @@ class EventTest extends TestCase
                 ->etc());
     }
 
-    #[Test]
-    public function admin_upt_dapat_membuka_detail_event_semua_unit(): void
-    {
-        ['upt' => $upt] = $this->hirarki();
-        $event = EventAbsen::factory()->semuaUnit()->create();
-
-        // Boleh melihat walau tidak boleh mengubah.
-        $this->actingAs(User::factory()->adminUpt($upt)->create())
-            ->getJson(self::URL."/{$event->id}/detail")
-            ->assertOk();
-    }
-
-    #[Test]
-    public function admin_upt_tidak_dapat_membuka_detail_event_unit_lain(): void
-    {
-        ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
-        $event = EventAbsen::factory()->create();
-        $event->unitKerja()->attach($lain);
-
-        $this->actingAs(User::factory()->adminUpt($upt)->create())
-            ->getJson(self::URL."/{$event->id}/detail")
-            ->assertForbidden();
-    }
-
     /* ---------------------------------------------------------------------
      * Tutup entry (FR-EVT-04).
      * ------------------------------------------------------------------- */
@@ -666,9 +516,8 @@ class EventTest extends TestCase
     #[Test]
     public function admin_dapat_menutup_entry_event_aktif(): void
     {
-        ['upt' => $upt] = $this->hirarki();
+        $this->hirarki();
         $event = EventAbsen::factory()->create(['nama' => 'Apel Pagi']);
-        $event->unitKerja()->attach($upt);
 
         $this->actingAs(User::factory()->superadmin()->create())
             ->post(self::URL."/{$event->id}/tutup")
@@ -684,9 +533,8 @@ class EventTest extends TestCase
     #[Test]
     public function event_yang_sudah_ditutup_tidak_dapat_ditutup_lagi(): void
     {
-        ['upt' => $upt] = $this->hirarki();
+        $this->hirarki();
         $event = EventAbsen::factory()->ditutup()->create();
-        $event->unitKerja()->attach($upt);
 
         $waktuTutup = $event->ditutup_pada;
 
@@ -699,26 +547,11 @@ class EventTest extends TestCase
     }
 
     #[Test]
-    public function admin_upt_tidak_dapat_menutup_event_unit_lain(): void
-    {
-        ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
-        $event = EventAbsen::factory()->create();
-        $event->unitKerja()->attach($lain);
-
-        $this->actingAs(User::factory()->adminUpt($upt)->create())
-            ->post(self::URL."/{$event->id}/tutup")
-            ->assertForbidden();
-
-        $this->assertTrue($event->refresh()->aktif());
-    }
-
-    #[Test]
     public function penutupan_event_tercatat_pada_audit_trail(): void
     {
         // NFR-09: setiap perubahan status event tercatat dengan pelaku dan waktu.
-        ['upt' => $upt] = $this->hirarki();
+        $this->hirarki();
         $event = EventAbsen::factory()->create(['nama' => 'Apel Pagi']);
-        $event->unitKerja()->attach($upt);
         $pelaku = User::factory()->superadmin()->create();
 
         $this->actingAs($pelaku)->post(self::URL."/{$event->id}/tutup");
@@ -733,16 +566,15 @@ class EventTest extends TestCase
     #[Test]
     public function menutup_event_membuka_jalan_bagi_event_berikutnya(): void
     {
-        ['upt' => $upt] = $this->hirarki();
+        $this->hirarki();
         $admin = User::factory()->superadmin()->create();
         $event = EventAbsen::factory()->create();
-        $event->unitKerja()->attach($upt);
 
         $this->actingAs($admin)->post(self::URL."/{$event->id}/tutup");
 
         // FR-EVT-06 tidak lagi menghalangi begitu event lama ditutup.
         $this->actingAs($admin)
-            ->post(self::URL, $this->isian(['nama' => 'Apel Berikutnya', 'unit_kerja_id' => [$upt->id]]))
+            ->post(self::URL, $this->isian(['nama' => 'Apel Berikutnya']))
             ->assertSessionHas('sukses');
     }
 
@@ -753,9 +585,8 @@ class EventTest extends TestCase
     #[Test]
     public function event_tanpa_absensi_dapat_dihapus_permanen(): void
     {
-        ['upt' => $upt] = $this->hirarki();
+        $this->hirarki();
         $event = EventAbsen::factory()->create(['nama' => 'Apel Salah Buat']);
-        $event->unitKerja()->attach($upt);
 
         $this->actingAs(User::factory()->superadmin()->create())
             ->delete(self::URL."/{$event->id}")
@@ -763,19 +594,14 @@ class EventTest extends TestCase
             ->assertSessionHas('sukses');
 
         $this->assertDatabaseCount('event_absen', 0);
-
-        // Baris pivot ikut terhapus lewat cascade.
-        $this->assertDatabaseCount('event_unit_kerja', 0);
     }
 
     #[Test]
     public function event_yang_sudah_ditutup_tetap_dapat_dihapus_bila_belum_ada_absensi(): void
     {
-        ['upt' => $upt] = $this->hirarki();
-
         // Yang mengunci adalah adanya absensi, bukan statusnya.
+        $this->hirarki();
         $event = EventAbsen::factory()->ditutup()->create();
-        $event->unitKerja()->attach($upt);
 
         $this->actingAs(User::factory()->superadmin()->create())
             ->delete(self::URL."/{$event->id}")
@@ -787,9 +613,8 @@ class EventTest extends TestCase
     #[Test]
     public function event_yang_sudah_punya_absensi_tidak_dapat_dihapus(): void
     {
-        ['upt' => $upt] = $this->hirarki();
+        $this->hirarki();
         $event = EventAbsen::factory()->create();
-        $event->unitKerja()->attach($upt);
 
         Absensi::factory()->create(['event_absen_id' => $event->id]);
 
@@ -803,9 +628,8 @@ class EventTest extends TestCase
     #[Test]
     public function daftar_menandai_event_yang_terkunci_karena_absensi(): void
     {
-        ['upt' => $upt] = $this->hirarki();
+        $this->hirarki();
         $terkunci = EventAbsen::factory()->create(['tanggal' => '2026-09-07', 'jam_mulai' => '07:30']);
-        $terkunci->unitKerja()->attach($upt);
 
         Absensi::factory()->create(['event_absen_id' => $terkunci->id]);
 
@@ -819,25 +643,10 @@ class EventTest extends TestCase
     }
 
     #[Test]
-    public function admin_upt_tidak_dapat_menghapus_event_unit_lain(): void
-    {
-        ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
-        $event = EventAbsen::factory()->create();
-        $event->unitKerja()->attach($lain);
-
-        $this->actingAs(User::factory()->adminUpt($upt)->create())
-            ->delete(self::URL."/{$event->id}")
-            ->assertForbidden();
-
-        $this->assertDatabaseCount('event_absen', 1);
-    }
-
-    #[Test]
     public function penghapusan_event_tercatat_pada_audit_trail(): void
     {
-        ['upt' => $upt] = $this->hirarki();
+        $this->hirarki();
         $event = EventAbsen::factory()->create(['nama' => 'Apel Salah Buat']);
-        $event->unitKerja()->attach($upt);
         $pelaku = User::factory()->superadmin()->create();
 
         $this->actingAs($pelaku)->delete(self::URL."/{$event->id}");
@@ -855,11 +664,10 @@ class EventTest extends TestCase
     #[Test]
     public function daftar_event_terpaginasi(): void
     {
-        ['upt' => $upt] = $this->hirarki();
+        $this->hirarki();
 
         foreach (range(1, 20) as $urutan) {
-            $event = EventAbsen::factory()->ditutup()->create(['nama' => "Apel {$urutan}"]);
-            $event->unitKerja()->attach($upt);
+            EventAbsen::factory()->ditutup()->create(['nama' => "Apel {$urutan}"]);
         }
 
         $this->actingAs(User::factory()->superadmin()->create())
@@ -873,11 +681,10 @@ class EventTest extends TestCase
     #[Test]
     public function pencarian_menyaring_nama_event(): void
     {
-        ['upt' => $upt] = $this->hirarki();
+        $this->hirarki();
 
         foreach (['Apel Pagi Senin', 'Rapat Koordinasi'] as $nama) {
-            $event = EventAbsen::factory()->ditutup()->create(['nama' => $nama]);
-            $event->unitKerja()->attach($upt);
+            EventAbsen::factory()->ditutup()->create(['nama' => $nama]);
         }
 
         $this->actingAs(User::factory()->superadmin()->create())
@@ -891,13 +698,10 @@ class EventTest extends TestCase
     #[Test]
     public function penyaring_status_dan_rentang_tanggal_bekerja(): void
     {
-        ['upt' => $upt] = $this->hirarki();
+        $this->hirarki();
 
-        $aktif = EventAbsen::factory()->create(['nama' => 'Masih Aktif', 'tanggal' => '2026-09-07']);
-        $aktif->unitKerja()->attach($upt);
-
-        $lama = EventAbsen::factory()->ditutup()->create(['nama' => 'Sudah Lewat', 'tanggal' => '2026-08-01']);
-        $lama->unitKerja()->attach($upt);
+        EventAbsen::factory()->create(['nama' => 'Masih Aktif', 'tanggal' => '2026-09-07']);
+        EventAbsen::factory()->ditutup()->create(['nama' => 'Sudah Lewat', 'tanggal' => '2026-08-01']);
 
         $admin = User::factory()->superadmin()->create();
 
@@ -917,11 +721,10 @@ class EventTest extends TestCase
     public function ekspor_event_memuat_seluruh_hasil_penyaringan(): void
     {
         // Bukan hanya halaman yang sedang dibuka.
-        ['upt' => $upt] = $this->hirarki();
+        $this->hirarki();
 
         foreach (range(1, 20) as $urutan) {
-            $event = EventAbsen::factory()->ditutup()->create(['nama' => "Apel {$urutan}"]);
-            $event->unitKerja()->attach($upt);
+            EventAbsen::factory()->ditutup()->create(['nama' => "Apel {$urutan}"]);
         }
 
         $isi = $this->actingAs(User::factory()->superadmin()->create())
@@ -935,9 +738,8 @@ class EventTest extends TestCase
     #[Test]
     public function ekspor_event_pdf_menghasilkan_berkas_pdf(): void
     {
-        ['upt' => $upt] = $this->hirarki();
-        $event = EventAbsen::factory()->create(['nama' => 'Apel Pagi']);
-        $event->unitKerja()->attach($upt);
+        $this->hirarki();
+        EventAbsen::factory()->create(['nama' => 'Apel Pagi']);
 
         $isi = $this->actingAs(User::factory()->superadmin()->create())
             ->get(self::URL.'/ekspor?format=pdf')
@@ -950,15 +752,15 @@ class EventTest extends TestCase
     #[Test]
     public function pembuatan_event_tercatat_pada_audit_trail(): void
     {
-        ['upt' => $upt] = $this->hirarki();
+        $this->hirarki();
         $pelaku = User::factory()->superadmin()->create();
 
-        $this->actingAs($pelaku)->post(self::URL, $this->isian(['unit_kerja_id' => [$upt->id]]));
+        $this->actingAs($pelaku)->post(self::URL, $this->isian());
 
         $log = LogAktivitas::aksi(AksiLog::Buat)->sole();
 
         $this->assertSame($pelaku->id, $log->user_id);
         $this->assertTrue($log->subjek->is(EventAbsen::sole()));
-        $this->assertStringContainsString('BLK-SGS', $log->deskripsi);
+        $this->assertStringContainsString('seluruh unit kerja', $log->deskripsi);
     }
 }

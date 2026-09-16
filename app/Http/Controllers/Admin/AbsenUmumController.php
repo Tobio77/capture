@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Enums\OverrideAbsenUmum;
 use App\Exports\TabelDataExport;
 use App\Http\Controllers\Controller;
-use App\Models\EventAbsen;
 use App\Models\UnitKerja;
+use App\Models\User;
 use App\Services\AbsensiService;
 use App\Services\AbsenUmumService;
 use App\Services\EksporService;
@@ -29,8 +29,11 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
  * di ruangan, misalnya pada kegiatan dadakan atau saat perangkat sedang
  * diperbaiki.
  *
- * Cakupannya mengikuti peran, sama seperti rekap: Admin UPT terkunci pada
- * unitnya sendiri dan hanya melihat pegawainya sendiri (FR-REK-02).
+ * Sejak S49 sesi hariannya SATU untuk seluruh dinas, sehingga tidak ada lagi
+ * pemilih unit kerja yang menentukan sesi mana yang sedang dibuka atau
+ * ditutup. Unit kerja tetap ada di layar ini, tetapi sebagai PENYARING
+ * TAMPILAN rekap — dan pembatasan yang sesungguhnya tetap datang dari peran:
+ * Admin UPT hanya melihat pegawainya sendiri (FR-REK-02).
  */
 class AbsenUmumController extends Controller
 {
@@ -48,6 +51,8 @@ class AbsenUmumController extends Controller
         'jam_masuk' => 'Jam Masuk',
         'jam_pulang' => 'Jam Pulang',
         'metode' => 'Metode',
+        'perangkat' => 'Perangkat',
+        'ip_address' => 'Alamat IP',
         'status_label' => 'Status',
     ];
 
@@ -64,54 +69,28 @@ class AbsenUmumController extends Controller
     public function index(Request $request): Response
     {
         $pengguna = $request->user();
-        $unitTersedia = $this->absenUmum->unitTersedia($pengguna);
-
-        $unitId = $this->absenUmum->unitTerpilih(
-            $pengguna,
-            $request->integer('unit_kerja_id') ?: $unitTersedia->first()['id'] ?? null,
-        );
-
         $tanggal = $this->tanggal($request);
+        $unitId = $this->unitFilter($request);
 
         // Satu-satunya sumber baris absen umum; tab Rekap Umum memanggil yang
         // sama persis (FR-REK-01).
         $rekap = $this->absenUmum->rekapHarian(
             $pengguna,
-            $unitId,
             $tanggal,
             $request->string('cari')->toString(),
+            $unitId,
         );
 
         $sesi = $rekap['sesi'];
-        $agregat = $this->absenUmum->adalahOpd($unitId);
-
-        /*
-         * Tampilan aggregate OPD tidak punya satu sesi tunggal untuk dibaca
-         * override-nya ($sesi selalu null di sini, lihat rekapSemuaUnit()) —
-         * tanpa ini, status jendela dan tombol paksa akan selalu diam-diam
-         * berkata "mengikuti jadwal" walau override sesungguhnya sudah
-         * dipasang lewat aturOverrideSemua() pada tiap unit, persis jenis
-         * kebingungan yang membuat panel admin terlihat tidak nyambung
-         * dengan keadaan sesungguhnya (item 2).
-         */
-        $sesiUntukStatus = $agregat
-            ? (($override = $this->absenUmum->overrideSemuaSeragam($tanggal)) === null
-                ? null
-                : new EventAbsen(['override_absen' => $override]))
-            : $sesi;
 
         return Inertia::render('AbsenUmum/Index', [
-            'unit_kerja' => $unitTersedia->values(),
+            'unit_kerja' => $this->absenUmum->unitTersedia($pengguna),
             'filter' => [
                 'unit_kerja_id' => $unitId,
                 'tanggal' => $tanggal->toDateString(),
                 'cari' => $request->string('cari')->toString(),
             ],
             'absen_umum_aktif' => $this->absenUmum->aktif(),
-
-            // Simpul OPD terpilih: baris menggabungkan SELURUH unit kerja,
-            // bukan satu sesi tunggal — lihat catatan pada rekapSemuaUnit().
-            'agregat' => $agregat,
 
             // Jam masuk hari YANG SEDANG DILIHAT ($tanggal), bukan jam global
             // seragam — bisa saja beda dari jam hari ini bila admin sedang
@@ -124,7 +103,7 @@ class AbsenUmumController extends Controller
              * karena seseorang menutupnya dan lupa mencabutnya" — keduanya
              * terlihat sama di layar tetapi menuntut tindakan berbeda.
              */
-            'status_jendela' => collect($this->absenUmum->statusSemua($unitId, $sesiUntukStatus))
+            'status_jendela' => collect($this->absenUmum->statusSemua($sesi))
                 ->map(fn ($status) => $status->untukLayar()),
             'sesi' => $sesi === null ? null : [
                 'id' => $sesi->id,
@@ -136,7 +115,15 @@ class AbsenUmumController extends Controller
             ],
             'baris' => $rekap['baris']->values(),
             'ringkasan' => $rekap['ringkasan'],
-            'riwayat' => $unitId === null ? [] : $this->absenUmum->riwayat($unitId)->values(),
+            'riwayat' => $this->absenUmum->riwayat()->values(),
+
+            /*
+             * Membuka sesi, memasang override, dan mencabutnya kini berdampak
+             * pada seluruh dinas sekaligus — keputusan Admin Dinas, bukan
+             * wewenang satu UPT. Admin UPT tetap memantau dan mengunduh
+             * rekapnya (FR-REK-02, FR-LAP-02).
+             */
+            'boleh_kelola' => $pengguna->lintasUnit(),
         ]);
     }
 
@@ -148,22 +135,12 @@ class AbsenUmumController extends Controller
      */
     public function layar(Request $request): Response
     {
-        $pengguna = $request->user();
-        $unitTersedia = $this->absenUmum->unitTersedia($pengguna);
-
-        $unitId = $this->absenUmum->unitTerpilih(
-            $pengguna,
-            $request->integer('unit_kerja_id') ?: $unitTersedia->first()['id'] ?? null,
-        );
-
         // Membuka layar berarti hendak mengabsen, jadi sesi hari ini memang
         // dibuat di sini — berbeda dari pemantauan, yang hanya membaca.
-        $sesi = $unitId === null ? null : $this->absenUmum->sesi($unitId, buat: true);
+        $sesi = $this->absenUmum->sesi(buat: true);
         $setting = $this->setting->ambil();
 
         return Inertia::render('AbsenUmum/Layar', [
-            'unit_kerja' => $unitTersedia->values(),
-            'unit_kerja_id' => $unitId,
             'absen_umum_aktif' => $this->absenUmum->aktif(),
 
             // FR-SET-01: metode yang dimatikan admin tidak muncul di layar.
@@ -179,7 +156,7 @@ class AbsenUmumController extends Controller
             'daftar_wajah_otomatis' => ! $setting['metode_wajah_aktif'],
 
             // FR-SET-07; lihat catatan pada LayarKioskController.
-            'status_jendela' => collect($this->absenUmum->statusSemua($unitId, $sesi))
+            'status_jendela' => collect($this->absenUmum->statusSemua($sesi))
                 ->map(fn ($status) => $status->untukLayar()),
 
             // Jam server, dipakai layar untuk menyetel jam berjalannya sendiri.
@@ -188,10 +165,7 @@ class AbsenUmumController extends Controller
             // Layar ini dipagari sesi admin, bukan device token.
             'daftar_presensi' => $sesi === null ? [] : $this->absensi->daftarPresensi(
                 $sesi,
-                fn (int $id) => route('absen-umum.absen.foto', [
-                    'absensi' => $id,
-                    'unit_kerja_id' => $unitId,
-                ]),
+                fn (int $id) => route('absen-umum.absen.foto', ['absensi' => $id]),
             ),
             'event' => $sesi === null ? null : [
                 'id' => $sesi->id,
@@ -209,26 +183,12 @@ class AbsenUmumController extends Controller
      */
     public function buka(Request $request): RedirectResponse
     {
+        abort_unless($request->user()->lintasUnit(), 403);
         abort_unless($this->absenUmum->aktif(), 403, 'Absen umum sedang dimatikan pada Setting Absen.');
 
-        $unitId = $this->absenUmum->unitTerpilih($request->user(), $request->integer('unit_kerja_id') ?: null);
+        $this->absenUmum->buka();
 
-        abort_if($unitId === null, 404, 'Unit kerja tidak dikenali.');
-
-        /*
-         * Simpul OPD ("Disnaker") dipilih berarti SELURUH unit kerja, bukan
-         * satu sesi tersendiri bernama OPD yang tidak akan pernah ditemukan
-         * kiosk mana pun — lihat catatan pada AbsenUmumService::sesi().
-         */
-        if ($this->absenUmum->adalahOpd($unitId)) {
-            $this->absenUmum->bukaSemua();
-
-            return back()->with('sukses', 'Sesi absen umum hari ini berhasil dibuka untuk seluruh unit kerja.');
-        }
-
-        $this->absenUmum->buka($unitId);
-
-        return back()->with('sukses', 'Sesi absen umum hari ini berhasil dibuka.');
+        return back()->with('sukses', 'Sesi absen umum hari ini berhasil dibuka untuk seluruh unit kerja.');
     }
 
     /**
@@ -239,29 +199,17 @@ class AbsenUmumController extends Controller
      */
     public function override(Request $request): RedirectResponse
     {
+        abort_unless($request->user()->lintasUnit(), 403);
+
         $data = $request->validate([
             'aksi' => ['required', 'in:buka,tutup,cabut'],
         ]);
-
-        $unitId = $this->absenUmum->unitTerpilih($request->user(), $request->integer('unit_kerja_id') ?: null);
-
-        abort_if($unitId === null, 404, 'Unit kerja tidak dikenali.');
 
         $override = $data['aksi'] === 'cabut'
             ? null
             : OverrideAbsenUmum::from($data['aksi']);
 
-        // Simpul OPD ("Disnaker") berarti SELURUH unit kerja sekaligus —
-        // lihat catatan pada AbsenUmumController::buka().
-        if ($this->absenUmum->adalahOpd($unitId)) {
-            $this->absenUmum->aturOverrideSemua($override, $request->user());
-
-            return back()->with('sukses', $override === null
-                ? 'Override dicabut untuk seluruh unit kerja. Absen umum kembali mengikuti jadwal.'
-                : "{$override->label()} untuk seluruh unit kerja hari ini. Jadwal kembali berlaku besok.");
-        }
-
-        $sesi = $this->absenUmum->aturOverride($unitId, $override, $request->user());
+        $sesi = $this->absenUmum->aturOverride($override, $request->user());
 
         abort_if($sesi === null, 403, 'Absen umum sedang dimatikan pada Setting Absen.');
 
@@ -276,14 +224,11 @@ class AbsenUmumController extends Controller
      */
     public function data(Request $request): JsonResponse
     {
-        $pengguna = $request->user();
-        $unitId = $this->absenUmum->unitTerpilih($pengguna, $request->integer('unit_kerja_id') ?: null);
-
         $rekap = $this->absenUmum->rekapHarian(
-            $pengguna,
-            $unitId,
+            $request->user(),
             $this->tanggal($request),
             $request->string('cari')->toString(),
+            $this->unitFilter($request),
         );
 
         return response()->json([
@@ -293,19 +238,25 @@ class AbsenUmumController extends Controller
     }
 
     /**
-     * Unduh rekap absen umum sebagai CSV atau PDF (FR-REK-03).
+     * Unduh rekap absen umum sebagai CSV, Excel, atau PDF (FR-REK-03).
+     *
+     * Cakupannya mengikuti peran, sama seperti yang tampil di layar: Admin UPT
+     * mengunduh pegawai unitnya saja, peran lintas unit mengunduh seluruhnya
+     * (FR-LAP-02). Tidak ada pagar tambahan di sini — barisnya sudah tersaring
+     * sejak dirakit, sehingga tidak ada jalan memperoleh baris di luar hak
+     * lewat endpoint ini.
      */
     public function ekspor(Request $request): HttpResponse
     {
         $pengguna = $request->user();
-        $unitId = $this->absenUmum->unitTerpilih($pengguna, $request->integer('unit_kerja_id') ?: null);
         $tanggal = $this->tanggal($request);
+        $unitId = $this->unitFilter($request);
 
         $rekap = $this->absenUmum->rekapHarian(
             $pengguna,
-            $unitId,
             $tanggal,
             $request->string('cari')->toString(),
+            $unitId,
         );
 
         $sesi = $rekap['sesi'];
@@ -314,10 +265,7 @@ class AbsenUmumController extends Controller
 
         $baris = $rekap['baris'];
         $nama = 'absen-umum-'.$tanggal->format('Ymd');
-
-        $cakupan = $pengguna->lintasUnit()
-            ? (UnitKerja::query()->find($unitId)?->nama ?? 'Seluruh unit kerja')
-            : ($pengguna->unitKerja?->nama ?? 'Tanpa unit kerja');
+        $cakupan = $this->namaCakupan($pengguna, $unitId);
 
         if ($request->string('format')->toString() === 'pdf') {
             return $this->ekspor->unduhPdf('cetak.rekap', [
@@ -346,6 +294,30 @@ class AbsenUmumController extends Controller
         }
 
         return $this->ekspor->unduhCsv($this->ekspor->csv($judul, $baris), "{$nama}.csv");
+    }
+
+    /**
+     * Unit kerja yang sedang dipakai menyaring tampilan, atau null bila tidak
+     * ada penyaring.
+     */
+    protected function unitFilter(Request $request): ?int
+    {
+        return $request->integer('unit_kerja_id') ?: null;
+    }
+
+    /**
+     * Kalimat cakupan pada lembar cetak: apa yang BENAR-BENAR terbaca pada
+     * berkas ini, bukan hak pengguna secara umum.
+     */
+    protected function namaCakupan(User $pengguna, ?int $unitId): string
+    {
+        if ($unitId !== null) {
+            return UnitKerja::query()->find($unitId)?->nama ?? 'Unit kerja terpilih';
+        }
+
+        return $pengguna->lintasUnit()
+            ? 'Seluruh unit kerja'
+            : ($pengguna->unitKerja?->nama ?? 'Tanpa unit kerja');
     }
 
     protected function tanggal(Request $request): Carbon

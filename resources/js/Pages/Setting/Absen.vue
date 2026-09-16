@@ -314,41 +314,41 @@ const simpan = () => {
 
         <!-- FR-SET-06 -->
         <section class="panel p-6">
-          <h2 class="font-display text-sm font-semibold text-utama">Registrasi Perangkat Absen</h2>
+          <h2 class="font-display text-sm font-semibold text-utama">Mode Pendaftaran Perangkat</h2>
           <p class="mt-1 text-xs text-redup">
-            Secara bawaan, perangkat harus didaftarkan admin lebih dahulu dan menukarkan kode
-            aktivasi sebelum dapat melayani tap.
+            Secara bawaan mode ini <strong>dimatikan</strong>: perangkat masuk dengan mengetikkan
+            kode unit kerjanya, tanpa perlu didaftarkan lebih dahulu. Kode itu dibaca dan diganti
+            di menu Setting → Unit Kerja.
           </p>
 
           <label class="mt-4 flex cursor-pointer items-start gap-3">
             <input
-              v-model="form.wajib_kode_aktivasi"
+              v-model="form.pendaftaran_perangkat_aktif"
               type="checkbox"
               class="mt-0.5 h-4 w-4 rounded border-garis text-aksen focus:ring-aksen"
             />
             <span>
               <span class="block text-sm font-medium text-utama">
-                Wajib kode aktivasi perangkat
+                Wajibkan pendaftaran perangkat
               </span>
               <span class="mt-0.5 block text-xs text-redup">
-                Biarkan menyala pada operasi normal.
+                Biarkan mati pada operasi normal.
               </span>
             </span>
           </label>
 
           <div
-            v-if="!form.wajib_kode_aktivasi"
+            v-if="form.pendaftaran_perangkat_aktif"
             class="mt-4 rounded-lg border border-peringatan bg-peringatan-lembut p-4"
           >
             <p class="flex items-center gap-1.5 text-sm font-semibold text-peringatan-teks">
-              <Ikon nama="peringatan" ukuran="h-4 w-4" /> Mode Terbuka
+              <Ikon nama="peringatan" ukuran="h-4 w-4" /> Kode unit kerja tidak lagi diterima
             </p>
             <p class="mt-1 text-xs text-peringatan-teks">
-              Perangkat mana pun yang dapat menjangkau alamat aplikasi ini boleh masuk tanpa kode
-              aktivasi. Ia dibuatkan entri sendiri bertanda <strong>Ad-hoc</strong>, alamat IP-nya
-              tetap dicatat, dan absen yang dilayaninya tercatat pada unit kerja yang dipilih
-              petugas di layar. Gunakan hanya untuk kebutuhan darurat, dan nonaktifkan kembali
-              sesudahnya.
+              Selama mode ini menyala, setiap komputer harus didaftarkan lebih dahulu di menu
+              <strong>Perangkat Absen</strong> dan menukarkan kode aktivasi sekali pakai miliknya
+              sendiri. Perangkat yang sudah terhubung tetap berjalan; yang belum tidak akan dapat
+              masuk sampai admin mendaftarkannya.
             </p>
           </div>
         </section>

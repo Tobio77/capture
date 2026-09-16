@@ -13,15 +13,18 @@ use Illuminate\Http\Request;
  * sama bentuknya: perangkat absen yang membawa device token, dan layar absen
  * umum yang dibuka admin di peramban sendiri.
  *
- * Sejak S29 ada dimensi kedua: MODE. Absen Event dan Absen Umum bukan lagi
- * satu layar yang diam-diam berpindah isi mengikuti ada-tidaknya kegiatan,
- * melainkan dua halaman dengan syarat akses yang berbeda:
+ * Dimensi keduanya adalah MODE. Absen Event dan Absen Umum bukan satu layar
+ * yang diam-diam berpindah isi mengikuti ada-tidaknya kegiatan, melainkan dua
+ * halaman dengan syarat akses yang berbeda:
  *
- *   - Mode `event` hanya melayani perangkat yang sudah BERGABUNG ke sebuah
- *     event lewat kode unit kerja (FR-EVT-03). Tidak ada penggabungan, tidak
- *     ada layar — betapapun unitnya tercakup event yang sedang berjalan.
+ *   - Mode `event` melayani kegiatan yang sedang dibuka. Sejak S49 tidak ada
+ *     lagi kode per event yang harus ditukarkan lebih dahulu: event berlaku
+ *     bagi seluruh dinas, sehingga setiap perangkat yang sudah dikenali
+ *     ({@see KodeUnitService}) langsung melayaninya. Tanpa kegiatan yang
+ *     dibuka, tidak ada layar.
  *   - Mode `umum` selalu tersedia dan tidak terikat status event apa pun.
- *     Sesi hariannya dibuka sistem saat pertama kali dibutuhkan.
+ *     Sesi hariannya — satu untuk seluruh dinas — dibuka sistem saat pertama
+ *     kali dibutuhkan.
  *
  * Modenya dibaca dari DEFAULT RUTE, bukan dari masukan peramban: yang
  * menentukan adalah alamat yang dibuka, dan perangkat tidak boleh dapat
@@ -29,9 +32,9 @@ use Illuminate\Http\Request;
  * kiriman tapnya.
  *
  * Memusatkan penentuan ini di satu tempat menjaga agar pemeriksaan yang
- * melekat padanya — event masih dibuka, pegawai berada dalam cakupannya, foto
- * hanya boleh dibaca titik yang melayani event yang sama — tidak bercabang
- * menjadi beberapa versi yang bisa berbeda perilaku.
+ * melekat padanya — event masih dibuka, foto hanya boleh dibaca titik yang
+ * melayani event yang sama — tidak bercabang menjadi beberapa versi yang bisa
+ * berbeda perilaku.
  */
 class TitikAbsenService
 {
@@ -55,34 +58,17 @@ class TitikAbsenService
      */
     public function untuk(Request $request, bool $buka = false): array
     {
-        $kiosk = $request->kiosk();
-
-        if ($kiosk !== null) {
-            return [
-                'event' => $this->mode($request) === self::MODE_EVENT
-                    ? $this->event->eventAktifUntukKiosk($kiosk)
-                    : $this->absenUmum->sesiUntukKiosk($kiosk, buat: $buka),
-                'kiosk' => $kiosk,
-            ];
-        }
-
-        $pengguna = $request->user();
-
-        // Bukan perangkat dan bukan admin: tidak ada titik absen yang sah.
-        if ($pengguna === null) {
-            return ['event' => null, 'kiosk' => null];
-        }
-
         return [
-            'event' => $this->absenUmum->sesiUntukAdmin(
-                $pengguna,
-                $request->integer('unit_kerja_id') ?: null,
-                buat: $buka,
-            ),
+            'event' => $this->mode($request) === self::MODE_EVENT
+                ? $this->event->eventAktifSekarang()
+                : $this->absenUmum->sesi(buat: $buka),
 
-            // Layar admin bukan perangkat terdaftar; absensinya tercatat tanpa
-            // kiosk_id, persis seperti perangkat yang kemudian dilepas.
-            'kiosk' => null,
+            /*
+             * Layar admin bukan perangkat terdaftar; absensinya tercatat tanpa
+             * kiosk_id, persis seperti perangkat yang kemudian dilepas.
+             * `Request::kiosk()` mengembalikan null di sana.
+             */
+            'kiosk' => $request->kiosk(),
         ];
     }
 
@@ -108,21 +94,19 @@ class TitikAbsenService
      *
      * Kode kegagalan `EVENT_TIDAK_AKTIF` dipakai KEDUA mode, tetapi akar
      * masalahnya berbeda sama sekali di antara keduanya — dan sebelum
-     * perbaikan ini, kedua controller memberi pesan yang sama persis
-     * ("Tidak ada event yang sedang dibuka"/"Entry event sudah ditutup") pada
+     * perbaikan ini, kedua controller memberi pesan yang sama persis pada
      * KEDUA mode. Itu benar untuk mode event, tetapi MENYESATKAN untuk mode
      * umum: Absen Umum tidak pernah bergantung pada event kegiatan sama
-     * sekali (lihat docblock kelas ini), sehingga operator yang membaca
-     * pesan itu di layar Absen Umum wajar mengira sebaliknya — persis
-     * laporan yang mendorong perbaikan ini. Untuk mode umum, satu-satunya
-     * alasan {@see AbsenUmumService::sesi()} menolak membuka sesi baru
-     * adalah sakelar Absen Umum yang sedang dimatikan admin.
+     * sekali (lihat docblock kelas ini), sehingga operator yang membaca pesan
+     * itu di layar Absen Umum wajar mengira sebaliknya. Untuk mode umum,
+     * satu-satunya alasan {@see AbsenUmumService::sesi()} menolak membuka sesi
+     * baru adalah sakelar Absen Umum yang sedang dimatikan admin.
      */
     public function pesanTidakAda(Request $request): string
     {
         return $this->mode($request) === self::MODE_UMUM
             ? 'Absen Umum sedang dimatikan oleh admin pada Setting Absen.'
-            : 'Tidak ada event yang sedang dibuka untuk unit kerja ini.';
+            : 'Tidak ada kegiatan yang sedang dibuka.';
     }
 
     /**
@@ -133,19 +117,11 @@ class TitikAbsenService
      * perangkat absen memakai rute /kiosk yang dipagari device token,
      * sedangkan layar absen umum di peramban admin memakai rute /admin yang
      * dipagari sesi.
-     *
-     * Pada jalur admin, `unit_kerja_id` ikut dibawa. Endpoint fotonya
-     * menentukan sah-tidaknya akses dari event yang sedang dilayani titik
-     * absen — dan pada jalur admin, event itu baru dapat ditentukan setelah
-     * unit kerjanya diketahui. Tanpa parameter ini, gambarnya dijawab 403.
      */
     public function urlFotoPegawai(Request $request, string $nip): string
     {
         if ($request->kiosk() === null) {
-            return route('absen-umum.pegawai.foto', [
-                'nip' => $nip,
-                'unit_kerja_id' => $this->unitTerpilih($request),
-            ]);
+            return route('absen-umum.pegawai.foto', ['nip' => $nip]);
         }
 
         return route("kiosk.{$this->mode($request)}.pegawai.foto", ['nip' => $nip]);
@@ -157,24 +133,9 @@ class TitikAbsenService
     public function urlFotoAbsen(Request $request, int $absensiId): string
     {
         if ($request->kiosk() === null) {
-            return route('absen-umum.absen.foto', [
-                'absensi' => $absensiId,
-                'unit_kerja_id' => $this->unitTerpilih($request),
-            ]);
+            return route('absen-umum.absen.foto', ['absensi' => $absensiId]);
         }
 
         return route("kiosk.{$this->mode($request)}.absen.foto", ['absensi' => $absensiId]);
-    }
-
-    /**
-     * Unit kerja yang sedang dilayani layar absen umum di peramban admin.
-     */
-    protected function unitTerpilih(Request $request): ?int
-    {
-        $pengguna = $request->user();
-
-        return $pengguna === null
-            ? null
-            : $this->absenUmum->unitTerpilih($pengguna, $request->integer('unit_kerja_id') ?: null);
     }
 }

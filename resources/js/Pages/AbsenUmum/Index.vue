@@ -26,12 +26,11 @@ const props = defineProps({
   jam_masuk: { type: String, required: true },
 
   /**
-   * Simpul OPD terpilih — baris menggabungkan SELURUH unit kerja sekaligus,
-   * bukan satu sesi tunggal (lihat AbsenUmumService::rekapSemuaUnit()).
-   * `sesi` selalu null dalam keadaan ini walau sesi per-unit di baliknya
-   * sungguhan; beberapa tampilan di bawah butuh tahu beda kedua keadaan itu.
+   * Membuka sesi dan memasang override berdampak pada seluruh dinas — satu
+   * sesi harian melayani semuanya sejak S49 — sehingga hanya peran lintas
+   * unit yang boleh melakukannya. Admin UPT tetap memantau dan mengunduh.
    */
-  agregat: { type: Boolean, default: false },
+  boleh_kelola: { type: Boolean, required: true },
 
   /** Status efektif per jenis absen beserta sumbernya (FR-SET-07). */
   status_jendela: { type: Object, default: () => ({}) },
@@ -51,18 +50,21 @@ function aturOverride(aksi) {
 
   if (!window.confirm(tanya[aksi])) return
 
-  router.post(
-    '/admin/kelola-absen/absen-umum/override',
-    { aksi, unit_kerja_id: filter.unit_kerja_id },
-    { preserveScroll: true },
-  )
+  router.post('/admin/kelola-absen/absen-umum/override', { aksi }, { preserveScroll: true })
 }
 
 const filter = reactive({ ...props.filter })
 
-const opsiUnit = computed(() =>
-  props.unit_kerja.map((u) => ({ nilai: u.id, label: u.nama, keterangan: u.kode })),
-)
+/*
+ * Penyaring tampilan, bukan pemilih sesi: sesi harian satu untuk seluruh
+ * dinas, dan yang dipersempit pilihan ini hanyalah baris mana yang terbaca.
+ * Karena itu ada butir "Semua unit kerja" di depan daftarnya — keadaan yang
+ * dulu mustahil, sebab dulu setiap tampilan harus menaut ke satu sesi.
+ */
+const opsiUnit = computed(() => [
+  { nilai: '', label: 'Semua unit kerja' },
+  ...props.unit_kerja.map((u) => ({ nilai: u.id, label: u.nama, keterangan: u.kode })),
+])
 const baris = ref(props.baris)
 const ringkasan = ref(props.ringkasan)
 
@@ -83,11 +85,7 @@ function terapkan() {
 }
 
 function bukaSesi() {
-  router.post(
-    '/admin/kelola-absen/absen-umum/buka',
-    { unit_kerja_id: filter.unit_kerja_id },
-    { preserveScroll: true },
-  )
+  router.post('/admin/kelola-absen/absen-umum/buka', {}, { preserveScroll: true })
 }
 
 function unduh(format) {
@@ -114,9 +112,7 @@ onMounted(() => {
 onBeforeUnmount(() => clearInterval(jeda))
 
 async function segarkan() {
-  // Tampilan aggregate OPD selalu ber-`sesi` null (bukan tanda "belum ada
-  // yang berjalan" seperti pada satu unit) — polling tetap harus berjalan.
-  if (!hariIni.value || (props.sesi === null && !props.agregat)) return
+  if (!hariIni.value || props.sesi === null) return
 
   try {
     const jawaban = await fetch(
@@ -178,7 +174,7 @@ const tanggalPanjang = (iso) =>
 <template>
   <AdminLayout
     judul="Absen Umum"
-    deskripsi="Absensi harian tanpa event kegiatan. Sesi hariannya dibuka sistem saat tidak ada kegiatan yang berjalan."
+    deskripsi="Absensi harian untuk seluruh pegawai Disnakertrans — satu sesi per tanggal. Unit kerja hanya dipakai untuk menyaring tabel di bawah."
   >
     <template #aksi>
       <div class="flex flex-wrap items-center gap-2 print:hidden">
@@ -202,7 +198,7 @@ const tanggalPanjang = (iso) =>
           <Ikon nama="unduh" ukuran="h-4 w-4" /> PDF
         </button>
         <Link
-          :href="`/admin/kelola-absen/absen-umum/layar${filter.unit_kerja_id ? `?unit_kerja_id=${filter.unit_kerja_id}` : ''}`"
+          href="/admin/kelola-absen/absen-umum/layar"
           class="tombol tombol-utama"
         >
           <Ikon nama="wajah" ukuran="h-4 w-4" /> Buka Layar Absen
@@ -258,13 +254,7 @@ const tanggalPanjang = (iso) =>
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 class="font-display text-lg font-semibold text-utama">
-            <!--
-              Tampilan aggregate OPD tidak punya satu sesi tunggal untuk
-              disebut namanya (rekapSemuaUnit() selalu mengembalikan sesi
-              null) — tanpa ini, judulnya diam-diam berkata "Belum ada sesi
-              absen umum" walau puluhan sesi per unit sesungguhnya berjalan.
-            -->
-            {{ agregat ? 'Seluruh Unit Kerja' : sesi?.nama ?? 'Belum ada sesi absen umum' }}
+            {{ sesi?.nama ?? 'Belum ada sesi absen umum' }}
           </h2>
           <p class="mt-1 text-sm text-sekunder">
             {{ tanggalPanjang(filter.tanggal) }}
@@ -273,9 +263,9 @@ const tanggalPanjang = (iso) =>
             </template>
             <template v-else> · jam masuk harian {{ jam_masuk }} </template>
           </p>
-          <p v-if="agregat" class="mt-0.5 text-xs text-redup">
-            Menggabungkan sesi harian tiap unit kerja. Buka/tutup paksa di bawah berlaku bagi
-            SEMUA unit sekaligus — pilih satu unit kerja untuk memantau sesinya sendiri-sendiri.
+          <p class="mt-0.5 text-xs text-redup">
+            Satu sesi untuk seluruh dinas. Buka/tutup paksa di bawah berlaku bagi semua unit
+            sekaligus; penyaring unit kerja di atas hanya mempersempit tabelnya.
           </p>
         </div>
 
@@ -284,13 +274,12 @@ const tanggalPanjang = (iso) =>
             {{ sesi.aktif ? 'Sesi berjalan' : 'Sesi ditutup' }}
           </Lencana>
           <button
-            v-else-if="absen_umum_aktif && hariIni"
+            v-else-if="boleh_kelola && absen_umum_aktif && hariIni"
             type="button"
             class="inline-flex items-center gap-1.5 rounded-md border border-garis px-3 py-1.5 text-sm font-medium text-utama transition hover:bg-permukaan-hover active:scale-95"
             @click="bukaSesi"
           >
-            <Ikon nama="tambah" ukuran="h-4 w-4" />
-            {{ agregat ? 'Buka Sesi Hari Ini (seluruh unit)' : 'Buka Sesi Hari Ini' }}
+            <Ikon nama="tambah" ukuran="h-4 w-4" /> Buka Sesi Hari Ini
           </button>
         </div>
       </div>
@@ -338,7 +327,7 @@ const tanggalPanjang = (iso) =>
           </span>
 
           <button
-            v-if="adaOverride"
+            v-if="boleh_kelola && adaOverride"
             type="button"
             class="tombol tombol-garis px-3 py-2 text-xs"
             @click="aturOverride('cabut')"
@@ -346,7 +335,7 @@ const tanggalPanjang = (iso) =>
             Kembalikan ke jadwal
           </button>
 
-          <template v-else>
+          <template v-else-if="boleh_kelola">
             <button
               type="button"
               class="tombol tombol-garis px-3 py-2 text-xs"
@@ -368,7 +357,7 @@ const tanggalPanjang = (iso) =>
       <RingkasanRekap :kartu="kartu" class="mt-5" />
 
       <p class="mt-3 text-xs text-redup">
-        {{ ringkasan.pegawai }} pegawai aktif dalam cakupan unit ini.
+        {{ ringkasan.pegawai }} pegawai aktif dalam cakupan yang sedang dibaca.
       </p>
     </div>
 

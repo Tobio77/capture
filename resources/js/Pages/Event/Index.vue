@@ -23,19 +23,15 @@ const props = defineProps({
   daftar: { type: Object, required: true },
   filter: { type: Object, required: true },
   status_pilihan: { type: Array, required: true },
-  unit_kerja: { type: Array, required: true },
   nilai_awal: { type: Object, required: true },
-  boleh_semua_unit: { type: Boolean, required: true },
-  cakupan_semua_unit: { type: String, required: true },
-  cakupan_unit: { type: String, default: 'unit' },
 
   /*
-   * Cakupan bawaan sistem — daftar unitnya ditentukan enum, bukan dicentang
-   * admin. Unit penyusunnya ikut dikirim supaya isinya terlihat sebelum event
-   * disimpan; keliru satu kode berarti pegawai satu unit tidak dapat mengabsen
-   * dan tidak ada yang menyadarinya sampai hari-H.
+   * Membuat, mengubah, menutup, dan menghapus event berdampak pada SELURUH
+   * dinas sekaligus, sehingga hanya peran lintas unit yang boleh melakukannya
+   * (FR-EVT-02). Admin UPT tetap membaca daftar dan detailnya — pegawainya
+   * justru berhak hadir di setiap kegiatan yang ada di sana.
    */
-  cakupan_tertanam: { type: Array, default: () => [] },
+  boleh_kelola: { type: Boolean, required: true },
 })
 
 const filter = reactive({ ...props.filter })
@@ -45,40 +41,22 @@ const sedangDiubah = ref(null)
 const detailTerbuka = ref(false)
 const detail = ref(null)
 const detailGagal = ref(null)
-const mereset = ref(null)
 
 const form = useForm({
   nama: '',
   tanggal: hariIniIso(),
   jam_mulai: '07:30',
   toleransi_menit: props.nilai_awal.toleransi_menit,
-  cakupan: 'unit',
-  unit_kerja_id: [],
   catatan: '',
 })
 
-const semuaUnit = computed(() => form.cakupan === props.cakupan_semua_unit)
-
-/** Cakupan bawaan sistem yang sedang dipilih, bila ada. */
-const tertananDipilih = computed(
-  () => props.cakupan_tertanam.find((c) => c.nilai === form.cakupan) ?? null,
-)
-
-// Daftar unit hanya dicentang admin pada cakupan "unit terpilih".
-const memilihUnit = computed(() => !semuaUnit.value && tertananDipilih.value === null)
 const judulForm = computed(() => (sedangDiubah.value ? 'Ubah Event' : 'Buat Event Baru'))
-const unitTunggal = computed(() => props.unit_kerja.length === 1)
 
 const adaFilter = computed(() => Object.values(filter).some((n) => n !== '' && n !== null))
 
 const opsiStatus = computed(() => [
   { nilai: '', label: 'Semua status' },
   ...props.status_pilihan.map((s) => ({ nilai: s.nilai, label: s.label })),
-])
-
-const opsiUnit = computed(() => [
-  { nilai: '', label: 'Semua unit kerja' },
-  ...props.unit_kerja.map((u) => ({ nilai: u.id, label: u.nama, keterangan: u.kode })),
 ])
 
 const kueri = computed(() =>
@@ -110,7 +88,6 @@ function bukaBuat() {
   form.reset()
   form.clearErrors()
   form.toleransi_menit = props.nilai_awal.toleransi_menit
-  form.unit_kerja_id = unitTunggal.value ? [props.unit_kerja[0].id] : []
   formTerbuka.value = true
 }
 
@@ -121,8 +98,6 @@ function bukaUbah(event) {
   form.tanggal = event.tanggal
   form.jam_mulai = event.jam_mulai
   form.toleransi_menit = event.toleransi_menit
-  form.cakupan = event.cakupan
-  form.unit_kerja_id = event.unit_kerja.map((u) => u.id)
   form.catatan = event.catatan ?? ''
   formTerbuka.value = true
 }
@@ -140,37 +115,6 @@ function simpan() {
   } else {
     form.post('/admin/kelola-absen/event', opsi)
   }
-}
-
-/**
- * Terbitkan ulang kode sebuah unit kerja (FR-EVT-03).
- *
- * Rinciannya dimuat ulang setelah berhasil: kode barulah yang harus terbaca
- * panitia, dan menampilkan kode lama sesaat lebih lama justru membuat kode itu
- * ikut terbacakan ke ruangan.
- */
-function resetKode(kode) {
-  if (
-    !window.confirm(
-      `Ganti kode unit ${kode.unit_kerja_kode}? Perangkat yang belum bergabung harus memakai kode baru.`,
-    )
-  ) {
-    return
-  }
-
-  mereset.value = kode.id
-
-  router.post(
-    `/admin/kelola-absen/event/${detail.value.id}/kode/${kode.id}/reset`,
-    {},
-    {
-      preserveScroll: true,
-      onSuccess: () => muatDetail(detail.value.id),
-      onFinish: () => {
-        mereset.value = null
-      },
-    },
-  )
 }
 
 function bukaDetail(event) {
@@ -236,7 +180,6 @@ function waktuSingkat(iso) {
 }
 const kolom = [
   { label: 'Nama Event' },
-  { label: 'Cakupan' },
   { label: 'Jadwal' },
   { label: 'Masuk', kelas: 'text-right' },
   { label: 'Aksi', kelas: 'text-right' },
@@ -246,7 +189,7 @@ const kolom = [
 <template>
   <AdminLayout
     judul="Daftar Event"
-    deskripsi="Event absensi beserta cakupan unit kerjanya. Perangkat absen hanya melayani tap untuk event yang masih aktif."
+    deskripsi="Setiap event berlaku bagi seluruh unit kerja Disnakertrans. Perangkat absen hanya melayani tap untuk event yang masih aktif, dan hanya satu event yang boleh aktif pada satu waktu."
   >
     <template #aksi>
       <div class="flex flex-wrap items-center gap-2">
@@ -257,6 +200,7 @@ const kolom = [
           <Ikon nama="cetak" ukuran="h-4 w-4" /> PDF
         </button>
         <button
+          v-if="boleh_kelola"
           type="button"
           class="tombol tombol-utama"
           @click="bukaBuat"
@@ -267,7 +211,7 @@ const kolom = [
     </template>
 
     <div class="mb-4 panel p-3">
-      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div class="lg:col-span-2">
           <KolomCari
             v-model="filter.cari"
@@ -276,7 +220,6 @@ const kolom = [
           />
         </div>
         <Pilihan v-model="filter.status" :opsi="opsiStatus" @update:model-value="terapkan" />
-        <Pilihan v-model="filter.unit_kerja_id" :opsi="opsiUnit" @update:model-value="terapkan" />
 
         <RentangTanggal
           v-model:dari="filter.dari"
@@ -323,25 +266,6 @@ const kolom = [
             {{ event.catatan }}
           </span>
         </td>
-        <td class="px-4 py-3">
-          <!--
-              Cakupan bawaan sistem diberi lencana bernama, bukan sekadar
-              deretan kode: yang perlu terbaca sekilas adalah "ini Wilayah
-              Kerja Surabaya", sementara unit penyusunnya menyusul di
-              bawahnya.
-            -->
-          <Lencana v-if="event.cakupan !== cakupan_unit" warna="navy" :titik="false">
-            {{ event.cakupan_label }}
-          </Lencana>
-
-          <span
-            v-if="event.cakupan !== cakupan_semua_unit"
-            class="text-xs text-sekunder"
-            :class="event.cakupan !== cakupan_unit ? 'mt-0.5 block' : ''"
-          >
-            {{ event.unit_kerja.map((u) => u.kode).join(', ') || '—' }}
-          </span>
-        </td>
         <td class="whitespace-nowrap px-4 py-3 text-sekunder">
           <span class="flex items-center gap-1.5">
             <Ikon nama="kalender" ukuran="h-3.5 w-3.5" class="text-redup" />
@@ -365,17 +289,27 @@ const kolom = [
         <td class="whitespace-nowrap px-4 py-3 text-right">
           <TombolAksi ikon="detail" @click="bukaDetail(event)">Detail</TombolAksi>
           <TombolAksi
-            v-if="event.status === 'aktif'"
+            v-if="boleh_kelola && event.status === 'aktif'"
             ikon="ubah"
             warna="teal"
             @click="bukaUbah(event)"
           >
             Ubah
           </TombolAksi>
-          <TombolAksi v-if="event.status === 'aktif'" ikon="cek" warna="navy" @click="tutup(event)">
+          <TombolAksi
+            v-if="boleh_kelola && event.status === 'aktif'"
+            ikon="cek"
+            warna="navy"
+            @click="tutup(event)"
+          >
             Tutup
           </TombolAksi>
-          <TombolAksi v-if="event.dapat_dihapus" ikon="hapus" warna="rose" @click="hapus(event)">
+          <TombolAksi
+            v-if="boleh_kelola && event.dapat_dihapus"
+            ikon="hapus"
+            warna="rose"
+            @click="hapus(event)"
+          >
             Hapus
           </TombolAksi>
         </td>
@@ -388,7 +322,9 @@ const kolom = [
           :keterangan="
             adaFilter
               ? 'Coba longgarkan penyaringan, atau bersihkan seluruhnya.'
-              : 'Mulai dengan menekan “Buat Event” di kanan atas.'
+              : boleh_kelola
+                ? 'Mulai dengan menekan “Buat Event” di kanan atas.'
+                : 'Event dibuat oleh Admin Dinas dan berlaku bagi seluruh unit kerja.'
           "
         />
       </template>
@@ -413,8 +349,7 @@ const kolom = [
         <div class="rounded-lg bg-permukaan-2 px-4 py-3">
           <p class="font-medium text-utama">{{ detail.nama }}</p>
           <p class="mt-0.5 text-xs text-redup">
-            {{ tanggalPanjang(detail.tanggal) }} · {{ detail.jam_mulai }} ·
-            {{ detail.cakupan_label }}
+            {{ tanggalPanjang(detail.tanggal) }} · {{ detail.jam_mulai }} · Seluruh unit kerja
           </p>
         </div>
 
@@ -445,81 +380,42 @@ const kolom = [
         </div>
 
         <!--
-          Kode unit kerja (FR-EVT-03). Ditampilkan terbuka — berbeda dari kode
-          aktivasi perangkat, kode ini memang untuk dibacakan panitia kepada
-          petugas tiap unit, dan boleh dipakai beberapa perangkat sekaligus.
+          Jawaban atas "komputer mana saja yang dipakai pada kegiatan ini, dari
+          unit mana, dan dari alamat berapa". Jumlah perangkat per unit tidak
+          dibatasi — sebuah UPT boleh memakai tiga mesin hari ini dan empat
+          besok — sehingga daftar inilah satu-satunya tempat pertanyaan itu
+          terjawab.
         -->
         <div>
           <p class="mb-2 text-xs font-medium uppercase tracking-wider text-redup">
-            Kode Unit Kerja
-          </p>
-
-          <KeadaanKosong
-            v-if="detail.kode_unit.length === 0"
-            ikon="kunci"
-            judul="Belum ada kode"
-            keterangan="Kode terbit bersamaan dengan cakupan unit kerja event."
-          />
-
-          <ul v-else class="space-y-2">
-            <li
-              v-for="kode in detail.kode_unit"
-              :key="kode.id"
-              class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-garis px-3 py-2.5"
-            >
-              <div class="min-w-0">
-                <p class="font-display text-lg font-semibold tracking-[0.15em] text-utama">
-                  {{ kode.kode }}
-                </p>
-                <p class="mt-0.5 truncate text-xs text-redup">
-                  <span class="font-display tabular-nums">{{ kode.unit_kerja_kode }}</span>
-                  · {{ kode.unit_kerja_nama }} · {{ kode.jumlah_perangkat }} perangkat bergabung
-                </p>
-              </div>
-
-              <button
-                v-if="detail.boleh_reset && detail.status === 'aktif'"
-                type="button"
-                class="rounded-lg border border-garis px-2.5 py-1.5 text-xs font-medium text-sekunder transition-colors duration-150 hover:bg-permukaan-hover disabled:opacity-50"
-                :disabled="mereset === kode.id"
-                @click="resetKode(kode)"
-              >
-                {{ mereset === kode.id ? 'Mengganti…' : 'Ganti Kode' }}
-              </button>
-            </li>
-          </ul>
-
-          <p class="mt-2 text-xs text-redup">
-            Mengganti kode menutup pintu bagi perangkat yang belum bergabung; perangkat yang sudah
-            melayani event ini tidak terputus.
-          </p>
-        </div>
-
-        <div>
-          <p class="mb-2 text-xs font-medium uppercase tracking-wider text-redup">
-            Perangkat Absen Terhubung
+            Perangkat Absen yang Melayani
           </p>
 
           <KeadaanKosong
             v-if="detail.kiosk.length === 0"
             ikon="perangkat"
             judul="Belum ada perangkat"
-            keterangan="Perangkat bergabung dengan mengetikkan kode unit kerja di atas."
+            keterangan="Perangkat tercatat di sini begitu membuka layar Absen Event."
           />
 
           <table v-else class="min-w-full text-sm">
             <thead class="text-xs uppercase tracking-wider text-redup">
               <tr>
                 <th scope="col" class="py-2 text-left font-medium">Titik</th>
+                <th scope="col" class="py-2 text-left font-medium">Unit Kerja</th>
                 <th scope="col" class="py-2 text-left font-medium">Alamat IP</th>
                 <th scope="col" class="py-2 text-right font-medium">Terakhir Aktif</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-garis">
               <tr v-for="kiosk in detail.kiosk" :key="kiosk.id">
-                <td class="py-2 text-utama">
-                  {{ kiosk.nama_titik }}
-                  <span class="ml-1 font-display text-xs tabular-nums text-redup">
+                <td class="py-2 text-utama">{{ kiosk.nama_titik }}</td>
+                <td class="py-2 text-sekunder">
+                  {{ kiosk.unit_kerja_nama ?? '—' }}
+                  <span
+                    v-if="kiosk.unit_kerja_kode"
+                    class="ml-1 font-display text-xs tabular-nums text-redup"
+                  >
                     {{ kiosk.unit_kerja_kode }}
                   </span>
                 </td>
@@ -605,105 +501,20 @@ const kolom = [
           </div>
         </div>
 
-        <div>
-          <span class="block text-sm font-medium text-utama">Cakupan Unit Kerja</span>
-
-          <div v-if="boleh_semua_unit" class="mt-2 flex gap-4">
-            <label class="flex items-center gap-2 text-sm text-utama">
-              <input
-                v-model="form.cakupan"
-                type="radio"
-                value="unit"
-                class="text-aksen focus:ring-aksen"
-              />
-              Unit terpilih
-            </label>
-            <label class="flex items-center gap-2 text-sm text-utama">
-              <input
-                v-model="form.cakupan"
-                type="radio"
-                :value="cakupan_semua_unit"
-                class="text-aksen focus:ring-aksen"
-              />
-              Semua unit
-            </label>
-
-            <!--
-              Cakupan bawaan sistem, mis. Wilayah Kerja Surabaya. Unitnya tidak
-              dicentang admin — daftarnya tertanam pada enum agar seluruh
-              penyelenggara memakai susunan yang sama.
-            -->
-            <label
-              v-for="pilihan in cakupan_tertanam"
-              :key="pilihan.nilai"
-              class="flex items-center gap-2 text-sm text-utama"
-            >
-              <input
-                v-model="form.cakupan"
-                type="radio"
-                :value="pilihan.nilai"
-                class="text-aksen focus:ring-aksen"
-              />
-              {{ pilihan.label }}
-            </label>
-          </div>
-
-          <div
-            v-if="memilihUnit"
-            class="mt-2 max-h-48 space-y-1.5 overflow-y-auto rounded-md border border-garis p-3"
-          >
-            <label
-              v-for="unit in unit_kerja"
-              :key="unit.id"
-              class="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-sm text-utama transition hover:bg-permukaan-hover"
-            >
-              <input
-                v-model="form.unit_kerja_id"
-                type="checkbox"
-                :value="unit.id"
-                class="h-4 w-4 rounded border-garis text-aksen focus:ring-aksen"
-              />
-              <span class="font-display text-xs tabular-nums text-redup">{{ unit.kode }}</span>
-              <span>{{ unit.nama }}</span>
-            </label>
-            <p v-if="unit_kerja.length === 0" class="px-1.5 py-1 text-xs text-redup">
-              Belum ada unit kerja aktif yang dapat dipilih.
-            </p>
-          </div>
-
-          <p
-            v-else-if="semuaUnit"
-            class="mt-2 flex items-start gap-2 rounded-md bg-info-lembut px-3 py-2 text-xs text-utama"
-          >
-            <Ikon nama="info" ukuran="h-4 w-4" class="mt-px shrink-0" />
-            Event berlaku untuk seluruh unit kerja, termasuk unit yang ditambahkan setelah event ini
-            dibuat.
-          </p>
-
-          <div v-else class="mt-2 rounded-md bg-info-lembut px-3 py-2.5 text-xs text-utama">
-            <p class="flex items-start gap-2">
-              <Ikon nama="info" ukuran="h-4 w-4" class="mt-px shrink-0" />
-              <span>
-                {{ tertananDipilih.label }} mencakup {{ tertananDipilih.unit_kerja.length }} unit
-                kerja berikut. Daftarnya ditentukan sistem dan tidak dapat diubah dari sini.
-              </span>
-            </p>
-
-            <ul class="mt-2 space-y-1 pl-6">
-              <li v-for="unit in tertananDipilih.unit_kerja" :key="unit.id" class="flex gap-2">
-                <span class="font-display tabular-nums text-redup">{{ unit.kode }}</span>
-                <span>{{ unit.nama }}</span>
-              </li>
-            </ul>
-          </div>
-
-          <p v-if="form.errors.cakupan" class="mt-1 text-xs text-peringatan-teks">
-            {{ form.errors.cakupan }}
-          </p>
-          <p v-if="form.errors.unit_kerja_id" class="mt-1 text-xs text-peringatan-teks">
-            {{ form.errors.unit_kerja_id }}
-          </p>
-        </div>
+        <!--
+          Cakupan tidak lagi dipilih siapa pun: sejak S49 setiap event berlaku
+          bagi seluruh dinas (FR-EVT-01). Yang tersisa adalah menyatakannya,
+          supaya admin yang terbiasa mencentang unit tahu ke mana pilihan itu
+          pergi — bukan mengira ia lupa mengisinya.
+        -->
+        <p class="flex items-start gap-2 rounded-md bg-info-lembut px-3 py-2.5 text-xs text-utama">
+          <Ikon nama="info" ukuran="h-4 w-4" class="mt-px shrink-0" />
+          <span>
+            Event ini berlaku bagi <strong>seluruh unit kerja</strong> Disnakertrans — termasuk unit
+            yang ditambahkan setelah event dibuat. Unit kerja hanya dipakai untuk menyaring dan
+            mengelompokkan rekap serta laporannya.
+          </span>
+        </p>
 
         <div>
           <label for="catatan" class="block text-sm font-medium text-utama"

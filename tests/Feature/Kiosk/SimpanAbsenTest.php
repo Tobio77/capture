@@ -342,26 +342,31 @@ class SimpanAbsenTest extends TestCase
     }
 
     #[Test]
-    public function pegawai_di_luar_cakupan_event_tidak_dapat_diabsenkan(): void
+    public function pegawai_unit_lain_dapat_diabsenkan_pada_kegiatan_yang_sama(): void
     {
         /*
-         * Penjaga perbaikan H-1. Sebelumnya `kenali()` mencari ke SELURUH
-         * tabel pegawai dan `catat()` tidak pernah memeriksa cakupan, sehingga
-         * perangkat di satu UPT dapat mencatatkan kehadiran pegawai UPT lain
-         * pada eventnya sendiri.
+         * Inti poin 2 revisi S49, dan pelonggaran yang DISENGAJA atas
+         * perbaikan H-1: sampai S48 kasus ini menguji kebalikannya, sebab
+         * event dibuka per unit dan perangkat satu UPT tidak boleh mencatatkan
+         * kehadiran pegawai UPT lain.
+         *
+         * Setiap event kini berlaku bagi seluruh dinas — pegawai UPT mana pun
+         * yang hadir di ruangan itu memang berhak mencatat kehadirannya, dan
+         * rekapnya membedakan mereka lewat kolom unit kerja.
          */
         $unitLain = UnitKerja::factory()->create(['kode' => 'BLK-MJK']);
 
-        Pegawai::factory()->create([
+        $tamu = Pegawai::factory()->create([
             'nip' => '199001012020011009',
             'unit_kerja_id' => $unitLain->id,
         ]);
 
-        $this->kirim(['id_card' => '199001012020011009'])
-            ->assertForbidden()
-            ->assertJson(['code' => 'DI_LUAR_CAKUPAN']);
+        $this->kirim(['id_card' => '199001012020011009'])->assertOk();
 
-        $this->assertDatabaseCount('absensi', 0);
+        $this->assertDatabaseHas('absensi', [
+            'pegawai_id' => $tamu->id,
+            'event_absen_id' => $this->event->id,
+        ]);
     }
 
     #[Test]
@@ -455,15 +460,30 @@ class SimpanAbsenTest extends TestCase
     }
 
     #[Test]
-    public function kiosk_unit_lain_tidak_dapat_mengambil_foto_absen(): void
+    public function foto_absen_umum_tidak_dapat_dibuka_dari_layar_absen_event(): void
     {
-        $absensi = $this->absensiBerfoto();
+        /*
+         * Pagar fotonya adalah EVENT YANG SEDANG DILAYANI titik absen, bukan
+         * unit perangkatnya. Sampai S48 keduanya nyaris sama artinya — event
+         * dibuka per unit — sehingga kasus ini menguji perangkat unit lain;
+         * sejak setiap event berlaku bagi seluruh dinas, perangkat unit lain
+         * memang melayani event yang sama dan berhak atas fotonya.
+         *
+         * Yang tersisa, dan justru yang penting, adalah pemisahan antar-jalur:
+         * foto sebuah tap absen umum tidak boleh terbuka lewat alamat Absen
+         * Event, sebab dua layar itu melayani sesi yang berbeda.
+         */
+        $sesiUmum = EventAbsen::factory()->umum()->create(['kunci_sesi' => 'umum:'.now()->toDateString()]);
 
-        // Perangkat di unit lain tidak berkepentingan atas foto kehadiran ini.
-        $unitLain = UnitKerja::factory()->create(['kode' => 'BLK-MJK']);
-        Kiosk::factory()->diaktifkan('token-kiosk-lain')->create(['unit_kerja_id' => $unitLain->id]);
+        Storage::disk(AbsensiService::DISK)->put('foto-absen/umum.jpg', 'biner-jpeg');
 
-        $this->withCookie(KioskService::NAMA_COOKIE, 'token-kiosk-lain')
+        $absensi = Absensi::factory()->create([
+            'event_absen_id' => $sesiUmum->id,
+            'pegawai_id' => $this->pegawai->id,
+            'foto_path' => 'foto-absen/umum.jpg',
+        ]);
+
+        $this->denganToken()
             ->get("/kiosk/event/absen/{$absensi->id}/foto")
             ->assertForbidden();
     }

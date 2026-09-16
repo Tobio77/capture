@@ -21,9 +21,13 @@ use Inertia\Response;
  * Satu controller melayani dua mode, dan modenya ditentukan alamat yang
  * dibuka, bukan keadaan basis data (revisi S29):
  *
- *   - `/kiosk/event` hanya terbuka bagi perangkat yang sudah bergabung ke
- *     sebuah event lewat kode unit kerja (FR-EVT-03). Yang belum bergabung
- *     dipulangkan ke beranda, bukan disuguhi layar kosong yang tampak rusak.
+ *   - `/kiosk/event` terbuka selama ada kegiatan yang sedang dibuka. Sejak
+ *     S49 tidak ada lagi kode per event yang harus ditukarkan lebih dahulu:
+ *     event berlaku bagi seluruh dinas, sehingga setiap perangkat yang sudah
+ *     dikenali langsung melayaninya, dan keanggotaannya beserta alamat IP
+ *     tercatat saat layar ini dibuka (FR-EVT-03, FR-EVT-05). Tanpa kegiatan
+ *     yang dibuka, perangkat dipulangkan ke beranda — bukan disuguhi layar
+ *     kosong yang tampak rusak.
  *   - `/kiosk/umum` selalu terbuka. Sesi hariannya boleh saja belum ada — dan
  *     memang tidak dibuat hanya karena layarnya dibuka, sebab perangkat yang
  *     menyala sepanjang hari libur tidak boleh meninggalkan sesi kosong yang
@@ -49,13 +53,14 @@ class LayarKioskController extends Controller
         if ($mode === TitikAbsenService::MODE_EVENT && $event === null) {
             return redirect()
                 ->route('beranda')
-                ->with('gagal', 'Perangkat ini belum bergabung ke event mana pun. Masukkan kode unit kerja dari admin penyelenggara.');
+                ->with('gagal', 'Belum ada kegiatan yang dibuka. Absen Umum tetap dapat dipakai.');
         }
 
         /*
-         * FR-EVT-03: perangkat yang membuka layar sebuah event sudah terhitung
-         * aktif, tidak perlu menunggu tap pertama. Ini hanya memperbarui jejak
-         * — keanggotaannya sendiri sudah lahir saat kode ditukarkan.
+         * FR-EVT-03, FR-EVT-05: perangkat yang membuka layar sebuah event
+         * sudah terhitung melayaninya, tidak perlu menunggu tap pertama.
+         * Barisnya lahir di sini — beserta unit asal dan alamat IP-nya —
+         * sebab sejak S49 tidak ada lagi penukaran kode yang mendahuluinya.
          */
         if ($mode === TitikAbsenService::MODE_EVENT && $kiosk !== null) {
             $this->event->catatKioskAktif($event, $kiosk, $request->ip());
@@ -84,7 +89,7 @@ class LayarKioskController extends Controller
              * Hanya untuk mode umum: kegiatan tidak mengenal jendela jam.
              */
             'status_jendela' => $mode === TitikAbsenService::MODE_UMUM
-                ? collect($this->absenUmum->statusSemua($kiosk?->unit_kerja_id, $event))->map(fn ($s) => $s->untukLayar())
+                ? collect($this->absenUmum->statusSemua($event))->map(fn ($s) => $s->untukLayar())
                 : null,
 
             /*

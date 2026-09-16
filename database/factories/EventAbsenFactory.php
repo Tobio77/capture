@@ -26,16 +26,15 @@ class EventAbsenFactory extends Factory
             'tanggal' => fake()->dateTimeBetween('-30 days', '+30 days')->format('Y-m-d'),
             'jam_mulai' => '07:30',
             'toleransi_menit' => 15,
-            'cakupan' => CakupanEvent::Unit,
+
+            // Sejak S49 setiap event berlaku bagi seluruh dinas; kolomnya
+            // hanya masih ada untuk membaca event lama (lihat EventAbsen).
+            'cakupan' => CakupanEvent::SemuaUnit,
+
             'status' => StatusEvent::Aktif,
             'dibuat_oleh' => User::factory(),
             'catatan' => null,
         ];
-    }
-
-    public function semuaUnit(): static
-    {
-        return $this->state(fn (array $attributes) => ['cakupan' => CakupanEvent::SemuaUnit]);
     }
 
     /**

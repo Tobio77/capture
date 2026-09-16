@@ -23,7 +23,7 @@ test.describe('Rekap Absen', () => {
     await siapkanUntukTapKiosk(page)
     await bukaPaksaAbsenUmum(page, UNIT_KERJA.blkSurabaya.nama)
 
-    const kiosk = await daftarkanDanAktifkanKiosk(page, context, UNIT_KERJA.blkSurabaya.nama)
+    const kiosk = await daftarkanDanAktifkanKiosk(page, context, UNIT_KERJA.blkSurabaya.kode)
     await kiosk.getByRole('button', { name: 'Absen Umum' }).click()
     await expect(kiosk).toHaveURL(/\/kiosk\/umum/)
 
@@ -68,7 +68,6 @@ test.describe('Rekap Absen', () => {
     await page.getByLabel('Nama Event').fill(namaEvent)
     await pilihTanggalHariIni(page, 'tanggal')
     await page.getByLabel('Jam Mulai').fill('00:00')
-    await page.getByLabel('Semua unit').check()
     await page.getByRole('button', { name: 'Simpan Event' }).click()
     await expect(page.getByRole('row', { name: new RegExp(namaEvent) })).toBeVisible()
 

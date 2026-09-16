@@ -82,10 +82,15 @@ class LaporanTest extends TestCase
     }
 
     #[Test]
-    public function event_unit_lain_tidak_dihitung_sebagai_tanpa_keterangan(): void
+    public function setiap_event_berlaku_bagi_pegawai_unit_mana_pun(): void
     {
-        // Pegawai tidak dapat dianggap mangkir dari event yang memang bukan
-        // untuk unitnya.
+        /*
+         * Sejak S49 tidak ada lagi event "milik" sebuah unit: setiap kegiatan
+         * berlaku bagi seluruh dinas, sehingga pegawai unit mana pun yang
+         * tidak hadir terhitung tanpa keterangan padanya. Sebelum perubahan
+         * itu, kasus ini justru menguji kebalikannya — pegawai tidak boleh
+         * dianggap mangkir dari event yang bukan untuk unitnya.
+         */
         ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
         $pegawai = Pegawai::factory()->create(['unit_kerja_id' => $upt->id]);
 
@@ -95,11 +100,10 @@ class LaporanTest extends TestCase
         $this->actingAs(User::factory()->superadmin()->create())
             ->get(self::URL.'?dari=2026-09-01&sampai=2026-09-30')
             ->assertInertia(fn (Assert $page) => $page
-                ->where('baris.data.0.event_berlaku', 1)
-                ->where('baris.data.0.tanpa_keterangan', 1)
+                ->where('baris.data.0.pegawai_id', $pegawai->id)
+                ->where('baris.data.0.event_berlaku', 2)
+                ->where('baris.data.0.tanpa_keterangan', 2)
                 ->etc());
-
-        $this->assertSame(1, Pegawai::whereKey($pegawai->id)->count());
     }
 
     #[Test]
@@ -109,7 +113,7 @@ class LaporanTest extends TestCase
         Pegawai::factory()->create(['unit_kerja_id' => $upt->id]);
         Pegawai::factory()->create(['unit_kerja_id' => $lain->id]);
 
-        EventAbsen::factory()->semuaUnit()->create(['tanggal' => '2026-09-01']);
+        EventAbsen::factory()->create(['tanggal' => '2026-09-01']);
 
         $this->actingAs(User::factory()->superadmin()->create())
             ->get(self::URL.'?dari=2026-09-01&sampai=2026-09-30')

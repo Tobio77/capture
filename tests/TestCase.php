@@ -5,7 +5,7 @@ namespace Tests;
 use App\Models\EventAbsen;
 use App\Models\Kiosk;
 use App\Services\CaptchaHitungService;
-use App\Services\KodeUnitEventService;
+use App\Services\EventAbsenService;
 use App\Services\SettingAbsenService;
 use App\Support\PengaturanRepository;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
@@ -28,23 +28,19 @@ abstract class TestCase extends BaseTestCase
     }
 
     /**
-     * Gabungkan sebuah perangkat ke event, seperti setelah kode unit kerja
-     * ditukarkan (FR-EVT-03).
+     * Catat perangkat sebagai pelayan sebuah event, seperti setelah ia membuka
+     * layar Absen Event (FR-EVT-03, FR-EVT-05).
      *
-     * Sejak revisi S29, perangkat tidak lagi melayani sebuah event hanya
-     * karena unitnya tercakup: keanggotaannya harus dinyatakan lebih dahulu.
-     * Pengujian yang menguji apa yang terjadi SETELAH perangkat melayani event
-     * memakai jalan pintas ini; yang menguji penggabungannya sendiri menukar
-     * kodenya sungguhan lewat `/kiosk/event/gabung`.
+     * Sejak S49 keanggotaan tidak lagi menentukan boleh-tidaknya perangkat
+     * melayani kegiatan — event berlaku bagi seluruh dinas, sehingga setiap
+     * perangkat yang dikenali langsung melayaninya. Yang dicatat baris ini
+     * hanyalah jejaknya: perangkat mana, dari unit mana, dari alamat berapa.
+     * Pengujian yang memeriksa jejak itu memakai jalan pintas ini alih-alih
+     * membuka layarnya lebih dahulu.
      */
-    protected function gabungkanKeEvent(EventAbsen $event, Kiosk $kiosk, ?int $unitKerjaId = null): void
+    protected function gabungkanKeEvent(EventAbsen $event, Kiosk $kiosk): void
     {
-        app(KodeUnitEventService::class)->catatKeanggotaan(
-            $event,
-            $kiosk,
-            $unitKerjaId ?? $kiosk->unit_kerja_id,
-            '127.0.0.1',
-        );
+        app(EventAbsenService::class)->catatKioskAktif($event, $kiosk, '127.0.0.1');
     }
 
     /**

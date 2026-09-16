@@ -24,17 +24,15 @@ const cakupan = computed(() =>
 const aktif = (rute) => ruteSaatIni.value === rute
 
 /*
- * FR-SET-06: selama Mode Terbuka menyala, perangkat mana pun dapat masuk
- * tanpa kode. Peringatannya sengaja dipasang di kerangka halaman, bukan di
- * satu layar saja — mode ini gampang dinyalakan untuk satu kegiatan lalu
- * terlupakan, dan justru itulah yang berbahaya.
- */
-const modeTerbuka = computed(() => page.props.mode_terbuka === true)
-
-/*
- * Pasangan Mode Terbuka, dan yang lebih berat dari keduanya. Sampai audit
- * pra-deploy, sakelar ini tidak punya peringatan apa pun — padahal ia yang
- * menentukan apakah kehadiran benar-benar dibuktikan wajah.
+ * Peringatannya sengaja dipasang di kerangka halaman, bukan di satu layar
+ * saja — sakelar ini gampang dimatikan untuk satu kegiatan lalu terlupakan,
+ * dan justru itulah yang berbahaya. Sampai audit pra-deploy ia tidak punya
+ * peringatan apa pun, padahal ia yang menentukan apakah kehadiran
+ * benar-benar dibuktikan wajah.
+ *
+ * Spanduk "Mode Terbuka" yang dulu berdampingan di sini sudah tidak ada:
+ * jalur masuk bawaan perangkat kini selalu menuntut kode unit kerja, sehingga
+ * tidak ada lagi keadaan yang perlu diperingatkan (lihat KodeUnitService).
  */
 const verifikasiWajahMati = computed(() => page.props.verifikasi_wajah_mati === true)
 
@@ -240,10 +238,10 @@ const keluar = () => router.post('/keluar')
         <!--
           Peringatan verifikasi wajah MATI; terlihat di setiap halaman admin.
 
-          Rose, bukan amber, dan berdiri di atas Mode Terbuka: selama sakelar
-          ini mati, kehadiran tidak dibuktikan wajah sama sekali — cukup
-          menyebut NIP. Amber berarti "berlanjut, tetapi catat"; ini "sistem
-          sedang tidak membuktikan apa pun".
+          Rose, bukan amber: selama sakelar ini mati, kehadiran tidak
+          dibuktikan wajah sama sekali — cukup menyebut NIP. Amber berarti
+          "berlanjut, tetapi catat"; ini "sistem sedang tidak membuktikan apa
+          pun".
         -->
         <div
           v-if="verifikasiWajahMati"
@@ -262,27 +260,6 @@ const keluar = () => router.post('/keluar')
             class="tautan-aksi inline-flex shrink-0 items-center gap-1.5 rounded-md border border-galat px-3 py-2 text-xs font-semibold text-galat-teks transition hover:bg-galat-lembut active:scale-95"
           >
             <Ikon nama="filter" ukuran="h-3.5 w-3.5" /> Nyalakan
-          </Link>
-        </div>
-
-        <!-- Peringatan Mode Terbuka; terlihat di setiap halaman admin. -->
-        <div
-          v-if="modeTerbuka"
-          class="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-peringatan bg-peringatan-lembut px-4 py-3 print:hidden"
-        >
-          <p class="flex items-start gap-2 text-sm text-peringatan-teks">
-            <Ikon nama="peringatan" ukuran="h-5 w-5 shrink-0" />
-            <span>
-              <span class="font-semibold">Mode Terbuka Aktif</span> — perangkat tidak perlu
-              registrasi dan dapat mengabsen tanpa kode aktivasi. Gunakan hanya untuk kebutuhan
-              darurat, dan jangan lupa nonaktifkan kembali.
-            </span>
-          </p>
-          <Link
-            href="/admin/kelola-absen/setting"
-            class="tautan-aksi inline-flex shrink-0 items-center gap-1.5 rounded-md border border-peringatan px-3 py-2 text-xs font-semibold text-peringatan-teks transition hover:bg-peringatan-lembut active:scale-95"
-          >
-            <Ikon nama="filter" ukuran="h-3.5 w-3.5" /> Nonaktifkan
           </Link>
         </div>
 

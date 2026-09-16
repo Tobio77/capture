@@ -11,7 +11,7 @@ use App\Models\UnitKerja;
 use App\Models\User;
 use App\Services\AbsensiService;
 use App\Services\KioskService;
-use App\Services\KodeUnitEventService;
+use App\Services\KodeUnitService;
 use App\Services\SettingAbsenService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
@@ -60,24 +60,25 @@ class AlurAbsensiTest extends TestCase
     }
 
     /**
-     * Daftarkan perangkat lewat panel admin, lalu tukarkan kode aktivasinya
-     * dengan device token — persis seperti petugas di lokasi.
+     * Hubungkan sebuah komputer sebagai titik absen dengan mengetikkan kode
+     * unit kerjanya — jalur bawaan sejak S49, persis seperti petugas di lokasi.
+     *
+     * Kodenya dikirim dalam bentuk berpasangan empat ("7K4M-92XQ"), bentuk
+     * yang dibacakan admin, sekaligus membuktikan tanda hubungnya dinormalkan
+     * server. `$ip` membedakan satu perangkat dari lainnya: namanya dirakit
+     * dari kode unit dan alamat itu.
      */
-    protected function pasangPerangkat(string $namaTitik = 'Aula Utama'): Kiosk
+    protected function pasangPerangkat(string $ip = '10.10.4.21'): Kiosk
     {
-        $this->actingAs($this->superadmin)
-            ->post('/admin/perangkat', [
-                'nama_titik' => $namaTitik,
-                'unit_kerja_id' => $this->upt->id,
-            ])
-            ->assertSessionHas('kode_aktivasi');
+        $kode = KodeUnitService::format($this->upt->fresh()->kode_perangkat);
 
-        $kode = session('kode_aktivasi')['kode'];
+        $this->flushSession();
 
-        $this->post('/kiosk/aktivasi', ['kode_aktivasi' => $kode])
+        $this->withServerVariables(['REMOTE_ADDR' => $ip])
+            ->post('/kiosk/aktivasi/unit', ['kode' => $kode])
             ->assertRedirect('/');
 
-        return Kiosk::query()->where('nama_titik', $namaTitik)->sole();
+        return Kiosk::query()->where('ip_terakhir', $ip)->latest('id')->sole();
     }
 
     protected function denganPerangkat(Kiosk $perangkat): static
@@ -99,32 +100,11 @@ class AlurAbsensiTest extends TestCase
                 'tanggal' => '2026-09-07',
                 'jam_mulai' => $jamMulai,
                 'toleransi_menit' => $toleransi,
-                'cakupan' => 'unit',
-                'unit_kerja_id' => [$this->upt->id],
                 'catatan' => null,
             ])
             ->assertSessionHas('sukses');
 
-        return EventAbsen::query()->latest('id')->sole();
-    }
-
-    /**
-     * Gabungkan perangkat ke event dengan menukarkan kode unit kerjanya —
-     * persis seperti petugas di lokasi (FR-EVT-03).
-     *
-     * Kodenya dikirim dalam bentuk berpasangan empat ("7K4M-92XQ"), bentuk
-     * yang dibacakan admin, sekaligus membuktikan tanda hubungnya dinormalkan
-     * server.
-     */
-    protected function gabungkan(Kiosk $perangkat, ?EventAbsen $event = null): void
-    {
-        $event ??= EventAbsen::query()->latest('id')->sole();
-
-        $kode = $event->kodeUnit()->where('unit_kerja_id', $this->upt->id)->sole();
-
-        $this->denganPerangkat($perangkat)
-            ->post('/kiosk/event/gabung', ['kode' => KodeUnitEventService::format($kode->kode)])
-            ->assertRedirect('/kiosk/event');
+        return EventAbsen::query()->kegiatan()->latest('id')->sole();
     }
 
     /**
@@ -140,13 +120,12 @@ class AlurAbsensiTest extends TestCase
     }
 
     #[Test]
-    public function alur_penuh_dari_pendaftaran_perangkat_sampai_rekap(): void
+    public function alur_penuh_dari_perangkat_dikenali_sampai_rekap(): void
     {
         $this->travelTo('2026-09-07 07:20:00');
 
         $perangkat = $this->pasangPerangkat();
         $event = $this->buatEvent();
-        $this->gabungkan($perangkat, $event);
 
         $pegawai = Pegawai::factory()->create([
             'nip' => '199001012020011001',
@@ -216,7 +195,6 @@ class AlurAbsensiTest extends TestCase
          */
         $perangkat = $this->pasangPerangkat();
         $this->buatEvent(jamMulai: '07:30', toleransi: 15);
-        $this->gabungkan($perangkat);
 
         $pegawai = Pegawai::factory()->create([
             'nip' => '199001012020011001',
@@ -235,7 +213,6 @@ class AlurAbsensiTest extends TestCase
     {
         $perangkat = $this->pasangPerangkat();
         $this->buatEvent(jamMulai: '07:30', toleransi: 15);
-        $this->gabungkan($perangkat);
 
         $pegawai = Pegawai::factory()->create([
             'nip' => '199001012020011001',
@@ -255,7 +232,6 @@ class AlurAbsensiTest extends TestCase
         // Event tanpa toleransi: tepat berarti tepat pada jam mulai.
         $perangkat = $this->pasangPerangkat();
         $this->buatEvent(jamMulai: '07:30', toleransi: 0);
-        $this->gabungkan($perangkat);
 
         /*
          * Dua pegawai, bukan satu yang men-tap dua kali: sejak revisi
@@ -294,15 +270,9 @@ class AlurAbsensiTest extends TestCase
         // Daftar e-Presensi titik lainnya.
         $this->travelTo('2026-09-07 07:35:00');
 
-        $aula = $this->pasangPerangkat('Aula Utama');
-        $lobi = $this->pasangPerangkat('Lobi Depan');
+        $aula = $this->pasangPerangkat('10.10.4.21');
+        $lobi = $this->pasangPerangkat('10.10.4.22');
         $event = $this->buatEvent();
-
-        // Satu unit kerap membuka beberapa meja registrasi pada kegiatan yang
-        // sama, sehingga satu kode boleh ditukarkan lebih dari satu perangkat
-        // (FR-EVT-03).
-        $this->gabungkan($aula, $event);
-        $this->gabungkan($lobi, $event);
 
         $pegawai = Pegawai::factory()->create([
             'nip' => '199001012020011001',
@@ -325,7 +295,6 @@ class AlurAbsensiTest extends TestCase
 
         $perangkat = $this->pasangPerangkat();
         $this->buatEvent();
-        $this->gabungkan($perangkat);
 
         $pegawai = Pegawai::factory()->create([
             'nip' => '199001012020011001',
@@ -354,7 +323,6 @@ class AlurAbsensiTest extends TestCase
     {
         $perangkat = $this->pasangPerangkat();
         $event = $this->buatEvent();
-        $this->gabungkan($perangkat, $event);
 
         $pegawai = Pegawai::factory()->create([
             'nip' => '199001012020011001',
@@ -381,7 +349,7 @@ class AlurAbsensiTest extends TestCase
     }
 
     #[Test]
-    public function event_baru_pada_unit_yang_sama_tertahan_sampai_event_lama_ditutup(): void
+    public function event_baru_tertahan_sampai_event_lama_ditutup(): void
     {
         // FR-EVT-06 dari ujung ke ujung.
         $this->pasangPerangkat();
@@ -393,11 +361,9 @@ class AlurAbsensiTest extends TestCase
                 'tanggal' => '2026-09-07',
                 'jam_mulai' => '16:00',
                 'toleransi_menit' => 15,
-                'cakupan' => 'unit',
-                'unit_kerja_id' => [$this->upt->id],
                 'catatan' => null,
             ])
-            ->assertSessionHasErrors('cakupan');
+            ->assertSessionHasErrors('nama');
 
         $this->actingAs($this->superadmin)->post("/admin/kelola-absen/event/{$event->id}/tutup");
 
@@ -407,8 +373,6 @@ class AlurAbsensiTest extends TestCase
                 'tanggal' => '2026-09-07',
                 'jam_mulai' => '16:00',
                 'toleransi_menit' => 15,
-                'cakupan' => 'unit',
-                'unit_kerja_id' => [$this->upt->id],
                 'catatan' => null,
             ])
             ->assertSessionHas('sukses');
@@ -422,7 +386,6 @@ class AlurAbsensiTest extends TestCase
         // Dua pegawai, satu event, satu hadir — yang lain tanpa keterangan.
         $perangkat = $this->pasangPerangkat();
         $this->buatEvent();
-        $this->gabungkan($perangkat);
 
         $hadir = Pegawai::factory()->create([
             'nip' => '199001012020011001',

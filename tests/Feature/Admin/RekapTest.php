@@ -106,7 +106,7 @@ class RekapTest extends TestCase
          * hanya pegawai unitnya sendiri.
          */
         ['upt' => $upt, 'lain' => $lain, 'seksi' => $seksi] = $this->hirarki();
-        $event = EventAbsen::factory()->semuaUnit()->create(['nama' => 'Apel Gabungan']);
+        $event = EventAbsen::factory()->create(['nama' => 'Apel Gabungan']);
 
         $milikSendiri = Pegawai::factory()->create(['nama' => 'Ahmad', 'unit_kerja_id' => $upt->id]);
         $dariSeksi = Pegawai::factory()->create(['nama' => 'Budi', 'unit_kerja_id' => $seksi->id]);
@@ -127,30 +127,56 @@ class RekapTest extends TestCase
     }
 
     #[Test]
-    public function admin_upt_tidak_dapat_membuka_rekap_event_unit_lain(): void
+    public function admin_upt_dapat_membuka_rekap_event_mana_pun_tetapi_isinya_tersaring(): void
     {
+        /*
+         * Sejak S49 setiap event berlaku bagi seluruh dinas, sehingga tidak
+         * ada event yang "bukan urusan" sebuah UPT — pegawainya justru berhak
+         * hadir di dalamnya. Yang dibatasi peran adalah ISI rekapnya, bukan
+         * aksesnya (FR-REK-02). Sebelum perubahan itu, kasus ini menguji
+         * kebalikannya: halaman jatuh ke keadaan tanpa event sama sekali.
+         */
         ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
         $event = EventAbsen::factory()->create();
-        $event->unitKerja()->attach($lain);
 
-        // Event yang tidak menyentuh unitnya sama sekali tidak dapat dipilih;
-        // halaman jatuh ke keadaan tanpa event.
+        foreach ([['Ahmad', $upt], ['Citra', $lain]] as [$nama, $unit]) {
+            Absensi::factory()->create([
+                'event_absen_id' => $event->id,
+                'pegawai_id' => Pegawai::factory()->create([
+                    'nama' => $nama,
+                    'unit_kerja_id' => $unit->id,
+                ])->id,
+            ]);
+        }
+
         $this->actingAs(User::factory()->adminUpt($upt)->create())
             ->get(self::URL."?event_absen_id={$event->id}")
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->where('event', null)->etc());
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('event.id', $event->id)
+                ->has('rekap', 1)
+                ->where('rekap.0.nama', 'Ahmad')
+                ->etc());
     }
 
     #[Test]
-    public function endpoint_data_menolak_event_di_luar_cakupan(): void
+    public function endpoint_data_menyaring_isinya_mengikuti_peran(): void
     {
         ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
         $event = EventAbsen::factory()->create();
-        $event->unitKerja()->attach($lain);
+
+        Absensi::factory()->create([
+            'event_absen_id' => $event->id,
+            'pegawai_id' => Pegawai::factory()->create([
+                'nama' => 'Citra',
+                'unit_kerja_id' => $lain->id,
+            ])->id,
+        ]);
 
         $this->actingAs(User::factory()->adminUpt($upt)->create())
             ->getJson(self::URL."/{$event->id}/data")
-            ->assertForbidden();
+            ->assertOk()
+            ->assertJsonCount(0, 'rekap');
     }
 
     #[Test]
@@ -286,7 +312,7 @@ class RekapTest extends TestCase
     {
         // FR-REK-02 berlaku pada berkas unduhan juga, bukan hanya di layar.
         ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
-        $event = EventAbsen::factory()->semuaUnit()->create();
+        $event = EventAbsen::factory()->create();
 
         foreach ([['Ahmad', $upt], ['Citra', $lain]] as [$nama, $unit]) {
             Absensi::factory()->create([
@@ -308,15 +334,31 @@ class RekapTest extends TestCase
     }
 
     #[Test]
-    public function ekspor_rekap_ditolak_untuk_event_di_luar_cakupan(): void
+    public function ekspor_rekap_admin_upt_hanya_memuat_pegawainya(): void
     {
+        /*
+         * FR-LAP-02. Berkasnya boleh diunduh — eventnya memang berlaku bagi
+         * unitnya juga — tetapi isinya mengikuti cakupan peran, sama seperti
+         * yang tampil di layar. Tidak ada jalan memperoleh baris di luar hak
+         * lewat endpoint ini.
+         */
         ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
         $event = EventAbsen::factory()->create();
-        $event->unitKerja()->attach($lain);
 
-        $this->actingAs(User::factory()->adminUpt($upt)->create())
+        Absensi::factory()->create([
+            'event_absen_id' => $event->id,
+            'pegawai_id' => Pegawai::factory()->create([
+                'nama' => 'Citra',
+                'unit_kerja_id' => $lain->id,
+            ])->id,
+        ]);
+
+        $isi = $this->actingAs(User::factory()->adminUpt($upt)->create())
             ->get(self::URL."/{$event->id}/ekspor")
-            ->assertForbidden();
+            ->assertOk()
+            ->streamedContent();
+
+        $this->assertStringNotContainsString('Citra', $isi);
     }
 
     #[Test]

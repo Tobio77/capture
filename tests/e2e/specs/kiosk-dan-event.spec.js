@@ -1,18 +1,18 @@
 import { test, expect } from '@playwright/test'
 import { BERKAS_AUTH } from '../auth-state.js'
 import { PEGAWAI_TANPA_WAJAH, UNIT_KERJA } from '../data.js'
-import { pilihDariDropdown, pilihTanggalHariIni } from '../helpers.js'
+import { pilihTanggalHariIni } from '../helpers.js'
 
 /**
- * Jalur kiosk lengkap: admin mendaftarkan perangkat → perangkat diaktifkan →
- * admin membuat event kegiatan → perangkat bergabung lewat kode unit kerja →
- * pegawai tap → daftar e-Presensi bertambah → admin menutup event.
+ * Jalur kiosk lengkap: admin membaca kode unit kerja → admin membuat event →
+ * perangkat dihubungkan dengan kode itu → pegawai tap → daftar e-Presensi
+ * bertambah → perangkat tercatat pada detail event → admin menutup event.
  *
  * Dijalankan sebagai SATU test happy-path berurutan (bukan dipecah per
  * langkah): setiap langkah butuh keadaan yang ditinggalkan langkah
- * sebelumnya (kode aktivasi, lalu kode unit kerja), dan memecahnya hanya
- * akan memindahkan fixture yang sama ke `beforeEach` tanpa menambah
- * keyakinan apa pun.
+ * sebelumnya (kode unit kerja, lalu event yang dibuka), dan memecahnya hanya
+ * akan memindahkan fixture yang sama ke `beforeEach` tanpa menambah keyakinan
+ * apa pun.
  *
  * **Cakupan verifikasi wajah**: pegawai yang di-tap sengaja
  * {@link PEGAWAI_TANPA_WAJAH} — TIDAK punya wajah terdaftar. Absennya
@@ -27,67 +27,52 @@ import { pilihDariDropdown, pilihTanggalHariIni } from '../helpers.js'
 test.describe('Kiosk: perangkat, event, dan tap', () => {
   test.use({ storageState: BERKAS_AUTH.superadmin })
 
-  test('perangkat aktif dapat bergabung ke event dan mencatat kehadiran', async ({
+  test('perangkat yang dikenali lewat kode unit langsung melayani kegiatan', async ({
     page,
     context,
   }) => {
-    const namaTitik = `E2E Titik Absen ${Date.now()}`
     const namaEvent = `E2E Kegiatan ${Date.now()}`
 
-    // 1. Admin mendaftarkan perangkat baru.
-    await page.goto('/admin/perangkat')
-    await page.getByRole('button', { name: 'Daftarkan Perangkat' }).click()
-    await page.getByLabel('Nama Titik Absen').fill(namaTitik)
-    await pilihDariDropdown(page, 'unit_form', UNIT_KERJA.blkSurabaya.nama)
-    await page.getByRole('button', { name: 'Simpan Perangkat' }).click()
+    // 1. Admin membaca kode perangkat BLK Surabaya di Setting Unit Kerja.
+    //    Sejak S49 kode inilah jalan masuk perangkat — tidak ada pendaftaran
+    //    per mesin, dan tidak ada kode per event yang harus ditukarkan.
+    await page.goto('/admin/kelola-absen/unit-kerja')
 
-    const kodeAktivasi = await page.locator('code').innerText()
-    expect(kodeAktivasi.trim()).toMatch(/^[A-Z0-9-]+$/)
+    const barisUnit = page.getByRole('row', { name: new RegExp(UNIT_KERJA.blkSurabaya.kode) })
+    await expect(barisUnit).toBeVisible()
 
-    // 2. Admin membuat event kegiatan berlaku untuk seluruh unit (termasuk
-    // BLK Surabaya, tempat perangkat di atas dipasang), berlangsung hari ini.
+    const kodeUnit = (await barisUnit.getByRole('cell').nth(2).innerText()).trim()
+    expect(kodeUnit).toMatch(/^[A-Z0-9]{4}-[A-Z0-9]{4}$/)
+
+    // 2. Admin membuat event kegiatan yang berlangsung hari ini. Tidak ada
+    //    pilihan cakupan: setiap event berlaku bagi seluruh unit kerja.
     await page.goto('/admin/kelola-absen/event')
     await page.getByRole('button', { name: 'Buat Event' }).click()
     await page.getByLabel('Nama Event').fill(namaEvent)
     await pilihTanggalHariIni(page, 'tanggal')
     await page.getByLabel('Jam Mulai').fill('00:00')
-    await page.getByLabel('Semua unit').check()
     await page.getByRole('button', { name: 'Simpan Event' }).click()
 
-    // Buka detail event untuk membaca kode unit kerja BLK Surabaya.
-    const barisEvent = page.getByRole('row', { name: new RegExp(namaEvent) })
-    await expect(barisEvent).toBeVisible()
-    await barisEvent.getByRole('button', { name: 'Detail' }).click()
-
-    const dialog = page.getByRole('dialog')
-    const barisKode = dialog.locator('li', {
-      has: page.getByText(UNIT_KERJA.blkSurabaya.kode, { exact: true }),
-    })
-    const kodeUnit = await barisKode.locator('p').first().innerText()
-    // Dialog punya DUA tombol bernama "Tutup": ikon-X di kepala (aria-label)
-    // dan tombol teks di kaki — kaki selalu terakhir dalam urutan DOM.
-    await dialog.getByRole('button', { name: 'Tutup', exact: true }).last().click()
+    await expect(page.getByRole('row', { name: new RegExp(namaEvent) })).toBeVisible()
 
     // 3. Matikan Verifikasi Wajah — lihat catatan cakupan di kepala berkas
-    // ini. Tanpa ini, tap Dewi (tanpa wajah terdaftar) akan ditolak server
-    // dengan WAJAH_BELUM_DIVERIFIKASI, sebab setting ini bawaannya menyala.
+    //    ini. Tanpa ini, tap Dewi (tanpa wajah terdaftar) akan ditolak server
+    //    dengan WAJAH_BELUM_DIVERIFIKASI, sebab setting ini bawaannya menyala.
     await page.goto('/admin/kelola-absen/setting')
     await page.getByLabel('Verifikasi Wajah').uncheck()
     await page.getByRole('button', { name: 'Simpan Setting' }).click()
     await expect(page.getByText('Setting Absen tersimpan.')).toBeVisible()
 
     // 4. Perangkat (konteks peramban terpisah — sesi kiosk tidak berbagi
-    // cookie sesi admin) diaktifkan dengan kode dari langkah 1.
+    //    cookie sesi admin) dihubungkan dengan kode unit dari langkah 1.
     const halamanKiosk = await context.newPage()
     await halamanKiosk.goto('/kiosk/aktivasi')
-    await halamanKiosk.getByLabel('Kode Aktivasi').fill(kodeAktivasi.trim())
-    await halamanKiosk.getByRole('button', { name: 'Aktifkan Perangkat' }).click()
+    await halamanKiosk.getByLabel('Kode Unit Kerja').fill(kodeUnit)
+    await halamanKiosk.getByRole('button', { name: 'Hubungkan Perangkat' }).click()
     await expect(halamanKiosk).toHaveURL(/\/$/)
 
-    // 5. Perangkat bergabung ke event lewat kode unit kerja.
+    // 5. Absen Event langsung terbuka — tidak ada langkah penukaran kode lagi.
     await halamanKiosk.getByRole('button', { name: /Absen Event/ }).click()
-    await halamanKiosk.getByLabel('Kode unit kerja').fill(kodeUnit.trim())
-    await halamanKiosk.getByRole('button', { name: 'Gabung ke Event' }).click()
     await expect(halamanKiosk).toHaveURL(/\/kiosk\/event/)
     await expect(halamanKiosk.getByText(namaEvent)).toBeVisible()
 
@@ -101,12 +86,22 @@ test.describe('Kiosk: perangkat, event, dan tap', () => {
     // tercatat, jadi cukup pastikan setidaknya satu benar-benar tampak.
     await expect(halamanKiosk.getByText(PEGAWAI_TANPA_WAJAH.nama).first()).toBeVisible()
 
-    // 7. Admin menutup event — konfirmasinya dialog `window.confirm()`
-    // bawaan peramban, bukan modal kustom (lihat `Event/Index.vue::tutup()`).
-    // Perangkat yang masih di layarnya melihat entry tertutup pada tarikan
-    // berikutnya (di luar cakupan test ini — cukup pastikan aksi tutupnya
-    // sendiri berhasil dari sisi admin).
+    // 7. Perangkatnya tercatat pada detail event beserta unit dan alamat IP —
+    //    jawaban atas "mesin mana saja yang dipakai pada kegiatan ini".
     await page.goto('/admin/kelola-absen/event')
+    await page
+      .getByRole('row', { name: new RegExp(namaEvent) })
+      .getByRole('button', { name: 'Detail' })
+      .click()
+
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByText(UNIT_KERJA.blkSurabaya.kode)).toBeVisible()
+    // Dialog punya DUA tombol bernama "Tutup": ikon-X di kepala (aria-label)
+    // dan tombol teks di kaki — kaki selalu terakhir dalam urutan DOM.
+    await dialog.getByRole('button', { name: 'Tutup', exact: true }).last().click()
+
+    // 8. Admin menutup event — konfirmasinya dialog `window.confirm()`
+    //    bawaan peramban, bukan modal kustom (lihat `Event/Index.vue::tutup()`).
     page.once('dialog', (dialogNative) => dialogNative.accept())
     await page
       .getByRole('row', { name: new RegExp(namaEvent) })
@@ -119,11 +114,11 @@ test.describe('Kiosk: perangkat, event, dan tap', () => {
     await halamanKiosk.close()
   })
 
-  test('kode aktivasi salah ditolak', async ({ context }) => {
+  test('kode unit kerja salah ditolak', async ({ context }) => {
     const halamanKiosk = await context.newPage()
     await halamanKiosk.goto('/kiosk/aktivasi')
-    await halamanKiosk.getByLabel('Kode Aktivasi').fill('SALAH-SALAH')
-    await halamanKiosk.getByRole('button', { name: 'Aktifkan Perangkat' }).click()
+    await halamanKiosk.getByLabel('Kode Unit Kerja').fill('ZZZZ-9999')
+    await halamanKiosk.getByRole('button', { name: 'Hubungkan Perangkat' }).click()
 
     await expect(halamanKiosk).toHaveURL(/\/kiosk\/aktivasi/)
     await halamanKiosk.close()

@@ -66,6 +66,16 @@ const kolom = computed(() => [
   { label: 'Jam Masuk', kelas: 'whitespace-nowrap' },
   { label: 'Jam Pulang', kelas: 'whitespace-nowrap' },
   { label: 'Metode' },
+
+  /*
+   * Perangkat dan alamat IP asal tap (S49). Jumlah komputer yang dipakai
+   * sebuah unit tidak dibatasi dan berubah dari hari ke hari, sehingga "dari
+   * mesin mana kehadiran ini masuk" adalah pertanyaan yang hanya terjawab di
+   * sini. Tidak ikut tercetak: lembar cetak sudah padat, dan pertanyaan itu
+   * ditanyakan saat menelusuri di layar, bukan saat menandatangani rekap.
+   */
+  { label: 'Perangkat', cetak: false },
+
   { label: 'Status' },
   ...(props.foto ? [{ label: 'Foto', cetak: false }] : []),
 ])
@@ -189,6 +199,19 @@ watch(
         </div>
       </td>
       <td class="px-4 py-2.5 text-sekunder">{{ isi.metode }}</td>
+      <td class="px-4 py-2.5 print:hidden">
+        <span
+          v-if="isi.perangkat"
+          class="block max-w-[12rem] truncate text-sekunder"
+          :title="isi.perangkat_unit ? `${isi.perangkat} — ${isi.perangkat_unit}` : isi.perangkat"
+        >
+          {{ isi.perangkat }}
+        </span>
+        <span v-else class="text-xs text-redup">Layar admin</span>
+        <span v-if="isi.ip_address" class="mt-0.5 block font-display text-xs tabular-nums text-redup">
+          {{ isi.ip_address }}
+        </span>
+      </td>
       <td class="px-4 py-2.5">
         <Lencana
           v-if="isi.status_ketepatan"

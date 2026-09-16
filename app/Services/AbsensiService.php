@@ -76,6 +76,13 @@ class AbsensiService
      * tap ulang berarti siapa pun dapat memindahkan jamnya sendiri hanya
      * dengan men-tap lagi.
      *
+     * `$ip` adalah alamat perangkat yang mengirimkan tap ini, disimpan pada
+     * barisnya sendiri alih-alih dibaca ulang dari `kiosk.ip_terakhir` saat
+     * rekap dirakit: kolom itu bergerak mengikuti keadaan terkini perangkat,
+     * dan rekap bulan lalu tidak boleh ikut berubah karenanya. Null bila tap
+     * datang dari layar absen di peramban admin, yang bukan perangkat titik
+     * absen.
+     *
      * @param  array<string, mixed>  $data
      *
      * @throws AbsenGandaException bila kehadiran jenis itu sudah tercatat
@@ -85,6 +92,7 @@ class AbsensiService
         Pegawai $pegawai,
         ?Kiosk $kiosk,
         array $data,
+        ?string $ip = null,
     ): Absensi {
         $jenis = JenisAbsen::from($data['jenis']);
 
@@ -103,6 +111,7 @@ class AbsensiService
                 'pegawai_id' => $pegawai->id,
                 'jenis' => $jenis,
                 'kiosk_id' => $kiosk?->id,
+                'ip_address' => $ip,
                 'metode' => MetodeAbsen::from($data['metode']),
                 'waktu' => $waktu,
                 'status_ketepatan' => $this->ketepatan($event, $jenis, $waktu),
@@ -285,8 +294,14 @@ class AbsensiService
      *
      * `$cakupanUnit` membatasi baris pada unit kerja tertentu (FR-REK-02).
      * Pembatasan itu berlaku pada **unit pegawai**, bukan cakupan event —
-     * sehingga Admin UPT yang membuka event bercakupan "semua unit" tetap
-     * hanya melihat pegawainya sendiri.
+     * sehingga Admin UPT yang membuka event yang berlaku bagi seluruh dinas
+     * tetap hanya melihat pegawainya sendiri.
+     *
+     * Sejak S49 tiap baris juga menyebut PERANGKAT yang melayani tap itu
+     * beserta alamat IP dan unit asalnya. Jumlah perangkat per unit tidak
+     * dibatasi — sebuah UPT boleh memakai tiga komputer hari ini dan empat
+     * besok — sehingga "dari mesin mana kehadiran ini masuk" adalah pertanyaan
+     * yang hanya rekap yang dapat menjawabnya.
      *
      * @param  array<int, int>|null  $cakupanUnit
      * @return Collection<int, array<string, mixed>>
@@ -294,7 +309,12 @@ class AbsensiService
     public function rekap(EventAbsen $event, ?array $cakupanUnit = null): Collection
     {
         return Absensi::query()
-            ->with(['pegawai:id,nip,nama,unit_kerja_id', 'pegawai.unitKerja:id,kode,nama'])
+            ->with([
+                'pegawai:id,nip,nama,unit_kerja_id',
+                'pegawai.unitKerja:id,kode,nama',
+                'kiosk:id,nama_titik,unit_kerja_id',
+                'kiosk.unitKerja:id,kode,nama',
+            ])
             ->where('event_absen_id', $event->id)
             ->when($cakupanUnit !== null, fn ($q) => $q->whereHas(
                 'pegawai',
@@ -325,6 +345,21 @@ class AbsensiService
                     'pulang_id' => $pulang?->id,
 
                     'metode' => $rujukan->metode->label(),
+
+                    /*
+                     * Perangkat yang melayani tap RUJUKAN — yaitu tap datang
+                     * bila ada, selebihnya tap pertama yang tercatat. Satu
+                     * baris rekap dapat menggabungkan dua tap dari dua mesin
+                     * berbeda (datang di lobi, pulang di ruang kerja); yang
+                     * ditampilkan adalah mesin kedatangannya, sebab itulah
+                     * tap yang dinilai tepat atau terlambat.
+                     */
+                    'perangkat' => $rujukan->kiosk?->nama_titik,
+                    'perangkat_unit' => $rujukan->kiosk?->unitKerja?->nama,
+
+                    // Alamat saat tap, bukan alamat perangkat hari ini.
+                    'ip_address' => $rujukan->ip_address,
+
                     'status_ketepatan' => $datang?->status_ketepatan?->value,
                     'status_label' => $datang?->status_ketepatan?->label(),
                     'skor_kecocokan_wajah' => $datang?->skor_kecocokan_wajah,

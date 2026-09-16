@@ -123,7 +123,7 @@ class KalenderKerjaTest extends TestCase
     {
         // Kebijakan "menandai" itu sendiri TIDAK dicabut — yang berubah
         // hanyalah jalan untuk sampai ke sana (perbaikan atas revisi di atas).
-        app(AbsenUmumService::class)->aturOverride($this->upt->id, OverrideAbsenUmum::Buka, $this->admin);
+        app(AbsenUmumService::class)->aturOverride(OverrideAbsenUmum::Buka, $this->admin);
 
         $this->tap()->assertOk();
 
@@ -289,7 +289,7 @@ class KalenderKerjaTest extends TestCase
     {
         $absenUmum = app(AbsenUmumService::class);
 
-        $tertutup = $absenUmum->status(JenisAbsen::Datang, $this->upt->id);
+        $tertutup = $absenUmum->status(JenisAbsen::Datang);
 
         $this->assertFalse($tertutup->terbuka);
         $this->assertSame('kalender', $tertutup->sumber);
@@ -297,9 +297,9 @@ class KalenderKerjaTest extends TestCase
         $this->assertStringContainsString('tertutup otomatis', $tertutup->keterangan());
 
         // Override tetap menang, dan alasan kalendernya tidak disembunyikan.
-        $sesi = $absenUmum->aturOverride($this->upt->id, OverrideAbsenUmum::Buka, $this->admin);
+        $sesi = $absenUmum->aturOverride(OverrideAbsenUmum::Buka, $this->admin);
 
-        $terbuka = $absenUmum->status(JenisAbsen::Datang, $this->upt->id, $sesi);
+        $terbuka = $absenUmum->status(JenisAbsen::Datang, $sesi);
 
         $this->assertTrue($terbuka->terbuka);
         $this->assertSame('override', $terbuka->sumber);

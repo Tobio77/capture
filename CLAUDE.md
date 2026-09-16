@@ -40,13 +40,34 @@ sesi tersebut di `05-TASK-Absensi.md`, lalu baca detail kebutuhannya di
 - Tipografi: Lexend untuk judul & angka, Inter untuk teks isi/antarmuka.
 - Referensi tampilan: prototipe React `AbsensiApp.jsx` (dua panel kiosk — Capture Foto/Entry Absen di kiri, Daftar e-Presensi live di kanan) dan struktur menu Panel Admin (Dashboard, Kelola Absen, Kelola Pegawai, Kelola User/Role, Laporan).
 
+## Absensi Berlaku Se-Dinas (revisi S49 — baca sebelum menyentuh event/absen umum)
+
+Sejak S49 **tidak ada lagi absen per unit kerja**. Absen Umum maupun Absen
+Event dibuka untuk Dinas Tenaga Kerja dan Transmigrasi secara keseluruhan, dan
+setiap pegawai dari unit mana pun berhak mengabsen padanya.
+
+- **Absen Umum** — satu sesi harian untuk seluruh dinas per tanggal, menyala
+  terus secara bawaan. Sakelarnya di Setting Absen menahan penerimaan tap,
+  bukan sesinya: mematikan lalu menyalakannya kembali melanjutkan sesi hari itu.
+- **Absen Event** — kegiatan yang dibuat admin dinas, dan hanya boleh ada satu
+  yang aktif pada satu waktu. Perangkat yang sudah dikenali langsung melayaninya
+  tanpa mengetik kode apa pun lagi.
+- **Unit kerja** hanya dipakai sebagai dimensi pembacaan: penyaring dan
+  pengelompokan pada Rekap dan Laporan, serta penanda asal perangkat.
+- **Kode perangkat unit kerja** — satu kode tetap per unit, dibaca dan diganti
+  di Setting → Unit Kerja. Sebuah komputer mengetikkannya sekali untuk dikenali
+  sebagai titik absen unit itu; alamat IP-nya tercatat pada tiap absensi.
+  Jumlah perangkat per unit tidak dibatasi.
+- **Mode Pendaftaran Perangkat** (jalur kode aktivasi per perangkat, S04)
+  dimatikan secara bawaan; fiturnya utuh dan dapat dinyalakan kembali.
+
 ## Peran Pengguna (ringkas — detail di PRD & SRS)
 
 | Peran | Cakupan |
 |---|---|
 | Superadmin | Semua unit kerja, semua menu |
-| Admin Dinas | Semua unit kerja, dapat buat event lintas unit |
-| Admin UPT | Hanya unit kerjanya sendiri, tanpa menu Kelola User/Role |
+| Admin Dinas | Semua unit kerja; membuat, menutup, dan menghapus event |
+| Admin UPT | Rekap & laporan unit kerjanya sendiri; event hanya dapat dilihat, tanpa menu Kelola User/Role |
 | Kiosk (perangkat) | Bukan akun pegawai — mewakili komputer/laptop di titik absen |
 
 ## Lingkungan Development Lokal

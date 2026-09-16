@@ -6,6 +6,7 @@ use App\Enums\CakupanEvent;
 use App\Enums\JenisEvent;
 use App\Enums\OverrideAbsenUmum;
 use App\Enums\StatusEvent;
+use App\Services\EventAbsenService;
 use Database\Factories\EventAbsenFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -61,21 +62,32 @@ class EventAbsen extends Model
         ];
     }
 
-    /** @return BelongsToMany<UnitKerja, $this> */
+    /**
+     * Unit kerja yang tercatat pada cakupan event ini.
+     *
+     * **Peninggalan, bukan penentu.** Sejak S49 event selalu berlaku bagi
+     * seluruh dinas dan tidak lagi menulis satu pun baris pivot; relasi ini
+     * hanya masih dipakai membaca event lama yang lahir sebelum perubahan itu.
+     * Ia tidak boleh dipakai memutuskan siapa yang berhak mengabsen — untuk
+     * itu {@see EventAbsenService::unitTercakup()} yang berlaku.
+     *
+     * @return BelongsToMany<UnitKerja, $this>
+     */
     public function unitKerja(): BelongsToMany
     {
         return $this->belongsToMany(UnitKerja::class, 'event_unit_kerja');
     }
 
     /**
-     * Perangkat absen yang BERGABUNG ke event ini lewat kode unit kerja
-     * (FR-EVT-03, revisi S29).
+     * Perangkat absen yang melayani event ini beserta unit dan alamat IP-nya
+     * (FR-EVT-03, FR-EVT-05).
      *
-     * Relasi ini bukan sekadar riwayat: sejak kode unit kerja diperkenalkan,
-     * keanggotaan di sinilah yang menentukan boleh-tidaknya sebuah perangkat
-     * membuka layar Absen Event. Perangkat yang unitnya tercakup namun belum
-     * mengetikkan kode tidak muncul di sini, dan karenanya tidak melayani
-     * event ini.
+     * Sejak S49 barisnya lahir ketika perangkat MEMBUKA layar Absen Event,
+     * bukan lagi ketika ia menukarkan kode per event — kode kini menempel pada
+     * unit kerja dan hanya dipakai sekali untuk memperkenalkan perangkat.
+     * Relasi ini karena itu kembali menjadi apa yang namanya janjikan: catatan
+     * perangkat mana yang benar-benar dipakai pada kegiatan ini, dari unit
+     * mana, dan dari alamat berapa.
      *
      * @return BelongsToMany<Kiosk, $this>
      */
@@ -89,17 +101,6 @@ class EventAbsen extends Model
                 'bergabung_pada',
                 'terakhir_aktif_pada',
             ]);
-    }
-
-    /**
-     * Kode yang dipakai perangkat untuk bergabung — satu per unit kerja dalam
-     * cakupan event (FR-EVT-03).
-     *
-     * @return HasMany<KodeUnitEvent, $this>
-     */
-    public function kodeUnit(): HasMany
-    {
-        return $this->hasMany(KodeUnitEvent::class, 'event_absen_id');
     }
 
     /** @return HasMany<Absensi, $this> */

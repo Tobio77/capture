@@ -37,6 +37,7 @@ class SinkronisasiPegawaiService
         protected WorkaApiClient $worka,
         protected PengaturanRepository $pengaturan,
         protected LogAktivitasService $log,
+        protected KodeUnitService $kodeUnit,
     ) {}
 
     /**
@@ -145,9 +146,35 @@ class SinkronisasiPegawaiService
         $tersentuh = $this->tautkanInduk($kodeInduk, $tersentuh);
         $tersentuh = $this->tautkanUnitLokal(array_keys($kodeInduk), $tersentuh);
 
+        $this->terbitkanKodePerangkat();
+
         $this->pengaturan->simpan(self::KUNCI_UNIT_SINKRON_TERAKHIR, Carbon::now()->toIso8601String());
 
         return count($tersentuh);
+    }
+
+    /**
+     * Pastikan setiap unit level teratas yang aktif punya kode perangkat
+     * (FR-EVT-03).
+     *
+     * Dijalankan SETELAH induk tertaut, bukan saat unitnya dibuat: sebelum
+     * tahap kedua selesai, belum ada satu unit pun yang dapat dikenali sebagai
+     * level teratas — `induk_id`-nya masih kosong. Menerbitkan kode lebih awal
+     * berarti menerbitkannya bagi seluruh seksi dan subbag juga, yang tidak
+     * pernah menjadi tempat perangkat absen dipasang.
+     *
+     * Unit yang sudah punya kode tidak disentuh: kodenya sudah dibacakan
+     * kepada petugas, dan menggantinya diam-diam pada setiap sinkronisasi
+     * berarti seluruh perangkat unit itu gagal masuk tanpa penjelasan.
+     */
+    protected function terbitkanKodePerangkat(): void
+    {
+        UnitKerja::query()
+            ->levelTeratas()
+            ->aktif()
+            ->whereNull('kode_perangkat')
+            ->get()
+            ->each(fn (UnitKerja $unit) => $this->kodeUnit->pastikanAda($unit));
     }
 
     /**

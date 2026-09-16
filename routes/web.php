@@ -25,7 +25,6 @@ use App\Http\Controllers\Admin\UnitKerjaController;
 use App\Http\Controllers\Auth\SesiController;
 use App\Http\Controllers\BerandaController;
 use App\Http\Controllers\Kiosk\AktivasiController;
-use App\Http\Controllers\Kiosk\GabungEventController;
 use App\Http\Controllers\Kiosk\LayarKioskController;
 use App\Services\TitikAbsenService;
 use Illuminate\Support\Facades\Route;
@@ -53,16 +52,24 @@ Route::post('keluar', [SesiController::class, 'destroy'])->middleware('auth')->n
  */
 Route::prefix('kiosk')->name('kiosk.')->group(function () {
     Route::get('aktivasi', [AktivasiController::class, 'create'])->name('aktivasi');
+
+    /*
+     * Jalur lama: kode aktivasi sekali pakai milik perangkat yang sudah
+     * didaftarkan admin. Hanya berlaku selagi Mode Pendaftaran Perangkat
+     * menyala, dan settingnya diperiksa ulang di controller — rute yang
+     * terbuka bukan berarti fiturnya menyala.
+     */
     Route::post('aktivasi', [AktivasiController::class, 'store'])->middleware('throttle:10,1');
 
     /*
-     * Mode Terbuka (FR-SET-06): perangkat masuk tanpa kode aktivasi.
-     * Setting-nya diperiksa ulang di controller — rute yang terbuka bukan
-     * berarti fiturnya menyala.
+     * Jalur bawaan sejak S49 (FR-EVT-03, FR-SET-06): perangkat masuk dengan
+     * mengetikkan kode unit kerjanya. Dibatasi laju karena kolomnya menerima
+     * kode yang dapat ditebak — batasnya per alamat IP, sebab mesin yang
+     * belum dikenali belum punya identitas lain untuk dihitung.
      */
-    Route::post('aktivasi/terbuka', [AktivasiController::class, 'terbuka'])
+    Route::post('aktivasi/unit', [AktivasiController::class, 'unit'])
         ->middleware('throttle:10,1')
-        ->name('aktivasi.terbuka');
+        ->name('aktivasi.unit');
 
     /*
      * Alamat lama beranda perangkat. Sejak S30 pemilihan Absen Umum/Absen
@@ -76,18 +83,6 @@ Route::prefix('kiosk')->name('kiosk.')->group(function () {
         Route::post('lepas', [AktivasiController::class, 'destroy'])->name('lepas');
 
         /*
-         * Penggabungan ke sebuah event lewat kode unit kerja (FR-EVT-03).
-         * Dibatasi laju karena kolomnya menerima kode yang dapat ditebak —
-         * batasnya per perangkat, bukan per alamat IP, mengikuti keputusan S27.
-         */
-        Route::post('event/gabung', [GabungEventController::class, 'store'])
-            ->middleware('throttle:absen-tap')
-            ->name('event.gabung');
-
-        Route::post('event/keluar', [GabungEventController::class, 'destroy'])
-            ->name('event.keluar');
-
-        /*
          * Titik absen, dua mode.
          *
          * Bentuk endpointnya sama persis; yang membedakan hanya event mana yang
@@ -97,7 +92,7 @@ Route::prefix('kiosk')->name('kiosk.')->group(function () {
          * menambahkan satu medan pada kiriman tapnya
          * (lihat App\Services\TitikAbsenService).
          *
-         *   event → hanya untuk perangkat yang sudah bergabung lewat kode
+         *   event → kegiatan yang sedang dibuka, bila ada
          *   umum  → selalu tersedia, tidak terikat status event apa pun
          */
         foreach ([TitikAbsenService::MODE_EVENT, TitikAbsenService::MODE_UMUM] as $mode) {
@@ -166,13 +161,18 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
 
     Route::prefix('kelola-absen')->group(function () {
         /*
-         * Daftar Event (FR-EVT-01, FR-EVT-02). Admin UPT boleh membuat event
-         * untuk unitnya sendiri, sehingga tidak dibatasi peran lintas unit —
-         * pembatasan cakupannya ditegakkan SimpanEventRequest.
+         * Daftar Event (FR-EVT-01, FR-EVT-02).
+         *
+         * MEMBACA terbuka bagi seluruh peran admin: sejak S49 setiap event
+         * berlaku bagi seluruh dinas, sehingga tidak ada event yang "bukan
+         * urusan" sebuah UPT — pegawainya justru berhak hadir di dalamnya.
+         *
+         * MENGUBAH terbatas pada peran lintas unit. Membuat, menutup, atau
+         * menghapus sebuah event kini berdampak pada SELURUH dinas sekaligus,
+         * dan itu keputusan Admin Dinas — bukan wewenang satu UPT (matriks
+         * peran SRS §6).
          */
         Route::get('event', [EventController::class, 'index'])->name('event.index');
-        Route::post('event', [EventController::class, 'store'])->name('event.store');
-        Route::patch('event/{event}', [EventController::class, 'update'])->name('event.update');
         // Dibatasi laju (perbaikan audit lanjutan): merakit CSV/PDF/Excel atas
         // rentang sampai setahun bukan pekerjaan murah, dan endpoint ini
         // sebelumnya satu-satunya di antara unduhan berat yang tidak dijaga.
@@ -180,24 +180,14 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
             ->middleware('throttle:20,1')
             ->name('event.ekspor');
         Route::get('event/{event}/detail', [EventController::class, 'detail'])->name('event.detail');
-        Route::post('event/{event}/tutup', [EventController::class, 'tutup'])->name('event.tutup');
 
-        /*
-         * Terbitkan ulang kode unit kerja sebuah event (FR-EVT-03). Pagarnya
-         * sama dengan mengubah dan menutup event — Admin UPT hanya untuk event
-         * yang menyentuh unitnya sendiri — dan ditegakkan di controller, bukan
-         * lewat middleware peran, karena yang menentukan adalah eventnya.
-         */
-        Route::post('event/{event}/kode/{kode}/reset', [EventController::class, 'resetKode'])
-            ->middleware('throttle:20,1')
-            ->name('event.kode.reset');
-        Route::delete('event/{event}', [EventController::class, 'destroy'])->name('event.destroy');
+        Route::middleware('peran:superadmin,admin_dinas')->group(function () {
+            Route::post('event', [EventController::class, 'store'])->name('event.store');
+            Route::patch('event/{event}', [EventController::class, 'update'])->name('event.update');
+            Route::post('event/{event}/tutup', [EventController::class, 'tutup'])->name('event.tutup');
+            Route::delete('event/{event}', [EventController::class, 'destroy'])->name('event.destroy');
+        });
 
-        /*
-         * Rekap Absen per event (FR-REK-01 s.d. FR-REK-03). Admin UPT boleh
-         * membuka rekap event yang menyentuh unitnya — termasuk event
-         * bercakupan semua unit — tetapi hanya melihat pegawainya sendiri.
-         */
         /*
          * Absen Umum — absensi harian tanpa event kegiatan. Sesi hariannya
          * dibuka sistem, sehingga menu ini memantau dan (bila perlu) menjadi
@@ -289,6 +279,16 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
             Route::post('unit-kerja', [UnitKerjaController::class, 'store'])->name('unit-kerja.store');
             Route::patch('unit-kerja/{unit_kerja}', [UnitKerjaController::class, 'update'])->name('unit-kerja.update');
             Route::patch('unit-kerja/{unit_kerja}/status', [UnitKerjaController::class, 'ubahStatus'])->name('unit-kerja.status');
+
+            /*
+             * Ganti kode perangkat sebuah unit kerja (FR-EVT-03). Superadmin
+             * dan Admin Dinas saja: kodenya adalah kunci masuk seluruh
+             * perangkat unit itu, dan menggantinya menutup pintu bagi mesin
+             * yang belum masuk. Dibatasi laju seperti penerbitan kode lain.
+             */
+            Route::post('unit-kerja/{unit_kerja}/kode', [UnitKerjaController::class, 'resetKode'])
+                ->middleware('throttle:20,1')
+                ->name('unit-kerja.kode');
         });
     });
 

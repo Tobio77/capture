@@ -58,7 +58,6 @@ class SimpanAbsenController extends Controller
         if ($event->absenUmum()) {
             $status = $this->absenUmum->status(
                 JenisAbsen::from($request->string('jenis')->toString()),
-                $event->unitKerja->first()?->id,
                 $event,
             );
 
@@ -86,6 +85,15 @@ class SimpanAbsenController extends Controller
          * mencatatkan kehadiran pegawai UPT lain pada eventnya sendiri. Pagar
          * yang sama sudah lama berdiri di FotoPegawaiController — ia ada di
          * endpoint foto, tetapi tidak di endpoint yang menulis absensi.
+         */
+        /*
+         * Sejak S49 cakupan setiap event adalah SELURUH dinas, sehingga
+         * pemeriksaan ini tidak pernah lagi menolak siapa pun — dan memang
+         * begitu yang dikehendaki: absen umum maupun kegiatan terbuka untuk
+         * pegawai unit mana pun. Pagarnya sengaja dibiarkan berdiri alih-alih
+         * dibuang, sebab cakupan tetap dijawab satu tempat
+         * ({@see EventAbsenService::unitTercakup()}) dan di sanalah keputusan
+         * ini akan berubah kembali bila kelak dibutuhkan.
          */
         if (! in_array($pegawai->unit_kerja_id, $this->event->unitTercakup($event), true)) {
             return $this->gagal(
@@ -145,7 +153,16 @@ class SimpanAbsenController extends Controller
                 // Diisi kiosk agar absen yang tertahan antrian luring tetap
                 // tercatat pada jam tapnya, bukan jam pengirimannya (NFR-05).
                 'waktu_tap' => $request->input('waktu_tap'),
-            ]);
+            ],
+                /*
+                 * Alamat perangkat pengirim, disimpan pada baris absensinya
+                 * sendiri (S49). Diambil dari permintaan, bukan dari kolom
+                 * `kiosk.ip_terakhir`: yang dicari rekap adalah alamat saat
+                 * tap ini terjadi, dan kolom itu bergerak mengikuti keadaan
+                 * terkini perangkat.
+                 */
+                ip: $kiosk === null ? null : $request->ip(),
+            );
         } catch (AbsenGandaException $ganda) {
             /*
              * FR-TAP-05 (revisi S28a): tap kedua untuk jenis yang sama ditolak.

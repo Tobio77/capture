@@ -156,26 +156,38 @@ untuk orang yang sedang mengantre.
 
 Apa yang terjadi saat kartunya ditekan bergantung pada keadaan perangkat:
 
-| Keadaan perangkat             | Absen Umum        | Absen Event                    |
-|-------------------------------|-------------------|--------------------------------|
-| Belum diaktifkan              | ke layar aktivasi | ke layar aktivasi              |
-| Sudah aktif, belum ikut event | langsung masuk    | daftar event + kolom kode      |
-| Sudah aktif dan ikut event    | langsung masuk    | langsung masuk                 |
+| Keadaan perangkat              | Absen Umum       | Absen Event                 |
+|--------------------------------|------------------|-----------------------------|
+| Belum dikenali                 | ke layar masuk   | ke layar masuk              |
+| Sudah dikenali, ada kegiatan   | langsung masuk   | langsung masuk              |
+| Sudah dikenali, tanpa kegiatan | langsung masuk   | tertutup, dengan keterangan |
 
-Memilih **Absen Event** pada perangkat yang belum bergabung membuka bagian kedua
-di halaman yang sama: daftar event yang sedang dibuka (nama, tanggal, jam mulai,
-unit penyelenggara) diikuti satu kolom kode unit kerja. Daftar itu hanya dikirim
-kepada perangkat yang **sudah diaktifkan** — nama kegiatan beserta unit
-penyelenggaranya adalah keterangan internal, dan kodenya sendiri tidak pernah
-ikut ditampilkan.
+Memilih **Absen Event** pada perangkat yang sudah dikenali langsung menuju
+layarnya — sejak S49 tidak ada lagi kode per event yang harus ditukarkan lebih
+dahulu. Kartunya menyebut nama kegiatan yang sedang dibuka, dan **dimatikan**
+(bukan disembunyikan) ketika tidak ada kegiatan: petugas yang mencarinya harus
+menemukan jawabannya di tempat ia mencari. Nama kegiatan hanya dikirim kepada
+perangkat yang sudah dikenali — ia keterangan internal.
 
-Memilih **Absen Umum** langsung menuju layarnya, mengikuti aturan Mode Terbuka:
-perangkat yang belum aktif diarahkan ke layar aktivasi, yang di bawah Mode
-Terbuka cukup meminta unit kerjanya saja.
+Memilih **Absen Umum** langsung menuju layarnya. Perangkat yang belum dikenali
+diarahkan ke layar masuk, yang meminta kode unit kerja tempat mesin itu berdiri.
 
-## 4.1 Aktivasi Perangkat
+## 4.1 Menghubungkan Perangkat
 
-Layar pertama yang tampil saat aplikasi kiosk dibuka. Admin lokasi memilih unit kerja dan mengisi nama titik absen, lalu menekan “Aktifkan Perangkat”. Alamat IP perangkat tercatat otomatis pada saat ini.
+Layar pertama yang tampil saat aplikasi dibuka pada mesin yang belum dikenali.
+Satu kolom isian, dan yang dimintanya ditentukan Mode Pendaftaran Perangkat
+(FR-SET-06):
+
+- **Mode mati** (bawaan) — **Kode Unit Kerja**, dibacakan admin dinas. Perangkat
+  langsung dikenali sebagai titik absen unit tersebut, tanpa perlu didaftarkan
+  lebih dahulu. Namanya dirakit dari kode unit dan alamat IP-nya.
+- **Mode menyala** — **Kode Aktivasi** sekali pakai milik perangkat yang sudah
+  didaftarkan admin di menu Perangkat Absen.
+
+Daftar unit kerja tidak pernah ditampilkan di layar ini pada kedua mode: mesin
+yang belum memegang kode apa pun tidak berkepentingan mengetahui unit mana saja
+yang ada, dan kodenyalah yang menentukan. Alamat IP perangkat tercatat otomatis
+saat itu juga, dan muncul kembali pada rekap setiap absensi yang dilayaninya.
 
 ## 4.2 Layar Utama Kiosk
 

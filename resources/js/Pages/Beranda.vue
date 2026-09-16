@@ -1,6 +1,6 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3'
+import { computed } from 'vue'
+import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import Ikon from '@/Components/Ikon.vue'
 import TandaAbsen from '@/Components/UI/TandaAbsen.vue'
 import SaklarTema from '@/Components/UI/SaklarTema.vue'
@@ -43,11 +43,17 @@ import { useMiring } from '@/Composables/useMiring'
 
 const props = defineProps({
   perangkat: { type: Object, default: null },
-  event_diikuti: { type: Object, default: null },
-  event_aktif: { type: Array, default: () => [] },
+
+  /*
+   * Kegiatan yang sedang dibuka, atau null. Satu objek, bukan daftar: sejak
+   * S49 event berlaku bagi seluruh dinas, sehingga hanya boleh ada satu yang
+   * aktif pada satu waktu (FR-EVT-06) — dan perangkat yang sudah dikenali
+   * langsung melayaninya tanpa mengetik kode apa pun lagi.
+   */
+  event_aktif: { type: Object, default: null },
+
   absen_umum_aktif: { type: Boolean, required: true },
-  aktivasi_tanpa_kode: { type: Boolean, required: true },
-  panjang_kode: { type: Number, default: 8 },
+  mode_pendaftaran: { type: Boolean, required: true },
   waktu_server: { type: String, default: null },
   jam_masuk: { type: String, default: '07:30' },
   toleransi_menit: { type: Number, default: 15 },
@@ -61,35 +67,20 @@ const gagal = computed(() => page.props.flash?.gagal)
 const { jam, detik, tanggalPanjang, sekarang } = useJamServer(props.waktu_server)
 
 const perangkatAktif = computed(() => props.perangkat !== null)
-const sudahIkutEvent = computed(() => props.event_diikuti !== null)
+const adaEvent = computed(() => props.event_aktif !== null)
+
+const namaPerangkat = computed(() => props.perangkat?.nama_titik ?? null)
 
 /*
- * Keadaan perangkat, dipecah menjadi tiga keterangan yang masing-masing
- * berdiri sendiri.
+ * Unit kerja perangkat — keterangan kedua di bawah namanya, dan satu-satunya
+ * yang benar-benar ditanyakan orang di depan layar ini ("mesin ini melayani
+ * unit mana?").
  *
- * Sebelumnya ketiganya menempel jadi satu baris — "Perangkat Ad-hoc — Dinas
- * Tenaga Kerja dan Transmigrasi DISNAKER" — yang membaca seperti isi kolom
- * basis data, bukan kalimat. Nama sintetis perangkat ad-hoc memang sudah
- * memuat nama unitnya, sehingga menampilkan keduanya berarti mengulang;
- * yang tersisa untuk disampaikan hanyalah bahwa ia perangkat dadakan, dan
- * itu keping tersendiri.
+ * Penanda "Ad-hoc" yang dulu berdampingan di sini sudah tidak ada. Sejak S49
+ * hampir setiap perangkat masuk lewat kode unit kerja dan karenanya bertanda
+ * ad-hoc; penanda yang melekat pada semua orang berhenti membedakan apa pun.
  */
-const perangkatAdHoc = computed(() => props.perangkat?.sumber === 'ad_hoc')
-
-const namaPerangkat = computed(() => {
-  if (props.perangkat === null) return null
-
-  return perangkatAdHoc.value
-    ? (props.perangkat.unit_kerja?.nama ?? 'Perangkat dadakan')
-    : props.perangkat.nama_titik
-})
-
-/* Perangkat terdaftar punya nama tempat; unitnya keterangan kedua yang nyata. */
-const unitPerangkat = computed(() =>
-  props.perangkat === null || perangkatAdHoc.value
-    ? null
-    : (props.perangkat.unit_kerja?.nama ?? null),
-)
+const unitPerangkat = computed(() => props.perangkat?.unit_kerja?.nama ?? null)
 
 /*
  * Baris konteks di bawah tanggal. Angka jam sebesar itu perlu konsekuensi:
@@ -98,8 +89,8 @@ const unitPerangkat = computed(() =>
  * baginya — bukan jam masuk harian.
  */
 const konteks = computed(() => {
-  if (sudahIkutEvent.value) {
-    return `${props.event_diikuti.nama} · mulai ${props.event_diikuti.jam_mulai}`
+  if (adaEvent.value) {
+    return `${props.event_aktif.nama} · mulai ${props.event_aktif.jam_mulai}`
   }
 
   return `Jam masuk ${props.jam_masuk.replace(':', '.')} · toleransi ${props.toleransi_menit} menit`
@@ -111,8 +102,8 @@ const konteks = computed(() => {
  * baginya — bukan jam masuk harian.
  */
 const batas = computed(() => {
-  const [jamMulai, toleransi] = sudahIkutEvent.value
-    ? [props.event_diikuti.jam_mulai, props.event_diikuti.toleransi_menit]
+  const [jamMulai, toleransi] = adaEvent.value
+    ? [props.event_aktif.jam_mulai, props.event_aktif.toleransi_menit]
     : [props.jam_masuk, props.toleransi_menit]
 
   const [j, m] = jamMulai.split(':').map(Number)
@@ -221,15 +212,18 @@ const bantuanSingkat = computed(() => [
   },
 ])
 
-const langkah = ref(null)
-
-const formKode = useForm({ kode: '' })
-const kolomKode = ref(null)
-
 function pilihAbsenUmum() {
   router.get(perangkatAktif.value ? '/kiosk/umum' : '/kiosk/aktivasi')
 }
 
+/*
+ * Tidak ada lagi langkah kedua di sini.
+ *
+ * Sampai S48, menekan Absen Event membuka panel berisi daftar kegiatan dan
+ * kolom kode yang harus ditukarkan lebih dahulu. Kode kini menempel pada unit
+ * kerja dan sudah diketikkan sekali di layar masuk perangkat, sehingga yang
+ * tersisa hanyalah dua kemungkinan: ada kegiatan yang dibuka, atau tidak.
+ */
 function pilihAbsenEvent() {
   if (!perangkatAktif.value) {
     router.get('/kiosk/aktivasi')
@@ -237,41 +231,20 @@ function pilihAbsenEvent() {
     return
   }
 
-  if (sudahIkutEvent.value) {
+  if (adaEvent.value) {
     router.get('/kiosk/event')
-
-    return
   }
-
-  langkah.value = langkah.value === 'event' ? null : 'event'
-
-  if (langkah.value === 'event') {
-    requestAnimationFrame(() => kolomKode.value?.focus())
-  }
-}
-
-function gabung() {
-  formKode.post('/kiosk/event/gabung', {
-    preserveScroll: true,
-    onError: () => {
-      formKode.reset('kode')
-      kolomKode.value?.focus()
-    },
-  })
 }
 
 function lepasPerangkat() {
   if (
     window.confirm(
-      'Lepaskan perangkat ini dari titik absen? Perangkat harus diaktifkan ulang dengan kode baru.',
+      'Lepaskan perangkat ini dari titik absen? Perangkat harus dihubungkan ulang dengan kode unit kerja.',
     )
   ) {
     router.post('/kiosk/lepas')
   }
 }
-
-const tanggalRingkas = (nilai) =>
-  new Date(`${nilai}T00:00:00`).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
 </script>
 
 <template>
@@ -335,13 +308,6 @@ const tanggalRingkas = (nilai) =>
             </p>
 
             <div class="flex min-w-0 items-center gap-3">
-              <span
-                v-if="perangkatAdHoc"
-                class="shrink-0 rounded-full bg-amber-400/20 px-2.5 py-1 text-[0.6875rem] font-semibold text-amber-200"
-              >
-                Ad-hoc
-              </span>
-
               <p class="flex min-w-0 items-center gap-2 text-xs text-sidebar-redup">
                 <span v-if="perangkatAktif" class="relative flex h-2 w-2 shrink-0">
                   <span
@@ -352,7 +318,7 @@ const tanggalRingkas = (nilai) =>
                 <span v-else class="h-2 w-2 shrink-0 rounded-full bg-sidebar-redup"></span>
 
                 <span v-if="!perangkatAktif" class="truncate font-medium">
-                  Perangkat belum diaktifkan
+                  Perangkat belum dihubungkan
                 </span>
 
                 <span v-else class="min-w-0 leading-tight">
@@ -490,11 +456,17 @@ const tanggalRingkas = (nilai) =>
           />
         </button>
 
+        <!--
+          Absen Event DIMATIKAN ketika tidak ada kegiatan yang dibuka, bukan
+          disembunyikan. Petugas yang mencarinya harus menemukan jawabannya di
+          tempat ia mencari — tombol yang hilang hanya membuatnya mengira
+          perangkatnya rusak.
+        -->
         <button
           ref="pitaEvent"
           type="button"
-          class="pita-kedua kilau tautan-aksi tahap tahap-pita group flex min-h-[5.5rem] w-full items-center gap-5 px-6 py-4 text-left active:scale-[0.995] sm:px-8"
-          :class="langkah === 'event' && 'border-aksen'"
+          :disabled="perangkatAktif && !adaEvent"
+          class="pita-kedua kilau tautan-aksi tahap tahap-pita group flex min-h-[5.5rem] w-full items-center gap-5 px-6 py-4 text-left active:scale-[0.995] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100 sm:px-8"
           style="--tunda: 620ms"
           @click="pilihAbsenEvent"
         >
@@ -503,12 +475,12 @@ const tanggalRingkas = (nilai) =>
           <span class="min-w-0 flex-1">
             <span class="block font-display text-xl font-semibold">Absen Event</span>
             <span class="mt-0.5 flex items-center gap-1.5 text-sm text-sekunder">
-              <Ikon v-if="!sudahIkutEvent" nama="kunci" ukuran="h-3.5 w-3.5 shrink-0" />
+              <Ikon v-if="!adaEvent" nama="kunci" ukuran="h-3.5 w-3.5 shrink-0" />
               <span class="truncate">
                 {{
-                  sudahIkutEvent
-                    ? `Melayani ${event_diikuti.nama}`
-                    : 'Perlu kode unit kerja dari admin penyelenggara'
+                  adaEvent
+                    ? `${event_aktif.nama} · mulai ${event_aktif.jam_mulai}`
+                    : 'Belum ada kegiatan yang dibuka'
                 }}
               </span>
             </span>
@@ -521,70 +493,6 @@ const tanggalRingkas = (nilai) =>
           />
         </button>
       </div>
-
-      <!-- Langkah kedua: daftar event yang dibuka, lalu kode unit kerja. -->
-      <Transition
-        enter-active-class="transition duration-200 ease-out"
-        enter-from-class="-translate-y-2 opacity-0"
-        enter-to-class="translate-y-0 opacity-100"
-        leave-active-class="transition duration-150 ease-in"
-        leave-to-class="-translate-y-2 opacity-0"
-      >
-        <section v-if="langkah === 'event'" class="panel mt-3 p-5">
-          <ul v-if="event_aktif.length" class="flex flex-col gap-1.5">
-            <li
-              v-for="event in event_aktif"
-              :key="event.id"
-              class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 rounded-lg bg-permukaan-2 px-3.5 py-2.5"
-            >
-              <span class="min-w-0 truncate font-medium">{{ event.nama }}</span>
-              <span class="font-display text-xs tabular-nums text-redup">
-                {{ tanggalRingkas(event.tanggal) }} · {{ event.jam_mulai }} ·
-                {{ event.cakupan_label }}
-              </span>
-            </li>
-          </ul>
-
-          <p v-else class="rounded-lg bg-permukaan-2 px-4 py-5 text-center text-sm text-redup">
-            Belum ada event yang dibuka. Absen Umum tetap dapat dipakai.
-          </p>
-
-          <form class="mt-4 flex flex-wrap items-end gap-3" @submit.prevent="gabung">
-            <div class="min-w-[13rem] flex-1">
-              <label
-                for="kode-unit"
-                class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-redup"
-              >
-                Kode unit kerja
-              </label>
-
-              <input
-                id="kode-unit"
-                ref="kolomKode"
-                v-model="formKode.kode"
-                type="text"
-                autocomplete="off"
-                spellcheck="false"
-                :maxlength="panjang_kode + 2"
-                placeholder="7K4M-92XQ"
-                class="kolom-isian py-3 text-center font-display text-lg font-semibold uppercase tracking-[0.2em] placeholder:tracking-normal"
-              />
-            </div>
-
-            <button
-              type="submit"
-              :disabled="formKode.processing || formKode.kode.length === 0"
-              class="tombol tombol-utama py-3"
-            >
-              {{ formKode.processing ? 'Menggabungkan…' : 'Gabung ke Event' }}
-            </button>
-          </form>
-
-          <p v-if="formKode.errors.kode" class="mt-2 text-sm text-peringatan-teks">
-            {{ formKode.errors.kode }}
-          </p>
-        </section>
-      </Transition>
 
       <!--
         BANTUAN SINGKAT, mengisi ruang yang sebelumnya kosong tanpa alasan.
@@ -615,9 +523,9 @@ const tanggalRingkas = (nilai) =>
       <footer class="mt-4 flex flex-wrap items-center justify-between gap-3 pt-3 text-xs sm:mt-5">
         <p v-if="!perangkatAktif" class="text-redup">
           {{
-            aktivasi_tanpa_kode
-              ? 'Memilih salah satu di atas akan meminta unit kerjanya lebih dahulu.'
-              : 'Memilih salah satu di atas akan meminta kode aktivasi dari admin.'
+            mode_pendaftaran
+              ? 'Memilih salah satu di atas akan meminta kode aktivasi dari admin.'
+              : 'Memilih salah satu di atas akan meminta kode unit kerja lebih dahulu.'
           }}
         </p>
 
