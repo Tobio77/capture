@@ -1056,10 +1056,9 @@ dinyatakan pada unit level teratas — lalu:
 tanpa_keterangan = event_yang_berlaku − event_yang_dihadiri
 ```
 
-Event bercakupan "semua unit" berlaku bagi setiap pegawai; event unit lain
-tidak pernah dihitung sebagai kemangkiran, karena pegawai tidak dapat dianggap
-mangkir dari kegiatan yang memang bukan untuknya. `terlambat` adalah bagian
-dari `hadir`, bukan kategori terpisah.
+Sejak S49 setiap event berlaku bagi seluruh dinas, sehingga setiap kegiatan
+dalam rentang terhitung bagi setiap pegawai. `terlambat` adalah bagian dari
+`hadir`, bukan kategori terpisah.
 
 **Cakupan penyaring adalah irisan** antara hak peran pengguna dan unit yang
 dipilih (FR-LAP-01): Admin UPT yang memaksa unit lain lewat kueri tetap tidak
@@ -1070,11 +1069,49 @@ lebih mungkin daripada disengaja, dan kedua kolom dikembalikan ke layar dalam
 keadaan sudah tertukar sehingga admin melihat rentang yang benar-benar dipakai.
 Panjang rentang dibatasi 366 hari.
 
-**Ekspor (FR-LAP-03)** menghasilkan CSV, bukan `.xlsx`: pemisahnya titik koma
-karena Excel berlokal Indonesia membaca koma sebagai pemisah desimal dan akan
-menggabungkan seluruh kolom menjadi satu, dan berkasnya diawali BOM UTF-8 agar
-nama ber-diakritik tidak rusak. Pencetakan memakai gaya cetak lanskap seperti
-rekap event.
+**Ekspor (FR-LAP-03).** CSV memakai pemisah titik koma — Excel berlokal
+Indonesia membaca koma sebagai pemisah desimal dan akan menggabungkan seluruh
+kolom menjadi satu — dan berkasnya diawali BOM UTF-8 agar nama ber-diakritik
+tidak rusak. Pencetakan memakai gaya cetak lanskap seperti rekap event.
+
+**Berkas tabel dan layar sengaja berbeda grain (revisi S49).** Layar
+menampilkan AGREGAT per pegawai (berapa kali hadir, berapa kali terlambat) —
+bentuk yang tepat untuk dibaca sekilas. Berkas CSV/Excel memuat RINCIAN:
+satu baris per pegawai per sesi absen, dengan Tanggal, Kegiatan, **Jam Masuk**,
+dan **Jam Pulang** yang benar-benar tercatat.
+
+Alasannya bukan kelengkapan melainkan pertanyaan yang dibawa orang ke masing-
+masing. Berkas unduhan diolah lanjut dan dilampirkan, dan yang ditanyakan di
+sana adalah "pukul berapa orang ini datang dan pulang" — yang tidak pernah
+dapat dijawab oleh hitungan. Lembar PDF tetap agregat, sebab ia dibaca, bukan
+diolah.
+
+Grainnya per SESI, bukan per tanggal: satu hari dapat memuat apel pagi dan
+absen umum sekaligus, dan menggabungkan keduanya ke satu baris akan membuang
+sepasang jam. Pegawai tanpa satu pun tap tidak menghasilkan baris di sini;
+angka ketidakhadirannya tetap terbaca pada layar dan PDF.
+
+`LaporanController::KOLOM_WAJIB` mengunci NIP, Nama, Tanggal, Jam Masuk, dan
+Jam Pulang: checklist kolom tidak dapat mematikannya, dan pagarnya di server
+sehingga parameter `kolom` yang dikirim langsung pun tidak menembusnya. Rekap
+Absen dan Absen Umum punya pagar yang sama
+({@see `RekapController::KOLOM_WAJIB`}).
+
+### Lampiran rincian pada Laporan Resmi (FR-LAP-04, revisi S49)
+
+Badan Laporan Resmi tetap ringkasan per unit kerja — itulah yang
+ditandatangani. Rincian kehadiran per pegawai menyusul sebagai **lampiran**
+setelah blok pengesahan, pada halaman sendiri, di ketiga format (PDF, Word,
+Excel). Isinya sumber yang sama dengan unduhan tabel di atas:
+`LaporanService::rincian()`.
+
+Jumlah barisnya dibatasi `LaporanResmiService::BATAS_BARIS_LAMPIRAN` (5.000).
+DomPDF dan PhpWord merakit seluruh dokumen di memori sebelum menuliskannya, dan
+sebulan penuh se-dinas dapat melampaui sepuluh ribu baris — dokumen sebesar itu
+tidak melambat melainkan GAGAL, dan antrean Riwayat Laporan menandainya "gagal"
+tanpa berkas apa pun. Ketika terpotong, dokumen menyebut berapa baris yang
+tidak muat dan menunjuk ke "Unduh Data", yang memuat seluruhnya tanpa batas
+ini.
 
 ### Batas data yang boleh dilihat perangkat absen (NFR-03, NFR-04)
 

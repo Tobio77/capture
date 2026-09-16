@@ -350,4 +350,97 @@ class LaporanResmiServiceTest extends TestCase
 
         $this->assertCount(0, $hasil['rekomendasi']['kehadiran_rendah']);
     }
+
+    /* ---------------------------------------------------------------------
+     * Lampiran rincian kehadiran.
+     * ------------------------------------------------------------------- */
+
+    #[Test]
+    public function lampiran_memuat_jam_masuk_dan_jam_pulang_yang_tercatat(): void
+    {
+        $pegawai = Pegawai::factory()->create([
+            'nama' => 'Ahmad Fauzi',
+            'unit_kerja_id' => $this->upt->id,
+        ]);
+
+        $event = $this->eventKegiatan('2026-09-07', $this->upt);
+
+        $this->tap($event, $pegawai, '2026-09-07 07:31:00');
+
+        Absensi::query()->create([
+            'event_absen_id' => $event->id,
+            'pegawai_id' => $pegawai->id,
+            'jenis' => JenisAbsen::Pulang,
+            'metode' => 'manual',
+            'waktu' => '2026-09-07 16:04:00',
+        ]);
+
+        $rincian = $this->susun()['rincian'];
+
+        $this->assertCount(1, $rincian, 'Datang dan pulang harus melebur jadi satu baris.');
+        $this->assertSame('Ahmad Fauzi', $rincian[0]['nama']);
+        $this->assertSame('07-09-2026', $rincian[0]['tanggal_label']);
+        $this->assertSame('07:31', $rincian[0]['jam_masuk']);
+        $this->assertSame('16:04', $rincian[0]['jam_pulang']);
+    }
+
+    #[Test]
+    public function lampiran_memisahkan_dua_sesi_pada_hari_yang_sama(): void
+    {
+        /*
+         * Satu hari dapat memuat apel pagi DAN absen umum. Menggabungkan
+         * keduanya ke satu baris akan membuang sepasang jam — karena itu
+         * grain lampirannya per sesi, bukan per tanggal, dan kolom Kegiatan
+         * yang membedakannya.
+         */
+        $pegawai = Pegawai::factory()->create(['unit_kerja_id' => $this->upt->id]);
+
+        foreach ([['Apel Pagi', '07:31'], ['Absen Umum', '08:05']] as [$nama, $jam]) {
+            $event = EventAbsen::factory()->create(['nama' => $nama, 'tanggal' => '2026-09-07']);
+            $this->tap($event, $pegawai, "2026-09-07 {$jam}:00");
+        }
+
+        $rincian = $this->susun()['rincian'];
+
+        $this->assertCount(2, $rincian);
+        $this->assertEqualsCanonicalizing(
+            ['Apel Pagi', 'Absen Umum'],
+            $rincian->pluck('kegiatan')->all(),
+        );
+        $this->assertEqualsCanonicalizing(['07:31', '08:05'], $rincian->pluck('jam_masuk')->all());
+    }
+
+    #[Test]
+    public function lampiran_mengikuti_penyaring_unit_kerja(): void
+    {
+        $lain = UnitKerja::factory()->create(['kode' => 'BLK-MJK', 'induk_id' => $this->opd->id]);
+        $event = $this->eventKegiatan('2026-09-07', $this->upt);
+
+        foreach ([['Ahmad', $this->upt], ['Citra', $lain]] as [$nama, $unit]) {
+            $this->tap(
+                $event,
+                Pegawai::factory()->create(['nama' => $nama, 'unit_kerja_id' => $unit->id]),
+                '2026-09-07 07:31:00',
+            );
+        }
+
+        $rincian = $this->susun($this->upt->id)['rincian'];
+
+        $this->assertCount(1, $rincian);
+        $this->assertSame('Ahmad', $rincian[0]['nama']);
+    }
+
+    #[Test]
+    public function pegawai_tanpa_kehadiran_tidak_muncul_pada_lampiran(): void
+    {
+        // Lampirannya memuat yang TERCATAT; angka ketidakhadiran tetap dibaca
+        // dari tabel Ringkasan Data, yang penyebutnya kalender kerja.
+        Pegawai::factory()->create(['unit_kerja_id' => $this->upt->id]);
+        $this->eventKegiatan('2026-09-07', $this->upt);
+
+        $hasil = $this->susun();
+
+        $this->assertCount(0, $hasil['rincian']);
+        $this->assertSame(0, $hasil['rincian_dipotong']);
+    }
 }

@@ -83,6 +83,7 @@ class LaporanWordService
         $this->tulisKesimpulan($section, $data);
         $this->tulisRekomendasi($section, $data);
         $this->tulisPengesahan($section, $data);
+        $this->tulisLampiranRincian($section, $data);
         $this->tulisKaki($section, $data);
 
         return $phpWord;
@@ -215,6 +216,99 @@ class LaporanWordService
             }
             $tabel->addCell(900, $gayaTotal)
                 ->addText(LaporanResmiService::formatPersen($total['tingkat_kehadiran']).'%', ['bold' => true, 'size' => 9], ['alignment' => Jc::END]);
+        }
+
+        $section->addTextBreak(1);
+    }
+
+    /**
+     * Lampiran rincian kehadiran: satu baris per pegawai per sesi absen,
+     * lengkap dengan jam masuk dan jam pulang yang tercatat.
+     *
+     * Ditulis SETELAH pengesahan dan diawali pemutus halaman: yang
+     * ditandatangani adalah ringkasan di atas, dan lampiran adalah bukti
+     * pendukungnya — bukan sebaliknya.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    protected function tulisLampiranRincian(Section $section, array $data): void
+    {
+        if (count($data['rincian']) === 0) {
+            return;
+        }
+
+        $section->addPageBreak();
+        $this->judulBagian($section, 'Lampiran — Rincian Kehadiran per Pegawai');
+
+        $section->addText(
+            sprintf(
+                'Jam masuk dan jam pulang sebagaimana tercatat sistem pada periode %s. '
+                .'Pegawai yang tidak memiliki catatan kehadiran tidak muncul pada lampiran '
+                .'ini; jumlah ketidakhadirannya terbaca pada tabel Ringkasan Data di atas.',
+                $data['periode_label'],
+            ),
+            ['size' => 9, 'color' => self::WARNA_REDUP],
+            ['alignment' => Jc::BOTH, 'spaceAfter' => 160],
+        );
+
+        $gayaSel = ['valign' => 'center'];
+        $gayaHeader = ['bold' => true, 'size' => 7.5, 'color' => '475569'];
+        $gayaHeaderSel = array_merge($gayaSel, ['bgColor' => 'F1F5F9']);
+
+        $tabel = $section->addTable([
+            'borderSize' => 6, 'borderColor' => 'CBD5E1', 'cellMargin' => 60,
+            'width' => 100 * 50, 'unit' => 'pct',
+        ]);
+
+        // Lebar per kolom, dalam twip; jumlahnya menentukan proporsi tabel.
+        $lebar = [1900, 2200, 2000, 1000, 2000, 800, 800, 1000];
+        $judul = ['NIP', 'Nama', 'Unit Kerja', 'Tanggal', 'Kegiatan', 'Masuk', 'Pulang', 'Status'];
+
+        $tabel->addRow(null, ['tblHeader' => true]);
+
+        foreach ($judul as $i => $teks) {
+            $tabel->addCell($lebar[$i], $gayaHeaderSel)->addText(
+                mb_strtoupper($teks),
+                $gayaHeader,
+                ['alignment' => $i >= 5 ? Jc::END : Jc::START],
+            );
+        }
+
+        foreach ($data['rincian'] as $isi) {
+            $tabel->addRow();
+
+            $kolom = [
+                $isi['nip'],
+                $isi['nama'],
+                $isi['unit_kerja'] ?? '—',
+                $isi['tanggal_label'] ?? '—',
+                $isi['kegiatan'] ?? '—',
+                $isi['jam_masuk'] ?? '—',
+                $isi['jam_pulang'] ?? '—',
+                $isi['status_label'] ?? '—',
+            ];
+
+            foreach ($kolom as $i => $teks) {
+                $tabel->addCell($lebar[$i], $gayaSel)->addText(
+                    (string) $teks,
+                    ['size' => 8],
+                    ['alignment' => $i >= 5 ? Jc::END : Jc::START],
+                );
+            }
+        }
+
+        if ($data['rincian_dipotong'] > 0) {
+            $section->addTextBreak(1);
+            $section->addText(
+                sprintf(
+                    '%s baris berikutnya tidak dimuat agar dokumen tetap dapat dirakit. '
+                    .'Gunakan "Unduh Data" pada menu Laporan untuk memperoleh seluruh baris '
+                    .'sebagai CSV atau Excel.',
+                    number_format($data['rincian_dipotong'], 0, ',', '.'),
+                ),
+                ['size' => 9, 'italic' => true, 'color' => self::WARNA_REDUP],
+                ['alignment' => Jc::BOTH],
+            );
         }
 
         $section->addTextBreak(1);

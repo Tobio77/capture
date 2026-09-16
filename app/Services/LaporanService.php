@@ -154,6 +154,80 @@ class LaporanService
     }
 
     /**
+     * Rincian kehadiran: satu baris per pegawai PER SESI ABSEN, lengkap dengan
+     * jam masuk dan jam pulang yang benar-benar tercatat (FR-LAP-03).
+     *
+     * Grainnya berbeda dari {@see self::rekap()}, dan itulah alasannya ada.
+     * Rekap menjawab "berapa kali" — satu baris per pegawai untuk seluruh
+     * rentang, berisi hitungan. Pertanyaan yang justru dibawa orang ke laporan
+     * kehadiran adalah "pukul berapa ia datang dan pulang", dan hitungan tidak
+     * pernah dapat menjawabnya: seorang pegawai punya sepasang jam untuk
+     * SETIAP sesi yang dihadirinya.
+     *
+     * Grainnya per SESI, bukan per tanggal. Satu hari dapat memuat apel pagi
+     * dan absen umum sekaligus, dan menggabungkan keduanya ke satu baris akan
+     * membuang salah satu pasang jam. Kolom `kegiatan` yang membedakannya.
+     *
+     * Pegawai yang tidak hadir sama sekali tidak muncul di sini — rincian ini
+     * memuat yang TERCATAT; angka ketidakhadiran tetap dibaca dari rekap.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function rincian(User $pelaku, Carbon $dari, Carbon $sampai, ?int $unitKerjaId = null): Collection
+    {
+        $cakupan = $this->cakupanTampilan($this->cakupanPengguna($pelaku), $unitKerjaId);
+        $event = $this->eventPadaRentang($dari, $sampai);
+
+        if ($event->isEmpty()) {
+            return collect();
+        }
+
+        $namaTeratas = UnitKerja::namaTeratasPerUnit();
+
+        return Absensi::query()
+            ->with(['pegawai:id,nip,nama,unit_kerja_id', 'kiosk:id,nama_titik'])
+            ->whereIn('event_absen_id', $event->pluck('id'))
+            ->whereHas('pegawai', fn ($p) => $p->whereIn('unit_kerja_id', $cakupan))
+            ->orderBy('waktu')
+            ->get()
+
+            /*
+             * Datang dan pulang adalah DUA baris `absensi` pada sesi yang
+             * sama; keduanya dilipat menjadi satu baris rincian, persis
+             * seperti yang dilakukan Rekap Absen.
+             */
+            ->groupBy(fn (Absensi $satu) => $satu->pegawai_id.'|'.$satu->event_absen_id)
+            ->map(function (Collection $baris) use ($event, $namaTeratas) {
+                $datang = $baris->firstWhere('jenis', JenisAbsen::Datang);
+                $pulang = $baris->firstWhere('jenis', JenisAbsen::Pulang);
+                $rujukan = $datang ?? $baris->first();
+                $orang = $rujukan->pegawai;
+                $sesi = $event->firstWhere('id', $rujukan->event_absen_id);
+
+                return [
+                    'pegawai_id' => $orang->id,
+                    'nip' => $orang->nip,
+                    'nama' => $orang->nama,
+                    'unit_kerja' => $namaTeratas[$orang->unit_kerja_id] ?? $orang->unitKerja?->nama,
+                    'tanggal' => $sesi?->tanggal->toDateString(),
+                    'tanggal_label' => $sesi?->tanggal->format('d-m-Y'),
+                    'kegiatan' => $sesi?->nama,
+                    'jam_masuk' => $datang?->waktu->format('H:i'),
+                    'jam_pulang' => $pulang?->waktu->format('H:i'),
+                    'status_label' => $datang?->status_ketepatan?->label(),
+                    'metode' => $rujukan->metode->label(),
+                    'perangkat' => $rujukan->kiosk?->nama_titik,
+                    'ip_address' => $rujukan->ip_address,
+                ];
+            })
+
+            // Berkas administratif dibaca per orang, bukan per jam: nama lebih
+            // dahulu, tanggal menyusul di dalamnya.
+            ->sortBy([['nama', 'asc'], ['tanggal', 'asc'], ['kegiatan', 'asc']])
+            ->values();
+    }
+
+    /**
      * Unit kerja yang boleh dipilih sebagai penyaring laporan.
      *
      * @return Collection<int, UnitKerja>

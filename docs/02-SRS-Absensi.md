@@ -125,7 +125,7 @@ SI-ABSEN adalah aplikasi web dengan dua front-end: (1) Panel Admin untuk Superad
 |-----------|-----------------------------------------------------------------------------------------------------------------|---------------|
 | FR-LAP-01 | Admin dapat memfilter laporan kehadiran berdasarkan rentang tanggal dan unit kerja.                             | Tinggi        |
 | FR-LAP-02 | Sistem menampilkan rekap per pegawai: jumlah hadir, terlambat, dan tanpa keterangan dalam rentang yang dipilih. | Tinggi        |
-| FR-LAP-03 | Admin dapat mencetak (PDF) atau mengekspor (Excel) laporan kehadiran.                                           | Tinggi        |
+| FR-LAP-03 **(revisi S49)** | Admin dapat mencetak (PDF) atau mengekspor (CSV/Excel) laporan kehadiran. Berkas tabel yang diunduh memuat **rincian**, bukan agregat yang tampil di layar: satu baris per pegawai per sesi absen, dengan Tanggal, **Jam Masuk**, dan **Jam Pulang** yang tercatat selalu ikut — keempatnya tidak dapat dimatikan lewat checklist kolom. Lembar PDF tetap memuat agregatnya, sebab ia dibaca, bukan diolah. Aturan yang sama berlaku pada unduhan Rekap Absen dan Absen Umum. | Tinggi        |
 
 ## 3.10 Kiosk — Aktivasi Perangkat
 

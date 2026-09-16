@@ -409,9 +409,10 @@ class RekapTest extends TestCase
             ->assertOk()
             ->streamedContent();
 
-        // NIP dan Nama tetap ikut walau tidak diminta; Unit Kerja/Jam/Status
-        // tidak, sebab hanya 'metode' yang diminta.
-        $this->assertStringContainsString('"NIP";"Nama";"Metode"', $csv);
+        // NIP, Nama, Jam Masuk, dan Jam Pulang tetap ikut walau tidak diminta
+        // (lihat KOLOM_WAJIB); Unit Kerja dan Status tidak, sebab hanya
+        // metode yang diminta.
+        $this->assertStringContainsString('"NIP";"Nama";"Jam Masuk";"Jam Pulang";"Metode"', $csv);
         $this->assertStringNotContainsString('Unit Kerja', $csv);
     }
 

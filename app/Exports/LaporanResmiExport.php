@@ -10,6 +10,7 @@ use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use Maatwebsite\Excel\Events\AfterSheet;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -66,7 +67,8 @@ class LaporanResmiExport implements FromArray, ShouldAutoSize, WithEvents, WithT
                 $baris = $this->tulisRingkasan($sheet, $baris);
                 $baris = $this->tulisKesimpulan($sheet, $baris);
                 $baris = $this->tulisRekomendasi($sheet, $baris);
-                $this->tulisPengesahan($sheet, $baris);
+                $baris = $this->tulisPengesahan($sheet, $baris);
+                $this->tulisLampiranRincian($sheet, $baris);
 
                 $sheet->getColumnDimension('A')->setWidth(42);
                 foreach (['B', 'C', 'D', 'E', 'F', 'G'] as $kolom) {
@@ -277,7 +279,7 @@ class LaporanResmiExport implements FromArray, ShouldAutoSize, WithEvents, WithT
         return $baris + 1;
     }
 
-    protected function tulisPengesahan(Worksheet $sheet, int $baris): void
+    protected function tulisPengesahan(Worksheet $sheet, int $baris): int
     {
         $baris += 2;
         $sheet->mergeCells("E{$baris}:G{$baris}");
@@ -294,5 +296,102 @@ class LaporanResmiExport implements FromArray, ShouldAutoSize, WithEvents, WithT
         $sheet->setCellValue("E{$baris}", 'NIP. ');
         $sheet->getStyle("E{$baris}")->getFont()->setSize(9)->getColor()->setRGB('64748B');
         $sheet->getStyle("E{$baris}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+        return $baris + 1;
+    }
+
+    /**
+     * Lampiran rincian kehadiran: satu baris per pegawai per sesi absen,
+     * lengkap dengan jam masuk dan jam pulang yang tercatat.
+     *
+     * Ditulis setelah pengesahan, mengikuti urutan yang sama dengan PDF dan
+     * Word: yang ditandatangani adalah ringkasan di atas, dan lampiran adalah
+     * bukti pendukungnya.
+     *
+     * NIP ditulis EKSPLISIT sebagai string (`setCellValueExplicit`), bukan
+     * dibiarkan tertebak PhpSpreadsheet: 18 digit yang ditebak sebagai angka
+     * ditampilkan Excel sebagai "1,98E+17" dan kehilangan digit di belakang —
+     * NIP-nya sendiri berubah begitu berkasnya dibuka. Pagar yang sama sudah
+     * berdiri pada TabelDataExport.
+     */
+    protected function tulisLampiranRincian(Worksheet $sheet, int $baris): void
+    {
+        if (count($this->data['rincian']) === 0) {
+            return;
+        }
+
+        $baris += 2;
+
+        $sheet->setCellValue("A{$baris}", 'LAMPIRAN — RINCIAN KEHADIRAN PER PEGAWAI');
+        $sheet->getStyle("A{$baris}")->getFont()->setBold(true)->setSize(11)->getColor()->setRGB(self::WARNA_NAVY);
+        $baris++;
+
+        $sheet->setCellValue(
+            "A{$baris}",
+            'Jam masuk dan jam pulang sebagaimana tercatat sistem. Pegawai tanpa catatan '
+            .'kehadiran tidak muncul di sini; jumlah ketidakhadirannya terbaca pada Ringkasan Data.',
+        );
+        $sheet->getStyle("A{$baris}")->getFont()->setSize(9)->getColor()->setRGB('64748B');
+        $baris += 2;
+
+        $header = ['NIP', 'Nama', 'Unit Kerja', 'Tanggal', 'Kegiatan', 'Masuk', 'Pulang', 'Status'];
+        $kolom = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+
+        foreach ($header as $i => $judul) {
+            $sel = "{$kolom[$i]}{$baris}";
+            $sheet->setCellValue($sel, $judul);
+            $sheet->getStyle($sel)->getFont()->setBold(true)->setSize(9)->getColor()->setRGB('475569');
+            $sheet->getStyle($sel)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB(self::WARNA_REDUP_LEMBUT);
+            $sheet->getStyle($sel)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->getColor()->setRGB(self::WARNA_GARIS);
+            $sheet->getStyle($sel)->getAlignment()->setHorizontal($i >= 5 ? Alignment::HORIZONTAL_RIGHT : Alignment::HORIZONTAL_LEFT);
+        }
+
+        $baris++;
+
+        foreach ($this->data['rincian'] as $isi) {
+            $nilai = [
+                $isi['nip'],
+                $isi['nama'],
+                $isi['unit_kerja'] ?? '—',
+                $isi['tanggal_label'] ?? '—',
+                $isi['kegiatan'] ?? '—',
+                $isi['jam_masuk'] ?? '—',
+                $isi['jam_pulang'] ?? '—',
+                $isi['status_label'] ?? '—',
+            ];
+
+            foreach ($nilai as $i => $teks) {
+                $sel = "{$kolom[$i]}{$baris}";
+
+                /*
+                 * Dua pagar sekaligus, dan keduanya disengaja. `TYPE_STRING`
+                 * menahan Excel menghitung ulang isinya sebagai formula;
+                 * `amankanFormula()` menahannya sekali lagi pada tingkat teks,
+                 * sejalan dengan tabel Ringkasan di atas. Nama pegawai berasal
+                 * dari sinkronisasi WORKA — kolom yang tidak sepenuhnya di
+                 * bawah kendali aplikasi ini (CWE-1236).
+                 */
+                $sheet->setCellValueExplicit(
+                    $sel,
+                    EksporService::amankanFormula((string) $teks),
+                    DataType::TYPE_STRING,
+                );
+                $sheet->getStyle($sel)->getFont()->setSize(9);
+                $sheet->getStyle($sel)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->getColor()->setRGB(self::WARNA_GARIS);
+                $sheet->getStyle($sel)->getAlignment()->setHorizontal($i >= 5 ? Alignment::HORIZONTAL_RIGHT : Alignment::HORIZONTAL_LEFT);
+            }
+
+            $baris++;
+        }
+
+        if ($this->data['rincian_dipotong'] > 0) {
+            $baris++;
+            $sheet->setCellValue("A{$baris}", sprintf(
+                '%s baris berikutnya tidak dimuat agar dokumen tetap dapat dirakit. '
+                .'Gunakan "Unduh Data" pada menu Laporan untuk memperoleh seluruhnya.',
+                number_format($this->data['rincian_dipotong'], 0, ',', '.'),
+            ));
+            $sheet->getStyle("A{$baris}")->getFont()->setSize(9)->setItalic(true)->getColor()->setRGB('64748B');
+        }
     }
 }

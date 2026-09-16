@@ -47,17 +47,30 @@ function terapkan() {
 /*
  * Checklist kolom — bagian dari "Unduh Data" (CSV/Excel), tidak menyentuh
  * Generate Laporan sama sekali: dokumen resminya punya bentuk tetap.
- * NIP dan Nama terkunci selalu ikut; mengunduh tabel tanpa satu pun cara
- * mengenali barisnya tidak ada gunanya.
+ *
+ * Kolomnya mengikuti isi BERKAS, bukan tabel di layar. Keduanya sengaja
+ * berbeda: layar menampilkan agregat per pegawai (berapa kali hadir, berapa
+ * kali terlambat), sedangkan berkas yang diunduh memuat rincian per sesi
+ * absen beserta jam masuk dan jam pulang yang tercatat — pertanyaan yang
+ * dibawa orang ke berkas lampiran, dan yang tidak pernah dapat dijawab oleh
+ * hitungan.
+ *
+ * Yang terkunci: NIP dan Nama (tanpa keduanya baris tidak dapat dikenali),
+ * Tanggal (satu pegawai punya banyak baris di sini), serta Jam Masuk dan Jam
+ * Pulang — justru itulah isi laporan kehadiran.
  */
 const KOLOM_LAPORAN = [
   { kunci: 'nip', label: 'NIP', terkunci: true },
   { kunci: 'nama', label: 'Nama', terkunci: true },
   { kunci: 'unit_kerja', label: 'Unit Kerja' },
-  { kunci: 'event_berlaku', label: 'Event Berlaku' },
-  { kunci: 'hadir', label: 'Hadir' },
-  { kunci: 'terlambat', label: 'Terlambat' },
-  { kunci: 'tanpa_keterangan', label: 'Tanpa Keterangan' },
+  { kunci: 'tanggal_label', label: 'Tanggal', terkunci: true },
+  { kunci: 'kegiatan', label: 'Kegiatan' },
+  { kunci: 'jam_masuk', label: 'Jam Masuk', terkunci: true },
+  { kunci: 'jam_pulang', label: 'Jam Pulang', terkunci: true },
+  { kunci: 'status_label', label: 'Status' },
+  { kunci: 'metode', label: 'Metode' },
+  { kunci: 'perangkat', label: 'Perangkat' },
+  { kunci: 'ip_address', label: 'Alamat IP' },
 ]
 
 const kolomTerpilih = ref(KOLOM_LAPORAN.map((k) => k.kunci))

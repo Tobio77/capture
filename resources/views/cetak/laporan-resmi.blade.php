@@ -65,6 +65,19 @@
         .telat { color: #B45309; font-weight: 700; }
         table.data tfoot td { border: 1px solid #cbd5e1; background: #f1f5f9; font-weight: 700; padding: 6px; }
 
+        /* -------------------------------------------------------- lampiran */
+        /*
+         * Halaman sendiri: yang ditandatangani adalah ringkasan, dan lampiran
+         * tidak boleh menyelinap ke sisa halaman pengesahan. Kepala tabelnya
+         * diulang di tiap halaman — lampiran berhalaman-halaman tanpa kepala
+         * berhenti dapat dibaca setelah halaman pertama.
+         */
+        .lampiran { page-break-before: always; }
+        .lampiran table.data { font-size: 8.5px; }
+        .lampiran table.data thead { display: table-header-group; }
+        .lampiran table.data tr { page-break-inside: avoid; }
+        .rincian-lampiran { font-size: 9px; color: #475569; margin: 0 0 8px; }
+
         /* ----------------------------------------------------- rekomendasi */
         .rekomendasi h3 { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.03em; color: #334155; margin: 10px 0 4px; }
         .rekomendasi ul { margin: 0 0 6px; padding-left: 16px; }
@@ -201,6 +214,63 @@
             <p class="garis-nip">NIP. </p>
         </div>
     </div>
+
+    {{--
+        Lampiran rincian kehadiran. Berdiri SETELAH pengesahan, pada halaman
+        sendiri: yang ditandatangani adalah ringkasan di atas, dan lampiran
+        adalah bukti pendukungnya — bukan sebaliknya.
+    --}}
+    @if (count($data['rincian']) > 0)
+        <div class="bagian lampiran">
+            <h2>Lampiran — Rincian Kehadiran per Pegawai</h2>
+
+            <p class="rincian-lampiran">
+                Jam masuk dan jam pulang sebagaimana tercatat sistem pada periode
+                {{ $data['periode_label'] }}. Pegawai yang tidak memiliki catatan kehadiran
+                tidak muncul pada lampiran ini; jumlah ketidakhadirannya terbaca pada
+                tabel Ringkasan Data di atas.
+            </p>
+
+            <table class="data">
+                <thead>
+                    <tr>
+                        <th style="width:22px">No</th>
+                        <th style="width:110px">NIP</th>
+                        <th>Nama</th>
+                        <th>Unit Kerja</th>
+                        <th style="width:58px">Tanggal</th>
+                        <th>Kegiatan</th>
+                        <th class="kanan" style="width:42px">Masuk</th>
+                        <th class="kanan" style="width:42px">Pulang</th>
+                        <th style="width:52px">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($data['rincian'] as $urutan => $isi)
+                        <tr>
+                            <td class="kanan">{{ $urutan + 1 }}</td>
+                            <td>{{ $isi['nip'] }}</td>
+                            <td>{{ $isi['nama'] }}</td>
+                            <td>{{ $isi['unit_kerja'] ?? '—' }}</td>
+                            <td>{{ $isi['tanggal_label'] ?? '—' }}</td>
+                            <td>{{ $isi['kegiatan'] ?? '—' }}</td>
+                            <td class="kanan">{{ $isi['jam_masuk'] ?? '—' }}</td>
+                            <td class="kanan">{{ $isi['jam_pulang'] ?? '—' }}</td>
+                            <td>{{ $isi['status_label'] ?? '—' }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+
+            @if ($data['rincian_dipotong'] > 0)
+                <p class="rincian-lampiran">
+                    {{ number_format($data['rincian_dipotong'], 0, ',', '.') }} baris berikutnya
+                    tidak dimuat agar dokumen tetap dapat dirakit. Gunakan “Unduh Data” pada
+                    menu Laporan untuk memperoleh seluruh baris sebagai CSV atau Excel.
+                </p>
+            @endif
+        </div>
+    @endif
 
     <p class="kaki">Dicetak {{ $dicetak }} oleh {{ $oleh }} &middot; Capture — Sistem Absensi Kegiatan</p>
 </body>

@@ -48,10 +48,28 @@ class LaporanController extends Controller
         'nip' => 'NIP',
         'nama' => 'Nama',
         'unit_kerja' => 'Unit Kerja',
-        'event_berlaku' => 'Event Berlaku',
-        'hadir' => 'Hadir',
-        'terlambat' => 'Terlambat',
-        'tanpa_keterangan' => 'Tanpa Keterangan',
+        'tanggal_label' => 'Tanggal',
+        'kegiatan' => 'Kegiatan',
+        'jam_masuk' => 'Jam Masuk',
+        'jam_pulang' => 'Jam Pulang',
+        'status_label' => 'Status',
+        'metode' => 'Metode',
+        'perangkat' => 'Perangkat',
+        'ip_address' => 'Alamat IP',
+    ];
+
+    /**
+     * Kolom yang SELALU ikut, apa pun yang dicentang di checklist.
+     *
+     * NIP dan Nama karena tabel tanpa satu pun cara mengenali barisnya tidak
+     * ada gunanya; Tanggal karena satu pegawai punya banyak baris di sini, dan
+     * baris tanpa tanggal tidak dapat dibedakan satu sama lain; Jam Masuk dan
+     * Jam Pulang karena justru itulah yang dicari pembaca laporan kehadiran.
+     *
+     * @var array<int, string>
+     */
+    protected const array KOLOM_WAJIB = [
+        'nip', 'nama', 'tanggal_label', 'jam_masuk', 'jam_pulang',
     ];
 
     public function __construct(
@@ -118,9 +136,26 @@ class LaporanController extends Controller
             ], "{$nama}.pdf");
         }
 
-        $kolomAktif = $this->ekspor->kolomAktif($request, self::KOLOM, ['nip', 'nama']);
+        /*
+         * Unduhan tabel (CSV/Excel) memuat RINCIAN, bukan agregat yang tampil
+         * di layar: satu baris per pegawai per sesi absen, lengkap dengan jam
+         * masuk dan jam pulang yang tercatat.
+         *
+         * Keduanya sengaja berbeda grain. Layar menjawab "berapa kali hadir,
+         * berapa kali terlambat" — bentuk yang tepat untuk dibaca sekilas.
+         * Berkas yang diunduh justru diolah lanjut dan dilampirkan, dan
+         * pertanyaan yang dibawa ke sana adalah "pukul berapa orang ini datang
+         * dan pulang" — yang tidak pernah dapat dijawab oleh hitungan. Lembar
+         * PDF di atas tetap memuat agregatnya, sebab ia dibaca, bukan diolah.
+         */
+        $rincian = $this->laporan->saring(
+            $this->laporan->rincian($request->user(), $dari, $sampai, $unitKerjaId),
+            $request->string('cari')->toString(),
+        );
+
+        $kolomAktif = $this->ekspor->kolomAktif($request, self::KOLOM, self::KOLOM_WAJIB);
         $judul = array_map(fn (string $kunci) => self::KOLOM[$kunci], $kolomAktif);
-        $baris = $baris->map(fn (array $isi) => array_map(fn (string $kunci) => $isi[$kunci] ?? '', $kolomAktif));
+        $baris = $rincian->map(fn (array $isi) => array_map(fn (string $kunci) => $isi[$kunci] ?? '', $kolomAktif));
 
         if ($format === 'xlsx') {
             return Excel::download(new TabelDataExport($judul, $baris->all()), "{$nama}.xlsx");

@@ -57,6 +57,22 @@ class RekapController extends Controller
         'status_label' => 'Status',
     ];
 
+    /**
+     * Kolom yang SELALU ikut, apa pun yang dicentang di checklist.
+     *
+     * NIP dan Nama karena tabel tanpa satu pun cara mengenali barisnya tidak
+     * ada gunanya. Jam Masuk dan Jam Pulang karena itulah isi rekap kehadiran:
+     * berkas yang menyatakan seseorang "hadir" tanpa menyebut pukul berapa ia
+     * datang dan pulang tidak dapat dipertanggungjawabkan, dan justru jam
+     * itulah yang dicari pembacanya. Keduanya sempat dapat dimatikan lewat
+     * checklist — diperbaiki setelah dipakai di lapangan.
+     *
+     * Disalin di {@see AbsenUmumController::KOLOM_WAJIB}; jaga keduanya sama.
+     *
+     * @var array<int, string>
+     */
+    protected const array KOLOM_WAJIB = ['nip', 'nama', 'jam_masuk', 'jam_pulang'];
+
     public function __construct(
         protected EventAbsenService $event,
         protected AbsensiService $absensi,
@@ -266,7 +282,7 @@ class RekapController extends Controller
             ], "{$nama}.pdf");
         }
 
-        $kolomAktif = $this->ekspor->kolomAktif($request, self::KOLOM, ['nip', 'nama']);
+        $kolomAktif = $this->ekspor->kolomAktif($request, self::KOLOM, self::KOLOM_WAJIB);
         $judul = array_map(fn (string $kunci) => self::KOLOM[$kunci], $kolomAktif);
         $baris = $rekap->map(fn (array $isi) => array_map(
             fn (string $kunci) => $isi[$kunci] ?? '',

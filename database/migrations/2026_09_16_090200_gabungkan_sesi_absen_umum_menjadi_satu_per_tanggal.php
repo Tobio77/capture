@@ -52,6 +52,7 @@ return new class extends Migration
     protected function leburTanggal(string $tanggal): void
     {
         $hari = Carbon::parse($tanggal);
+        $kunciBaru = 'umum:'.$hari->toDateString();
 
         $sesi = DB::table('event_absen')
             ->where('jenis', 'umum')
@@ -59,11 +60,24 @@ return new class extends Migration
             ->orderBy('id')
             ->get();
 
-        // Sesi tertua menjadi induk: id terkecil berarti sesi yang pertama
-        // dibuka hari itu, dan mempertahankannya membuat urutan riwayat tetap
-        // masuk akal bila kelak ditelusuri.
-        $induk = $sesi->first();
-        $lain = $sesi->skip(1);
+        /*
+         * Induk peleburan.
+         *
+         * Yang lahir dari KODE BARU selalu menang, walau bukan yang tertua.
+         * Keadaan itu nyata: begitu kode dirilis sebelum migration ini
+         * dijalankan — beda menit saja sudah cukup — sesi hari itu lahir
+         * langsung berkunci `umum:<tanggal>` dan berdampingan dengan belasan
+         * sesi per-unit yang lama. Memilih yang tertua sebagai induk lalu
+         * menulis kunci itu padanya menabrak indeks unik milik sesi baru, dan
+         * migration berhenti di tengah jalan — persis kegagalan yang
+         * memunculkan pagar ini.
+         *
+         * Selebihnya sesi tertua yang menjadi induk: id terkecil berarti sesi
+         * yang pertama dibuka hari itu, dan mempertahankannya membuat urutan
+         * riwayat tetap masuk akal bila kelak ditelusuri.
+         */
+        $induk = $sesi->firstWhere('kunci_sesi', $kunciBaru) ?? $sesi->first();
+        $lain = $sesi->reject(fn ($satu) => (int) $satu->id === (int) $induk->id);
 
         foreach ($lain as $satu) {
             $this->pindahkanAbsensi((int) $satu->id, (int) $induk->id);
@@ -75,7 +89,7 @@ return new class extends Migration
         $override = $this->overrideTerakhir($sesi);
 
         DB::table('event_absen')->where('id', $induk->id)->update([
-            'kunci_sesi' => 'umum:'.$hari->toDateString(),
+            'kunci_sesi' => $kunciBaru,
             'nama' => 'Absen Umum — '.$hari->translatedFormat('d F Y'),
             'cakupan' => 'semua_unit',
             'override_absen' => $override['override_absen'],

@@ -63,6 +63,22 @@ use Illuminate\Support\Collection;
  */
 class LaporanResmiService
 {
+    /**
+     * Batas baris lampiran rincian kehadiran.
+     *
+     * Lampirannya berbutir satu baris per pegawai per sesi absen, sehingga
+     * sebulan penuh se-dinas dapat melampaui sepuluh ribu baris. DomPDF dan
+     * PhpWord merakit seluruh dokumen di memori sebelum menuliskannya, dan
+     * dokumen sebesar itu bukan melambat melainkan GAGAL — antrean Riwayat
+     * Laporan menandainya "gagal" tanpa berkas apa pun, yang jauh lebih buruk
+     * daripada lampiran yang terpotong dengan terang-terangan.
+     *
+     * Ketika terpotong, dokumen menyebut berapa baris yang tidak muat dan
+     * menunjuk ke "Unduh Data" pada menu Laporan, yang memuat seluruhnya
+     * sebagai CSV/Excel tanpa batas ini.
+     */
+    public const int BATAS_BARIS_LAMPIRAN = 5_000;
+
     public function __construct(
         protected LaporanService $laporan,
         protected SettingAbsenService $setting,
@@ -81,7 +97,21 @@ class LaporanResmiService
         [$dariPembanding, $sampaiPembanding] = $this->periodePembanding($dari, $sampai);
         $sebelumnya = $this->ringkasanPeriode($pelaku, $dariPembanding, $sampaiPembanding, $unitKerjaId);
 
+        /*
+         * Lampiran rincian kehadiran: satu baris per pegawai per sesi absen,
+         * lengkap dengan jam masuk dan jam pulang yang tercatat.
+         *
+         * Badan dokumen tetap ringkasan per unit kerja — itulah yang
+         * ditandatangani. Lampiran ini yang menjawab "pukul berapa orang ini
+         * datang dan pulang", pertanyaan yang tidak pernah dapat dijawab oleh
+         * angka ringkasan, dan yang sebelumnya menuntut pembaca membuka berkas
+         * terpisah.
+         */
+        $rincian = $this->laporan->rincian($pelaku, $dari, $sampai, $unitKerjaId);
+
         return [
+            'rincian' => $rincian->take(self::BATAS_BARIS_LAMPIRAN)->values(),
+            'rincian_dipotong' => max(0, $rincian->count() - self::BATAS_BARIS_LAMPIRAN),
             'dari' => $dari,
             'sampai' => $sampai,
             'periode_label' => $this->labelPeriode($dari, $sampai),

@@ -56,6 +56,15 @@ class AbsenUmumController extends Controller
         'status_label' => 'Status',
     ];
 
+    /**
+     * Sama persis dengan {@see RekapController::KOLOM_WAJIB} — lihat catatan
+     * di sana. Disalin, bukan diwarisi, karena kedua controller tidak berbagi
+     * kelas induk.
+     *
+     * @var array<int, string>
+     */
+    protected const array KOLOM_WAJIB = ['nip', 'nama', 'jam_masuk', 'jam_pulang'];
+
     public function __construct(
         protected AbsenUmumService $absenUmum,
         protected AbsensiService $absensi,
@@ -282,7 +291,7 @@ class AbsenUmumController extends Controller
             ], "{$nama}.pdf");
         }
 
-        $kolomAktif = $this->ekspor->kolomAktif($request, self::KOLOM, ['nip', 'nama']);
+        $kolomAktif = $this->ekspor->kolomAktif($request, self::KOLOM, self::KOLOM_WAJIB);
         $judul = array_map(fn (string $kunci) => self::KOLOM[$kunci], $kolomAktif);
         $baris = $baris->map(fn (array $isi) => array_map(
             fn (string $kunci) => $isi[$kunci] ?? '',

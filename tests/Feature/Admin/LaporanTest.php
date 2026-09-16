@@ -53,6 +53,30 @@ class LaporanTest extends TestCase
         return $event;
     }
 
+    /**
+     * Catat kehadiran sepasang datang–pulang pada sebuah event.
+     *
+     * Dibutuhkan hampir setiap uji ekspor sejak berkas unduhan memuat RINCIAN
+     * per sesi absen alih-alih agregat: pegawai yang tidak punya satu pun tap
+     * tidak menghasilkan baris apa pun di sana. Angka ketidakhadirannya tetap
+     * terbaca pada tabel di layar dan pada lembar PDF, yang keduanya masih
+     * memakai agregat.
+     */
+    protected function hadir(EventAbsen $event, Pegawai $pegawai): void
+    {
+        Absensi::factory()->create([
+            'event_absen_id' => $event->id,
+            'pegawai_id' => $pegawai->id,
+            'waktu' => $event->tanggal->copy()->setTime(7, 31),
+        ]);
+
+        Absensi::factory()->pulang()->create([
+            'event_absen_id' => $event->id,
+            'pegawai_id' => $pegawai->id,
+            'waktu' => $event->tanggal->copy()->setTime(16, 4),
+        ]);
+    }
+
     #[Test]
     public function tanpa_keterangan_dihitung_dari_event_yang_berlaku_baginya(): void
     {
@@ -232,12 +256,12 @@ class LaporanTest extends TestCase
     public function ekspor_csv_dapat_diunduh_dan_memakai_pemisah_titik_koma(): void
     {
         ['upt' => $upt] = $this->hirarki();
-        Pegawai::factory()->create([
+        $pegawai = Pegawai::factory()->create([
             'nip' => '199001012020011001',
             'nama' => 'Ahmad Fauzi',
             'unit_kerja_id' => $upt->id,
         ]);
-        $this->eventPada('2026-09-05', $upt);
+        $this->hadir($this->eventPada('2026-09-05', $upt), $pegawai);
 
         $jawaban = $this->actingAs(User::factory()->superadmin()->create())
             ->get(self::URL.'/ekspor?dari=2026-09-01&sampai=2026-09-30')
@@ -248,8 +272,12 @@ class LaporanTest extends TestCase
 
         // BOM UTF-8 supaya nama ber-diakritik tidak rusak di Excel.
         $this->assertStringStartsWith("\u{FEFF}", $isi);
-        $this->assertStringContainsString('"NIP";"Nama";"Unit Kerja"', $isi);
+        $this->assertStringContainsString('"NIP";"Nama";"Unit Kerja";"Tanggal"', $isi);
         $this->assertStringContainsString('"199001012020011001";"Ahmad Fauzi"', $isi);
+
+        // Inti permintaannya: jam yang tercatat selalu ikut pada unduhan.
+        $this->assertStringContainsString('"05-09-2026"', $isi);
+        $this->assertStringContainsString('"07:31";"16:04"', $isi);
     }
 
     #[Test]
@@ -260,11 +288,11 @@ class LaporanTest extends TestCase
         // aplikasi ini. Nilai yang diawali "=" akan dieksekusi sebagai
         // formula begitu berkasnya dibuka Excel, kecuali dinetralkan dulu.
         ['upt' => $upt] = $this->hirarki();
-        Pegawai::factory()->create([
+        $pegawai = Pegawai::factory()->create([
             'nama' => '=HYPERLINK("http://penyerang.test","klik di sini")',
             'unit_kerja_id' => $upt->id,
         ]);
-        $this->eventPada('2026-09-05', $upt);
+        $this->hadir($this->eventPada('2026-09-05', $upt), $pegawai);
 
         $isi = $this->actingAs(User::factory()->superadmin()->create())
             ->get(self::URL.'/ekspor?dari=2026-09-01&sampai=2026-09-30')
@@ -289,8 +317,16 @@ class LaporanTest extends TestCase
     {
         ['upt' => $upt, 'lain' => $lain] = $this->hirarki();
 
-        Pegawai::factory()->create(['nama' => 'Ahmad Fauzi', 'unit_kerja_id' => $upt->id]);
-        Pegawai::factory()->create(['nama' => 'Citra Dewi', 'unit_kerja_id' => $lain->id]);
+        $event = $this->eventPada(now()->toDateString());
+
+        $this->hadir($event, Pegawai::factory()->create([
+            'nama' => 'Ahmad Fauzi',
+            'unit_kerja_id' => $upt->id,
+        ]));
+        $this->hadir($event, Pegawai::factory()->create([
+            'nama' => 'Citra Dewi',
+            'unit_kerja_id' => $lain->id,
+        ]));
 
         $isi = $this->actingAs(User::factory()->adminUpt($upt)->create())
             ->get(self::URL.'/ekspor')
@@ -325,7 +361,11 @@ class LaporanTest extends TestCase
          * ikut terpotong halaman tidak ada gunanya.
          */
         ['upt' => $upt] = $this->hirarki();
-        Pegawai::factory()->count(30)->create(['unit_kerja_id' => $upt->id]);
+        $event = $this->eventPada(now()->toDateString());
+
+        foreach (Pegawai::factory()->count(30)->create(['unit_kerja_id' => $upt->id]) as $orang) {
+            $this->hadir($event, $orang);
+        }
 
         $isi = $this->actingAs(User::factory()->superadmin()->create())
             ->get(self::URL.'/ekspor')
@@ -454,20 +494,30 @@ class LaporanTest extends TestCase
     public function checklist_kolom_menyaring_kolom_csv(): void
     {
         ['upt' => $upt] = $this->hirarki();
-        Pegawai::factory()->create(['nip' => '199001012020011001', 'nama' => 'Ahmad Fauzi', 'unit_kerja_id' => $upt->id]);
-        $this->eventPada('2026-09-05', $upt);
+        $pegawai = Pegawai::factory()->create([
+            'nip' => '199001012020011001',
+            'nama' => 'Ahmad Fauzi',
+            'unit_kerja_id' => $upt->id,
+        ]);
+        $this->hadir($this->eventPada('2026-09-05', $upt), $pegawai);
 
         $isi = $this->actingAs(User::factory()->superadmin()->create())
-            ->get(self::URL.'/ekspor?dari=2026-09-01&sampai=2026-09-30&kolom[]=hadir')
+            ->get(self::URL.'/ekspor?dari=2026-09-01&sampai=2026-09-30&kolom[]=metode')
             ->assertOk()
             ->streamedContent();
 
-        // NIP dan Nama tetap ikut walau tidak diminta — tabel tanpa keduanya
-        // tidak ada gunanya. Kolom lain yang tidak dicentang (Unit Kerja,
-        // Terlambat, dst) tidak ikut.
-        $this->assertStringContainsString('"NIP";"Nama";"Hadir"', $isi);
+        /*
+         * NIP, Nama, Tanggal, Jam Masuk, dan Jam Pulang tetap ikut walau tidak
+         * diminta (lihat KOLOM_WAJIB): tanpa keduanya yang pertama baris tidak
+         * dapat dikenali, dan tanpa jam berkasnya berhenti menjadi laporan
+         * kehadiran. Kolom lain yang tidak dicentang tidak ikut.
+         */
+        $this->assertStringContainsString(
+            '"NIP";"Nama";"Tanggal";"Jam Masuk";"Jam Pulang";"Metode"',
+            $isi,
+        );
         $this->assertStringNotContainsString('Unit Kerja', $isi);
-        $this->assertStringNotContainsString('Terlambat', $isi);
+        $this->assertStringNotContainsString('Alamat IP', $isi);
     }
 
     #[Test]
@@ -493,8 +543,8 @@ class LaporanTest extends TestCase
         // ditulis lewat PhpSpreadsheet (TabelDataExport), jalur kode yang
         // sama sekali berbeda dari perakitan string CSV.
         ['upt' => $upt] = $this->hirarki();
-        Pegawai::factory()->create(['nama' => '=1+1', 'unit_kerja_id' => $upt->id]);
-        $this->eventPada('2026-09-05', $upt);
+        $pegawai = Pegawai::factory()->create(['nama' => '=1+1', 'unit_kerja_id' => $upt->id]);
+        $this->hadir($this->eventPada('2026-09-05', $upt), $pegawai);
 
         $jawaban = $this->actingAs(User::factory()->superadmin()->create())
             ->get(self::URL.'/ekspor?format=xlsx&dari=2026-09-01&sampai=2026-09-30')
@@ -548,8 +598,12 @@ class LaporanTest extends TestCase
         // digit di belakang (presisi float hanya ~15-17 digit signifikan).
         // Bukan cuma salah tampil: NIP-nya sendiri berubah begitu dibuka.
         ['upt' => $upt] = $this->hirarki();
-        Pegawai::factory()->create(['nip' => '198001012020011001', 'nama' => 'Ahmad Fauzi', 'unit_kerja_id' => $upt->id]);
-        $this->eventPada('2026-09-05', $upt);
+        $pegawai = Pegawai::factory()->create([
+            'nip' => '198001012020011001',
+            'nama' => 'Ahmad Fauzi',
+            'unit_kerja_id' => $upt->id,
+        ]);
+        $this->hadir($this->eventPada('2026-09-05', $upt), $pegawai);
 
         $jawaban = $this->actingAs(User::factory()->superadmin()->create())
             ->get(self::URL.'/ekspor?format=xlsx&dari=2026-09-01&sampai=2026-09-30')

@@ -257,8 +257,15 @@ const KOLOM_REKAP = [
   { kunci: 'nip', label: 'NIP', terkunci: true },
   { kunci: 'nama', label: 'Nama', terkunci: true },
   { kunci: 'unit_kerja', label: 'Unit Kerja' },
-  { kunci: 'jam_masuk', label: 'Jam Masuk' },
-  { kunci: 'jam_pulang', label: 'Jam Pulang' },
+
+  /*
+   * Jam masuk dan jam pulang TERKUNCI: itulah isi rekap kehadiran. Berkas yang
+   * menyatakan seseorang hadir tanpa menyebut pukul berapa ia datang dan
+   * pulang tidak dapat dipertanggungjawabkan, dan justru jam itulah yang
+   * dicari pembacanya. Keduanya sempat dapat dimatikan di sini.
+   */
+  { kunci: 'jam_masuk', label: 'Jam Masuk', terkunci: true },
+  { kunci: 'jam_pulang', label: 'Jam Pulang', terkunci: true },
   { kunci: 'metode', label: 'Metode' },
 
   // Asal tap (S49) — lihat catatan pada TabelRekap.vue.
