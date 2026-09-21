@@ -33,20 +33,27 @@ class MenuNavigasi
                 'label' => 'Kelola Absen',
                 'ikon' => 'absen',
                 'peran' => $semuaPeran,
+                /*
+                 * Tiap anak membawa ikonnya sendiri (S50). Sebelum submenunya
+                 * dapat dilipat, seluruh butir selalu terlihat dan urutannya
+                 * sendiri sudah cukup menjadi penanda; begitu ia dapat
+                 * tertutup, deretan teks polos kehilangan satu-satunya cara
+                 * dikenali sekilas saat dibuka kembali.
+                 */
                 'anak' => [
-                    ['label' => 'Daftar Event', 'rute' => 'event.index', 'peran' => $semuaPeran],
-                    ['label' => 'Absen Umum', 'rute' => 'absen-umum.index', 'peran' => $semuaPeran],
-                    ['label' => 'Rekap Absen', 'rute' => 'rekap.index', 'peran' => $semuaPeran],
-                    ['label' => 'Setting Absen', 'rute' => 'setting-absen.index', 'peran' => $lintasUnit],
-                    ['label' => 'Setting Unit Kerja', 'rute' => 'unit-kerja.index', 'peran' => $semuaPeran],
-                    ['label' => 'Integrasi WORKA', 'rute' => 'setting-worka.edit', 'peran' => $lintasUnit],
+                    ['label' => 'Daftar Event', 'ikon' => 'kalender', 'rute' => 'event.index', 'peran' => $semuaPeran],
+                    ['label' => 'Absen Umum', 'ikon' => 'jam', 'rute' => 'absen-umum.index', 'peran' => $semuaPeran],
+                    ['label' => 'Rekap Absen', 'ikon' => 'daftar', 'rute' => 'rekap.index', 'peran' => $semuaPeran],
+                    ['label' => 'Setting Absen', 'ikon' => 'setelan', 'rute' => 'setting-absen.index', 'peran' => $lintasUnit],
+                    ['label' => 'Setting Unit Kerja', 'ikon' => 'gedung', 'rute' => 'unit-kerja.index', 'peran' => $semuaPeran],
+                    ['label' => 'Integrasi WORKA', 'ikon' => 'awan', 'rute' => 'setting-worka.edit', 'peran' => $lintasUnit],
 
                     /*
                      * Backup/retensi data absensi adalah tanggung jawab
                      * superadmin murni — bukan admin dinas, selaras dengan
                      * satu-satunya menu superadmin-murni lain (Kelola User).
                      */
-                    ['label' => 'Maintenance & Backup', 'rute' => 'maintenance.edit', 'peran' => [PeranPengguna::Superadmin]],
+                    ['label' => 'Maintenance & Backup', 'ikon' => 'arsip', 'rute' => 'maintenance.edit', 'peran' => [PeranPengguna::Superadmin]],
                 ],
             ],
             [

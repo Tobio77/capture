@@ -129,17 +129,19 @@ export async function siapkanUntukTapKiosk(adminPage) {
 }
 
 /**
- * Buka paksa Absen Umum untuk satu unit kerja, mengabaikan jadwal jam MAUPUN
- * kalender hari kerja (S39: hari libur MENUTUP Absen Umum secara bawaan,
- * kecuali override tetap menang di atas semuanya — lihat
- * `KalenderKerjaService`). Tanpa ini, test yang kebetulan berjalan di luar
- * jam kerja atau pada akhir pekan/tanggal merah akan menemukan Absen Umum
- * tertutup walau jendela jam sudah dilebarkan lewat
- * {@link siapkanUntukTapKiosk}.
+ * Buka paksa Absen Umum, mengabaikan jadwal jam MAUPUN kalender hari kerja
+ * (S39: hari libur MENUTUP Absen Umum secara bawaan, kecuali override tetap
+ * menang di atas semuanya — lihat `KalenderKerjaService`). Tanpa ini, test
+ * yang kebetulan berjalan di luar jam kerja atau pada akhir pekan/tanggal
+ * merah akan menemukan Absen Umum tertutup walau jendela jamnya sudah
+ * dilebarkan lewat {@link siapkanUntukTapKiosk}.
+ *
+ * Tidak lagi menerima unit kerja: sejak S49 sesi Absen Umum SATU untuk seluruh
+ * dinas, dan overridenya berlaku bagi semuanya sekaligus. Pemilih unit pada
+ * halaman itu kini hanya menyaring tabel di bawahnya.
  */
-export async function bukaPaksaAbsenUmum(adminPage, namaUnitKerja) {
+export async function bukaPaksaAbsenUmum(adminPage) {
   await adminPage.goto('/admin/kelola-absen/absen-umum')
-  await pilihDariDropdown(adminPage, 'unit', namaUnitKerja)
 
   // Tombolnya digambar sekali PER JENIS (datang, pulang) walau overridenya
   // berlaku untuk keduanya sekaligus — cukup satu klik dari yang mana pun.
@@ -157,3 +159,4 @@ export async function pilihTanggalHariIni(page, idTombol) {
   await page.locator(`#${idTombol}`).click()
   await page.getByRole('button', { name: 'Hari ini' }).click()
 }
+

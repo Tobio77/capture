@@ -31,6 +31,15 @@ test.describe('Kiosk: perangkat, event, dan tap', () => {
     page,
     context,
   }) => {
+    /*
+     * Delapan langkah dalam satu test, termasuk satu tap berkamera yang
+     * menunggu foto dikompresi peramban. Batas 30 detik bawaan Playwright
+     * cukup ketika berkas ini dijalankan sendirian, tetapi tidak ketika
+     * seluruh suite berjalan berurutan pada satu proses `php artisan serve`
+     * — server yang sama juga melayani permintaan spec sebelumnya.
+     */
+    test.slow()
+
     const namaEvent = `E2E Kegiatan ${Date.now()}`
 
     // 1. Admin membaca kode perangkat BLK Surabaya di Setting Unit Kerja.
@@ -95,7 +104,7 @@ test.describe('Kiosk: perangkat, event, dan tap', () => {
       .click()
 
     const dialog = page.getByRole('dialog')
-    await expect(dialog.getByText(UNIT_KERJA.blkSurabaya.kode)).toBeVisible()
+    await expect(dialog.getByText(UNIT_KERJA.blkSurabaya.kode).first()).toBeVisible()
     // Dialog punya DUA tombol bernama "Tutup": ikon-X di kepala (aria-label)
     // dan tombol teks di kaki — kaki selalu terakhir dalam urutan DOM.
     await dialog.getByRole('button', { name: 'Tutup', exact: true }).last().click()

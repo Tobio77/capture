@@ -4,7 +4,6 @@ import { PEGAWAI_TANPA_WAJAH, UNIT_KERJA } from '../data.js'
 import {
   bukaPaksaAbsenUmum,
   daftarkanDanAktifkanKiosk,
-  pilihDariDropdown,
   pilihTanggalHariIni,
   siapkanUntukTapKiosk,
 } from '../helpers.js'
@@ -21,7 +20,7 @@ test.describe('Rekap Absen', () => {
 
   test('tab umum: unduh CSV dan Excel', async ({ page, context }) => {
     await siapkanUntukTapKiosk(page)
-    await bukaPaksaAbsenUmum(page, UNIT_KERJA.blkSurabaya.nama)
+    await bukaPaksaAbsenUmum(page)
 
     const kiosk = await daftarkanDanAktifkanKiosk(page, context, UNIT_KERJA.blkSurabaya.kode)
     await kiosk.getByRole('button', { name: 'Absen Umum' }).click()
@@ -32,11 +31,9 @@ test.describe('Rekap Absen', () => {
     await expect(kiosk.getByText('Absen berhasil dicatat')).toBeVisible({ timeout: 15_000 })
     await kiosk.close()
 
-    // Superadmin tidak berunit sendiri, sehingga tab umum jatuh ke unit
-    // pertama menurut cakupannya — belum tentu BLK Surabaya. Dipilih
-    // eksplisit lewat filter yang sama dipakai layar ini.
+    // Sejak S49 sesi harian satu untuk seluruh dinas: tidak ada unit yang
+    // perlu dipilih lebih dulu — barisnya langsung tampil.
     await page.goto('/admin/kelola-absen/rekap?tab=umum')
-    await pilihDariDropdown(page, 'unit', UNIT_KERJA.blkSurabaya.nama)
     await expect(page.getByText(PEGAWAI_TANPA_WAJAH.nama)).toBeVisible()
 
     // Tombol hapus per-baris (superadmin saja) bergantung pada properti

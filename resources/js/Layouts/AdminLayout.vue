@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import Ikon from '@/Components/Ikon.vue'
 import SaklarTema from '@/Components/UI/SaklarTema.vue'
@@ -22,6 +22,72 @@ const cakupan = computed(() =>
 )
 
 const aktif = (rute) => ruteSaatIni.value === rute
+
+/* -------------------------------------------------------------- submenu */
+
+/**
+ * Kelompok menu yang sedang terbuka (S50).
+ *
+ * Sebelumnya seluruh anak "Kelola Absen" — tujuh butir — selalu tergambar,
+ * sehingga daftar navigasi mencapai dua belas baris dan menuntut gulir pada
+ * laptop 13 inci. Kini kelompoknya dapat dilipat, dan yang tertutup menyusut
+ * menjadi satu baris.
+ *
+ * Keadaannya disimpan di localStorage karena AdminLayout **dibuat ulang pada
+ * setiap perpindahan halaman** — Inertia di proyek ini tidak memakai
+ * persistent layout (lihat resources/js/app.js). Tanpa penyimpanan, kelompok
+ * yang baru saja dibuka admin akan menutup sendiri begitu ia menekan salah
+ * satu isinya.
+ */
+const KUNCI_SIMPANAN = 'capture.sidebar.kelompok'
+
+function bacaSimpanan() {
+  try {
+    const isi = JSON.parse(localStorage.getItem(KUNCI_SIMPANAN) ?? '[]')
+
+    return Array.isArray(isi) ? isi : []
+  } catch {
+    // Mode privat, kuota penuh, atau nilai rusak — bukan alasan menggagalkan
+    // seluruh navigasi. Bawaannya: seluruh kelompok tertutup.
+    return []
+  }
+}
+
+const grupTerbuka = ref(new Set(bacaSimpanan()))
+
+/** Kelompok yang memuat halaman yang sedang dibuka, bila ada. */
+const grupAktif = computed(
+  () => menu.value.find((item) => item.anak?.some((anak) => aktif(anak.rute)))?.label ?? null,
+)
+
+/*
+ * Kelompok yang memuat halaman berjalan selalu dibuka saat layar dirakit —
+ * sidebar yang tidak menunjukkan DI MANA penggunanya berada berhenti menjadi
+ * navigasi. Pembukaan otomatis ini sengaja TIDAK disimpan: yang tersimpan
+ * hanya keputusan yang benar-benar diambil admin lewat tombolnya, sehingga
+ * sekali berkunjung ke satu halaman tidak membuat kelompoknya menganga
+ * selamanya.
+ */
+onMounted(() => {
+  if (grupAktif.value !== null) {
+    grupTerbuka.value = new Set(grupTerbuka.value).add(grupAktif.value)
+  }
+})
+
+const terbuka = (item) => grupTerbuka.value.has(item.label)
+
+function alihkanGrup(item) {
+  const berikutnya = new Set(grupTerbuka.value)
+
+  berikutnya.has(item.label) ? berikutnya.delete(item.label) : berikutnya.add(item.label)
+  grupTerbuka.value = berikutnya
+
+  try {
+    localStorage.setItem(KUNCI_SIMPANAN, JSON.stringify([...berikutnya]))
+  } catch {
+    // Penyimpanan gagal hanya berarti keadaannya tidak bertahan antar halaman.
+  }
+}
 
 /*
  * Peringatannya sengaja dipasang di kerangka halaman, bukan di satu layar
@@ -126,53 +192,108 @@ const keluar = () => router.post('/keluar')
           bukan sekadar isian rata. Pada latar navy, isian rata terbaca sebagai
           "baris yang kebetulan diberi warna"; yang dicari di sini adalah
           "tombol yang sedang ditekan".
-        -->
-      <nav class="gulir-halus flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
-        <template v-for="item in menu" :key="item.label">
-          <!-- Menu induk dengan submenu -->
-          <div
-            v-if="item.anak"
-            class="mt-4 border-t border-sidebar-garis pt-4 first:mt-0 first:border-t-0 first:pt-0"
-          >
-            <p
-              class="flex items-center gap-2 px-3 pb-1.5 text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-sidebar-redup"
-            >
-              <Ikon :nama="item.ikon" ukuran="h-3.5 w-3.5" />
-              {{ item.label }}
-            </p>
 
-            <Link
-              v-for="anak in item.anak"
-              :key="anak.rute"
-              :href="anak.url"
-              class="tautan-aksi relative flex items-center rounded-xl py-2 pl-9 pr-3 text-sm transition-all duration-150"
-              :class="
-                aktif(anak.rute)
-                  ? 'bg-aksen font-medium text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.2),0_2px_10px_rgb(13_148_136/0.35)]'
-                  : 'text-sidebar-teks/80 hover:bg-white/[0.07] hover:text-sidebar-teks'
-              "
+          Gerak di sini sengaja kecil dan searah: ikon bergeser sedikit ke
+          kanan saat disentuh, seolah barisnya condong ke arah tujuannya.
+          Sidebar dilihat sepanjang hari, dan gerak yang lebih besar dari itu
+          berhenti terasa halus setelah pemakaian kelima.
+        -->
+      <nav class="gulir-halus flex-1 space-y-1 overflow-y-auto px-3 py-4">
+        <template v-for="item in menu" :key="item.label">
+          <!-- Kelompok yang dapat dilipat -->
+          <div v-if="item.anak">
+            <button
+              type="button"
+              class="menu-baris group w-full"
+              :class="terbuka(item) ? 'menu-baris-grup-terbuka' : 'menu-baris-diam'"
+              :aria-expanded="terbuka(item)"
+              :aria-controls="`submenu-${item.label.replace(/\s+/g, '-')}`"
+              @click="alihkanGrup(item)"
             >
+              <Ikon :nama="item.ikon" ukuran="h-5 w-5" class="menu-ikon" />
+
+              <span class="flex-1 text-left">{{ item.label }}</span>
+
+              <!--
+                Titik penanda: kelompok yang sedang tertutup tetapi memuat
+                halaman berjalan. Tanpa ini, melipat kelompok berarti kehilangan
+                satu-satunya petunjuk di mana pengguna sedang berada.
+              -->
               <span
-                class="absolute left-3.5 h-1.5 w-1.5 rounded-full transition-colors duration-150"
-                :class="aktif(anak.rute) ? 'bg-white' : 'bg-sidebar-redup/40'"
+                v-if="!terbuka(item) && grupAktif === item.label"
+                class="h-1.5 w-1.5 rounded-full bg-aksen-kuat"
+                aria-hidden="true"
               ></span>
-              {{ anak.label }}
-            </Link>
+
+              <Ikon
+                nama="bawah"
+                ukuran="h-4 w-4"
+                class="text-sidebar-redup transition-transform duration-300 ease-out group-hover:text-sidebar-teks"
+                :class="terbuka(item) && 'rotate-180'"
+              />
+            </button>
+
+            <!--
+              Lipatannya memakai `grid-template-rows: 0fr → 1fr`, bukan
+              `max-height` yang ditebak. Tebakan tinggi selalu meleset pada
+              salah satu peran — submenu Admin UPT lebih pendek tiga butir
+              daripada Superadmin — dan meleset ke atas berarti animasinya
+              tersentak di akhir, meleset ke bawah berarti isinya terpotong.
+            -->
+            <!--
+              `inert` saat terlipat. Isinya tetap ada di DOM supaya lipatannya
+              dapat dianimasikan, dan tanpa penanda ini tautan yang tidak
+              terlihat tetap dapat dijangkau Tab maupun pembaca layar — fokus
+              yang berpindah ke tautan setinggi nol piksel adalah fokus yang
+              hilang, dan penggunanya tidak punya cara tahu ke mana ia pergi.
+
+              Ditulis `terbuka ? undefined : true`, bukan `!terbuka`: atribut
+              `inert` aktif oleh KEBERADAANNYA, sehingga `inert="false"` yang
+              lahir dari nilai boolean palsu justru mematikan submenu yang
+              sedang terbuka.
+            -->
+            <div
+              :id="`submenu-${item.label.replace(/\s+/g, '-')}`"
+              class="grid transition-[grid-template-rows] duration-300 ease-out"
+              :class="terbuka(item) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'"
+              :inert="terbuka(item) ? undefined : true"
+            >
+              <div class="overflow-hidden">
+                <div class="relative mt-1 space-y-0.5 pl-5">
+                  <!-- Garis penghubung, menandai kedalaman tanpa indentasi lebar. -->
+                  <span
+                    class="absolute inset-y-1 left-[1.4rem] w-px bg-sidebar-garis"
+                    aria-hidden="true"
+                  ></span>
+
+                  <Link
+                    v-for="(anak, urutan) in item.anak"
+                    :key="anak.rute"
+                    :href="anak.url"
+                    class="menu-baris menu-anak tautan-aksi group text-[0.8125rem]"
+                    :class="[
+                      aktif(anak.rute) ? 'menu-baris-aktif' : 'menu-baris-diam',
+                      terbuka(item) ? 'menu-anak-masuk' : 'menu-anak-tersembunyi',
+                    ]"
+                    :style="{ '--tunda': `${terbuka(item) ? urutan * 28 : 0}ms` }"
+                  >
+                    <Ikon :nama="anak.ikon" ukuran="h-4 w-4" class="menu-ikon" />
+                    <span class="flex-1 text-left">{{ anak.label }}</span>
+                  </Link>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Menu tunggal -->
           <Link
             v-else
             :href="item.url"
-            class="tautan-aksi flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-150"
-            :class="
-              aktif(item.rute)
-                ? 'bg-aksen font-medium text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.2),0_2px_10px_rgb(13_148_136/0.35)]'
-                : 'text-sidebar-teks/80 hover:bg-white/[0.07] hover:text-sidebar-teks'
-            "
+            class="menu-baris tautan-aksi group"
+            :class="aktif(item.rute) ? 'menu-baris-aktif' : 'menu-baris-diam'"
           >
-            <Ikon :nama="item.ikon" ukuran="h-5 w-5 shrink-0" />
-            {{ item.label }}
+            <Ikon :nama="item.ikon" ukuran="h-5 w-5" class="menu-ikon" />
+            <span class="flex-1 text-left">{{ item.label }}</span>
           </Link>
         </template>
       </nav>

@@ -465,6 +465,127 @@
 }
 
 /* ==========================================================================
+ * Baris navigasi sidebar (S50).
+ *
+ * Ditulis sebagai komponen, bukan deretan utilitas di template: baris menu
+ * muncul dalam tiga bentuk — kelompok yang dapat dilipat, anak kelompok, dan
+ * menu tunggal — dan ketiganya harus terlihat SATU keluarga. Sebagai
+ * kumpulan utilitas yang disalin tiga kali, ketiganya sudah pernah menyimpang
+ * diam-diam (padding anak berbeda dua piksel dari induknya) dan tidak ada
+ * yang menyadarinya sampai seseorang membandingkan tangkapan layar.
+ *
+ * Geraknya sengaja kecil dan searah: ikon bergeser 2px ke kanan saat
+ * disentuh, seolah barisnya condong ke arah tujuannya. Sidebar dilihat
+ * sepanjang hari kerja — gerak yang lebih besar dari ini berhenti terasa
+ * halus setelah pemakaian kelima, dan mulai terasa gelisah.
+ * ======================================================================== */
+@layer components {
+    .menu-baris {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        width: 100%;
+        border-radius: var(--radius-xl);
+        padding: 0.625rem 0.75rem;
+        font-size: 0.875rem;
+        line-height: 1.25rem;
+        transition:
+            background-color 180ms ease,
+            color 180ms ease,
+            box-shadow 180ms ease;
+    }
+
+    /* Anak kelompok: sedikit lebih rapat, sebab ia sudah bernaung. */
+    .menu-anak {
+        padding-block: 0.5rem;
+    }
+
+    .menu-ikon {
+        flex-shrink: 0;
+        transition: transform 220ms cubic-bezier(0.2, 0, 0.2, 1);
+    }
+
+    .menu-baris:hover .menu-ikon {
+        transform: translateX(2px);
+    }
+
+    .menu-baris:active .menu-ikon {
+        transform: translateX(2px) scale(0.92);
+    }
+
+    /*
+     * `color-mix()`, bukan `rgb(from …)`: yang pertama sudah dipakai di
+     * berkas ini (bar peringkat, kilau tombol), yang kedua akan menjadi satu-
+     * satunya pemakaian sintaks warna relatif dan menaikkan syarat peramban
+     * hanya demi satu baris.
+     */
+    .menu-baris-diam {
+        color: color-mix(in srgb, var(--tema-sidebar-teks) 80%, transparent);
+    }
+
+    .menu-baris-diam:hover {
+        background-color: rgb(255 255 255 / 0.07);
+        color: var(--tema-sidebar-teks);
+    }
+
+    /*
+     * Keadaan aktif: bidang teal yang benar-benar terangkat — sorotan tipis di
+     * tepi atas ditambah pendar berwarna di bawahnya. Pada latar navy, isian
+     * rata terbaca sebagai "baris yang kebetulan diberi warna"; yang dicari di
+     * sini adalah "tombol yang sedang ditekan".
+     */
+    .menu-baris-aktif {
+        background-color: var(--tema-aksen);
+        color: #fff;
+        font-weight: 500;
+        box-shadow:
+            inset 0 1px 0 rgb(255 255 255 / 0.2),
+            0 2px 10px rgb(13 148 136 / 0.35);
+    }
+
+    /*
+     * Kepala kelompok yang sedang terbuka: ditandai lebih terang daripada
+     * baris diam, tetapi TIDAK memakai teal. Teal berarti "halaman ini yang
+     * sedang dibuka", dan kepala kelompok bukan halaman mana pun — memakai
+     * warna yang sama akan membuat dua hal berbeda terlihat sama.
+     */
+    .menu-baris-grup-terbuka {
+        background-color: rgb(255 255 255 / 0.06);
+        color: var(--tema-sidebar-teks);
+    }
+
+    .menu-baris-grup-terbuka:hover {
+        background-color: rgb(255 255 255 / 0.1);
+    }
+
+    /*
+     * Anak kelompok masuk berurutan, bukan serentak: `--tunda` diisi per butir
+     * dari template. Saat menutup, seluruh jedanya dinolkan — daftar yang
+     * menghilang satu per satu terasa lambat, sedangkan yang muncul satu per
+     * satu terasa dirakit.
+     */
+    .menu-anak-masuk,
+    .menu-anak-tersembunyi {
+        transition:
+            background-color 180ms ease,
+            color 180ms ease,
+            box-shadow 180ms ease,
+            opacity 220ms ease var(--tunda, 0ms),
+            transform 220ms cubic-bezier(0.16, 1, 0.3, 1) var(--tunda, 0ms);
+    }
+
+    .menu-anak-masuk {
+        opacity: 1;
+        transform: none;
+    }
+
+    .menu-anak-tersembunyi {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+}
+
+/* ==========================================================================
  * Bidang pastel dekoratif.
  *
  * Dipakai halaman depan dan layar kosong: dua bulatan tint yang sangat pucat
@@ -543,6 +664,34 @@ h4,
 }
 
 
+/*
+ * Ubin sorot pada pelat navy (S50) — layar masuk.
+ *
+ * Warnanya disebut pemakainya lewat utilitas Tailwind eksplisit
+ * (`bg-teal-400/15 text-teal-200`), BUKAN lewat sistem `.nada-*`: nada membaca
+ * token tema yang berbalik gelap-terang mengikuti mode tampilan, sedangkan
+ * pelat ini selalu navy. Yang ditetapkan di sini hanya cincin tipisnya, supaya
+ * ubinnya terbaca sebagai bidang dan bukan sebagai kotak warna rata — selisih
+ * kecil yang justru paling terasa ketika tiga ubin berjajar.
+ */
+.ubin-sorot {
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.16);
+    transition: transform 240ms cubic-bezier(0.2, 0, 0.2, 1);
+}
+
+/*
+ * Garis ikon ditebalkan di dalam ubin ini saja. Ketebalan 1,6 yang dipakai
+ * seluruh aplikasi dirancang untuk tinta gelap di atas kertas terang; pada
+ * navy, garis setipis itu berhenti terbaca begitu ukurannya turun ke 22px.
+ */
+.ubin-sorot svg {
+    stroke-width: 1.85;
+}
+
+.ubin-sorot:hover {
+    transform: translateY(-2px);
+}
+
 /* Lencana merek: navy pekat dengan sorotan, dipakai di sidebar dan layar masuk. */
 .ubin-merek {
     display: inline-flex;
@@ -584,6 +733,42 @@ h4,
     box-shadow:
         inset 0 1px 2px rgb(16 44 70 / 0.02),
         0 0 0 3px var(--tema-aksen-lembut);
+}
+
+/* ==========================================================================
+ * Kolom isian dengan ikon di dalamnya (S50).
+ *
+ * Ikonnya berpindah dari redup ke aksen begitu kolomnya difokus. Penandanya
+ * bukan hiasan: pada formulir yang seluruh kolomnya berbentuk sama, cincin
+ * fokus saja mudah terlewat — terutama pada monitor kantor yang kontrasnya
+ * disetel rendah. Warna yang berubah di dalam kolom terbaca lebih dahulu
+ * daripada garis setebal tiga piksel di tepinya.
+ *
+ * Ditulis sebagai komponen, bukan `group-focus-within:` di template: aturan
+ * ini dipakai tiap kolom berikon dan menyalinnya per kolom berarti satu
+ * kolom kelak lupa disalin, lalu ikonnya diam sendirian tanpa ada yang
+ * menyadarinya.
+ * ======================================================================== */
+.kolom-berikon {
+    position: relative;
+}
+
+.kolom-ikon {
+    position: absolute;
+    inset-block: 0;
+    left: 0.75rem;
+    display: flex;
+    align-items: center;
+    pointer-events: none;
+    color: var(--tema-redup);
+    transition:
+        color 200ms ease,
+        transform 200ms cubic-bezier(0.2, 0, 0.2, 1);
+}
+
+.kolom-berikon:focus-within .kolom-ikon {
+    color: var(--tema-aksen-teks);
+    transform: scale(1.08);
 }
 
 /*

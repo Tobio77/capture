@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\UnitKerja;
+use App\Services\KodeUnitService;
 use Illuminate\Database\Seeder;
 
 /**
@@ -32,5 +33,32 @@ class UnitKerjaSeeder extends Seeder
         // `pegawai:sinkron` menegakkannya sendiri lewat peta
         // `services.worka.induk_unit_lokal`, sehingga hasil akhirnya tidak
         // bergantung pada urutan seeding terhadap sinkronisasi.
+
+        $this->terbitkanKodePerangkat();
+    }
+
+    /**
+     * Terbitkan kode perangkat bagi unit level teratas yang aktif (FR-EVT-03).
+     *
+     * Tanpa ini, instalasi yang dimulai dari seeder — pengembangan lokal, uji
+     * e2e, dan deployment baru yang belum pernah menyinkronkan WORKA — berdiri
+     * tanpa satu kode pun, dan tidak ada satu perangkat absen pun yang dapat
+     * masuk. Migration S49 hanya menambal basis data yang SUDAH berisi unit;
+     * jalur "mulai dari nol" tidak pernah melewatinya.
+     *
+     * Unit yang sudah punya kode tidak disentuh: seeder kerap dijalankan ulang
+     * pada basis data yang sama, dan mengganti kode diam-diam berarti seluruh
+     * perangkat yang sudah dibekali kode gagal masuk tanpa penjelasan.
+     */
+    protected function terbitkanKodePerangkat(): void
+    {
+        $kode = app(KodeUnitService::class);
+
+        UnitKerja::query()
+            ->levelTeratas()
+            ->aktif()
+            ->whereNull('kode_perangkat')
+            ->get()
+            ->each(fn (UnitKerja $unit) => $kode->pastikanAda($unit));
     }
 }

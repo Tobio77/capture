@@ -71,11 +71,24 @@ test.describe('Laporan Kehadiran', () => {
     await expect(page.getByText('Belum ada riwayat')).toBeVisible()
   })
 
+  /*
+   * Ambang 20 detik untuk baris riwayatnya MUNCUL, bukan hanya selesai.
+   *
+   * Jobnya berjalan `afterResponse()` pada koneksi `sync`, sedangkan server
+   * uji adalah `php artisan serve` — satu proses. Selama dokumen dirakit,
+   * permintaan berikutnya (termasuk polling panel Riwayat yang memunculkan
+   * barisnya) MENUNGGU giliran. Sejak lampiran rincian kehadiran ikut dirakit
+   * (S50), perakitan itu melewati ambang 5 detik bawaan Playwright pada basis
+   * data yang sudah berisi absensi dari spec sebelumnya.
+   *
+   * Bukan gejala produksi: di sana job dijalankan worker antrean tersendiri,
+   * bukan proses yang juga melayani HTTP.
+   */
   test('generate laporan resmi sebagai Word mengantre lalu selesai diunduh dari riwayat', async ({ page }) => {
     await page.getByRole('button', { name: 'Word' }).click()
 
     const baris = page.locator('li', { hasText: 'Word ·' }).first()
-    await expect(baris).toBeVisible()
+    await expect(baris).toBeVisible({ timeout: 20_000 })
     await expect(baris.getByText('Selesai')).toBeVisible({ timeout: 15_000 })
 
     const [unduhan] = await Promise.all([
@@ -90,7 +103,7 @@ test.describe('Laporan Kehadiran', () => {
     await page.getByRole('button', { name: 'Excel' }).last().click()
 
     const baris = page.locator('li', { hasText: 'Excel ·' }).first()
-    await expect(baris).toBeVisible()
+    await expect(baris).toBeVisible({ timeout: 20_000 })
     await expect(baris.getByText('Selesai')).toBeVisible({ timeout: 15_000 })
 
     const [unduhan] = await Promise.all([
@@ -105,7 +118,7 @@ test.describe('Laporan Kehadiran', () => {
     await page.getByRole('button', { name: 'PDF' }).click()
 
     const baris = page.locator('li', { hasText: 'PDF ·' }).first()
-    await expect(baris).toBeVisible()
+    await expect(baris).toBeVisible({ timeout: 20_000 })
     await expect(baris.getByText('Selesai')).toBeVisible({ timeout: 15_000 })
 
     const [unduhan] = await Promise.all([
@@ -133,7 +146,10 @@ test.describe('Laporan Kehadiran', () => {
     const jumlahAwal = await semuaPdf.count()
 
     await page.getByRole('button', { name: 'PDF' }).click()
-    await expect(semuaPdf).toHaveCount(jumlahAwal + 1)
+
+    // Ambang 20 detik: lihat catatan pada test "Word" di atas — perakitan
+    // dokumen menahan permintaan berikutnya pada server uji berproses tunggal.
+    await expect(semuaPdf).toHaveCount(jumlahAwal + 1, { timeout: 20_000 })
 
     const baris = semuaPdf.first()
     await expect(baris.getByText('Selesai')).toBeVisible({ timeout: 15_000 })
