@@ -256,7 +256,7 @@ const kolom = [
       :kelas-baris="(item) => !item.aktif && 'baris-redup bg-permukaan-2/60'"
     >
       <template #baris="{ isi: item }">
-        <td class="px-4 py-3 font-medium text-utama">
+        <td class="min-w-[12rem] px-4 py-3 font-medium text-utama">
           {{ item.nama }}
           <span v-if="item.id === sayaId" class="ml-1.5 text-xs font-normal text-redup">
             (Anda)
@@ -322,7 +322,7 @@ const kolom = [
             id="nama"
             v-model="form.nama"
             type="text"
-            class="mt-1 block w-full rounded-md border-garis bayang transition focus:border-aksen focus:ring-aksen sm:text-sm"
+            class="kolom-isian mt-1.5"
           />
           <p v-if="form.errors.nama" class="mt-1.5 text-xs text-peringatan-teks">
             {{ form.errors.nama }}
@@ -335,7 +335,7 @@ const kolom = [
             id="email"
             v-model="form.email"
             type="email"
-            class="mt-1 block w-full rounded-md border-garis bayang transition focus:border-aksen focus:ring-aksen sm:text-sm"
+            class="kolom-isian mt-1.5"
           />
           <p v-if="form.errors.email" class="mt-1.5 text-xs text-peringatan-teks">
             {{ form.errors.email }}
@@ -344,7 +344,7 @@ const kolom = [
 
         <div>
           <label for="role" class="block text-sm font-medium text-utama">Peran</label>
-          <Pilihan id="role" v-model="form.role" :opsi="opsiPeran" class="mt-1" />
+          <Pilihan id="role" v-model="form.role" :opsi="opsiPeran" class="mt-1.5" />
           <p v-if="form.errors.role" class="mt-1.5 text-xs text-peringatan-teks">
             {{ form.errors.role }}
           </p>
@@ -357,7 +357,7 @@ const kolom = [
             v-model="form.unit_kerja_id"
             :opsi="opsiUnitForm"
             placeholder="Pilih unit kerja…"
-            class="mt-1"
+            class="mt-1.5"
           />
           <p class="mt-1.5 text-xs text-redup">
             Cakupannya meliputi unit ini beserta seluruh seksi/subbag di bawahnya.

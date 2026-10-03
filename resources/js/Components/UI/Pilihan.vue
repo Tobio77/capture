@@ -45,7 +45,7 @@ const terpilih = computed(() => props.opsi.find((o) => o.nilai === model.value) 
     <Listbox v-slot="{ open }" v-model="model" as="div" class="relative">
       <ListboxButton
         :id="id"
-        class="flex w-full items-center justify-between gap-2 rounded-lg border bg-permukaan px-3 py-2 text-left text-sm text-utama transition-colors duration-150 focus:outline-none"
+        class="flex w-full items-center justify-between gap-2 rounded-lg border bg-permukaan px-3.5 py-2.5 text-left text-sm text-utama transition-colors duration-150 focus:outline-none"
         :class="
           open
             ? 'border-aksen ring-1 ring-aksen'

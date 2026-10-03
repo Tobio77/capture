@@ -87,7 +87,7 @@ function cabut() {
           type="text"
           autocomplete="off"
           placeholder="Tempelkan kartu pada reader…"
-          class="mt-2 block w-full rounded-md border-garis font-display tabular-nums bayang focus:border-aksen focus:ring-aksen sm:text-sm"
+          class="kolom-isian mt-2 font-display tabular-nums"
           @keyup.enter="simpan"
         />
         <p class="mt-1.5 text-xs text-redup">

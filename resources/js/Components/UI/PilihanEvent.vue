@@ -70,7 +70,7 @@ function tutup() {
     <div class="relative">
       <ComboboxInput
         :id="id"
-        class="w-full rounded-lg border bg-permukaan py-2 pl-3 pr-9 text-sm text-utama transition-colors duration-150 focus:outline-none"
+        class="w-full rounded-lg border bg-permukaan py-2.5 pl-3.5 pr-9 text-sm text-utama transition-colors duration-150 focus:outline-none"
         :class="
           open
             ? 'border-aksen ring-1 ring-aksen'

@@ -372,7 +372,7 @@ const kolom = [
       <template #aksi>
         <button
           type="button"
-          class="rounded-md border border-garis px-4 py-2 text-sm font-medium text-utama transition hover:bg-permukaan-hover active:scale-95"
+          class="rounded-lg px-4 py-2 text-sm font-medium text-sekunder transition hover:bg-permukaan-hover active:scale-95"
           @click="tutup"
         >
           Batal

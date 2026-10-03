@@ -311,7 +311,13 @@ const imporLibur = async () => {
     </div>
 
     <template #aksi>
-      <TombolAksi warna="slate" @click="tutupModalImpor">Tutup</TombolAksi>
+      <button
+        type="button"
+        class="rounded-lg px-4 py-2 text-sm font-medium text-sekunder transition hover:bg-permukaan-hover active:scale-95"
+        @click="tutupModalImpor"
+      >
+        Batal
+      </button>
       <TombolProses
         tipe="button"
         :proses="sedangMengimpor"

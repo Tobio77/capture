@@ -104,7 +104,7 @@ const tampil = computed(() => {
 
     <Popover v-slot="{ open, close }" class="relative">
       <PopoverButton
-        class="flex w-full items-center gap-2 rounded-lg border bg-permukaan px-3 py-2 text-left text-sm transition-colors duration-150 focus:outline-none"
+        class="flex w-full items-center gap-2 rounded-lg border bg-permukaan px-3.5 py-2.5 text-left text-sm transition-colors duration-150 focus:outline-none"
         :class="
           open
             ? 'border-aksen ring-1 ring-aksen'

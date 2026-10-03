@@ -427,7 +427,7 @@ const kolom = [
             v-model="form.nama_titik"
             type="text"
             placeholder="mis. Aula Utama BLK Singosari"
-            class="mt-1 block w-full rounded-md border-garis bayang transition focus:border-aksen focus:ring-aksen sm:text-sm"
+            class="kolom-isian mt-1.5"
           />
           <p v-if="form.errors.nama_titik" class="mt-1.5 text-xs text-peringatan-teks">
             {{ form.errors.nama_titik }}
@@ -441,7 +441,7 @@ const kolom = [
             v-model="form.unit_kerja_id"
             :opsi="opsiUnitForm"
             placeholder="Pilih unit kerja…"
-            class="mt-1"
+            class="mt-1.5"
           />
           <p v-if="form.errors.unit_kerja_id" class="mt-1.5 text-xs text-peringatan-teks">
             {{ form.errors.unit_kerja_id }}

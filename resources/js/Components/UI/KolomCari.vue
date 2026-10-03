@@ -35,7 +35,7 @@ function bersihkan() {
 
 <template>
   <div
-    class="relative flex items-center rounded-md border bg-permukaan transition"
+    class="relative flex items-center rounded-lg border bg-permukaan transition"
     :class="fokus ? 'border-aksen ring-1 ring-teal-500' : 'border-garis'"
   >
     <Ikon nama="cari" ukuran="h-4 w-4" class="pointer-events-none absolute left-3 text-redup" />
@@ -43,7 +43,7 @@ function bersihkan() {
       v-model="model"
       type="search"
       :placeholder="placeholder"
-      class="w-full border-0 bg-transparent py-2 pl-9 pr-9 text-sm placeholder:text-redup focus:outline-none focus:ring-0"
+      class="w-full border-0 bg-transparent py-2.5 pl-9 pr-9 text-sm placeholder:text-redup focus:outline-none focus:ring-0"
       @focus="fokus = true"
       @blur="fokus = false"
     />

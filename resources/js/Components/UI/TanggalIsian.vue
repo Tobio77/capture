@@ -128,7 +128,7 @@ const pilihHariIni = () => {
           type="button"
           :disabled="nonaktif"
           :aria-invalid="bermasalah || undefined"
-          class="group flex w-full items-center gap-2 rounded-lg border bg-permukaan px-3 py-2 text-left text-sm transition-colors duration-150 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 data-[state=open]:border-aksen data-[state=open]:ring-1 data-[state=open]:ring-aksen"
+          class="group flex w-full items-center gap-2 rounded-lg border bg-permukaan px-3.5 py-2.5 text-left text-sm transition-colors duration-150 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 data-[state=open]:border-aksen data-[state=open]:ring-1 data-[state=open]:ring-aksen"
           :class="
             bermasalah
               ? 'border-galat hover:border-galat'

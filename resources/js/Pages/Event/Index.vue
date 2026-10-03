@@ -330,7 +330,12 @@ const kolom = [
       </template>
     </TabelData>
 
-    <Modal :terbuka="detailTerbuka" judul="Detail Event" @tutup="detailTerbuka = false">
+    <Modal
+      :terbuka="detailTerbuka"
+      judul="Detail Event"
+      lebar="max-w-3xl"
+      @tutup="detailTerbuka = false"
+    >
       <p
         v-if="detailGagal"
         class="rounded-md bg-peringatan-lembut px-3 py-2 text-sm text-peringatan-teks"
@@ -398,36 +403,40 @@ const kolom = [
             keterangan="Perangkat tercatat di sini begitu membuka layar Absen Event."
           />
 
-          <table v-else class="min-w-full text-sm">
-            <thead class="text-xs uppercase tracking-wider text-redup">
-              <tr>
-                <th scope="col" class="py-2 text-left font-medium">Titik</th>
-                <th scope="col" class="py-2 text-left font-medium">Unit Kerja</th>
-                <th scope="col" class="py-2 text-left font-medium">Alamat IP</th>
-                <th scope="col" class="py-2 text-right font-medium">Terakhir Aktif</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-garis">
-              <tr v-for="kiosk in detail.kiosk" :key="kiosk.id">
-                <td class="py-2 text-utama">{{ kiosk.nama_titik }}</td>
-                <td class="py-2 text-sekunder">
-                  {{ kiosk.unit_kerja_nama ?? '—' }}
-                  <span
-                    v-if="kiosk.unit_kerja_kode"
-                    class="ml-1 font-display text-xs tabular-nums text-redup"
-                  >
-                    {{ kiosk.unit_kerja_kode }}
-                  </span>
-                </td>
-                <td class="py-2 font-display tabular-nums text-sekunder">
-                  {{ kiosk.ip_address ?? '—' }}
-                </td>
-                <td class="py-2 text-right text-xs text-redup">
-                  {{ waktuSingkat(kiosk.terakhir_aktif_pada) }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <div v-else class="-mx-1 overflow-x-auto px-1">
+            <table class="w-full min-w-[36rem] text-sm">
+              <thead class="text-xs uppercase tracking-wider text-redup">
+                <tr>
+                  <th scope="col" class="whitespace-nowrap py-2 pr-4 text-left font-medium">Titik</th>
+                  <th scope="col" class="whitespace-nowrap py-2 pr-4 text-left font-medium">Unit Kerja</th>
+                  <th scope="col" class="whitespace-nowrap py-2 pr-4 text-left font-medium">Alamat IP</th>
+                  <th scope="col" class="whitespace-nowrap py-2 text-right font-medium">Terakhir Aktif</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-garis">
+                <tr v-for="kiosk in detail.kiosk" :key="kiosk.id">
+                  <td class="py-2.5 pr-4 align-top text-utama">
+                    {{ kiosk.nama_titik }}
+                  </td>
+                  <td class="py-2.5 pr-4 align-top text-sekunder">
+                    {{ kiosk.unit_kerja_nama ?? '—' }}
+                    <span
+                      v-if="kiosk.unit_kerja_kode"
+                      class="ml-1 font-display text-xs tabular-nums text-redup"
+                    >
+                      {{ kiosk.unit_kerja_kode }}
+                    </span>
+                  </td>
+                  <td class="whitespace-nowrap py-2.5 pr-4 align-top font-display tabular-nums text-sekunder">
+                    {{ kiosk.ip_address ?? '—' }}
+                  </td>
+                  <td class="whitespace-nowrap py-2.5 align-top text-right text-xs text-redup">
+                    {{ waktuSingkat(kiosk.terakhir_aktif_pada) }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -442,15 +451,15 @@ const kolom = [
       </template>
     </Modal>
 
-    <Modal :terbuka="formTerbuka" :judul="judulForm" @tutup="tutupForm">
-      <div class="space-y-4">
+    <Modal :terbuka="formTerbuka" :judul="judulForm" lebar="max-w-2xl" @tutup="tutupForm">
+      <div class="space-y-5">
         <div>
           <label for="nama" class="block text-sm font-medium text-utama">Nama Event</label>
           <input
             id="nama"
             v-model="form.nama"
             type="text"
-            class="mt-1 block w-full rounded-md border-garis bayang focus:border-aksen focus:ring-aksen sm:text-sm"
+            class="kolom-isian mt-1.5"
             placeholder="mis. Apel Pagi Senin"
           />
           <p v-if="form.errors.nama" class="mt-1 text-xs text-peringatan-teks">
@@ -458,13 +467,13 @@ const kolom = [
           </p>
         </div>
 
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-[1.5fr_1fr_1fr]">
           <div>
             <label for="tanggal" class="block text-sm font-medium text-utama">Tanggal</label>
             <TanggalIsian
               id="tanggal"
               v-model="form.tanggal"
-              class="mt-1"
+              class="mt-1.5"
               :bermasalah="Boolean(form.errors.tanggal)"
             />
             <p v-if="form.errors.tanggal" class="mt-1 text-xs text-peringatan-teks">
@@ -473,27 +482,25 @@ const kolom = [
           </div>
           <div>
             <label for="jam_mulai" class="block text-sm font-medium text-utama">Jam Mulai</label>
-            <input
-              id="jam_mulai"
-              v-model="form.jam_mulai"
-              type="time"
-              class="mt-1 block w-full rounded-md border-garis bayang focus:border-aksen focus:ring-aksen sm:text-sm"
-            />
+            <input id="jam_mulai" v-model="form.jam_mulai" type="time" class="kolom-isian mt-1.5" />
             <p v-if="form.errors.jam_mulai" class="mt-1 text-xs text-peringatan-teks">
               {{ form.errors.jam_mulai }}
             </p>
           </div>
           <div>
             <label for="toleransi" class="block text-sm font-medium text-utama">Toleransi</label>
-            <div class="mt-1 flex items-center gap-2">
+            <div class="relative mt-1.5">
               <input
                 id="toleransi"
                 v-model.number="form.toleransi_menit"
                 type="number"
                 min="0"
-                class="block w-full rounded-md border-garis font-display tabular-nums bayang focus:border-aksen focus:ring-aksen sm:text-sm"
+                class="kolom-isian pr-16 font-display tabular-nums"
               />
-              <span class="text-sm text-redup">mnt</span>
+              <span
+                class="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-sm text-redup"
+                >menit</span
+              >
             </div>
             <p v-if="form.errors.toleransi_menit" class="mt-1 text-xs text-peringatan-teks">
               {{ form.errors.toleransi_menit }}
@@ -510,9 +517,10 @@ const kolom = [
         <p class="flex items-start gap-2 rounded-md bg-info-lembut px-3 py-2.5 text-xs text-utama">
           <Ikon nama="info" ukuran="h-4 w-4" class="mt-px shrink-0" />
           <span>
-            Event ini berlaku bagi <strong>seluruh unit kerja</strong> Disnakertrans — termasuk unit
-            yang ditambahkan setelah event dibuat. Unit kerja hanya dipakai untuk menyaring dan
-            mengelompokkan rekap serta laporannya.
+            Event ini berlaku bagi
+            <strong>seluruh unit kerja</strong> Disnakertrans — termasuk unit yang ditambahkan
+            setelah event dibuat. Unit kerja hanya dipakai untuk menyaring dan mengelompokkan rekap
+            serta laporannya.
           </span>
         </p>
 
@@ -523,8 +531,8 @@ const kolom = [
           <textarea
             id="catatan"
             v-model="form.catatan"
-            rows="2"
-            class="mt-1 block w-full rounded-md border-garis bayang focus:border-aksen focus:ring-aksen sm:text-sm"
+            rows="3"
+            class="kolom-isian mt-1.5"
           ></textarea>
           <p v-if="form.errors.catatan" class="mt-1 text-xs text-peringatan-teks">
             {{ form.errors.catatan }}
