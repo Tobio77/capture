@@ -11,6 +11,7 @@ import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
 import TombolAksi from '@/Components/UI/TombolAksi.vue'
 import Pilihan from '@/Components/UI/Pilihan.vue'
 import TombolProses from '@/Components/UI/TombolProses.vue'
+import { konfirmasi } from '@/Composables/useNotifikasi'
 
 /**
  * Kelola akun admin (FR-USR-01).
@@ -110,13 +111,24 @@ function simpan() {
   }
 }
 
-function ubahStatus(pengguna) {
-  const aksi = pengguna.aktif ? 'menonaktifkan' : 'mengaktifkan'
-  const peringatan = pengguna.aktif
-    ? '\n\nAkun yang dinonaktifkan langsung kehilangan akses, termasuk sesi yang sedang berjalan.'
-    : ''
+async function ubahStatus(pengguna) {
+  const setuju = await konfirmasi(
+    pengguna.aktif
+      ? {
+          judul: `Nonaktifkan akun ${pengguna.nama}?`,
+          teks: 'Akun yang dinonaktifkan langsung kehilangan akses, termasuk sesi yang sedang berjalan.',
+          tombolYa: 'Ya, nonaktifkan',
+          nada: 'bahaya',
+        }
+      : {
+          judul: `Aktifkan akun ${pengguna.nama}?`,
+          teks: 'Akun dapat kembali masuk ke Panel Admin.',
+          tombolYa: 'Ya, aktifkan',
+          nada: 'info',
+        },
+  )
 
-  if (!window.confirm(`Yakin ${aksi} akun ${pengguna.nama}?${peringatan}`)) return
+  if (!setuju) return
 
   router.patch(
     `/admin/pengguna/${pengguna.id}/status`,
@@ -125,12 +137,15 @@ function ubahStatus(pengguna) {
   )
 }
 
-function resetSandi(pengguna) {
-  const pesan =
-    `Terbitkan kata sandi baru untuk ${pengguna.nama}?\n\n` +
-    'Kata sandi lama langsung tidak berlaku dan sesi yang sedang berjalan ikut gugur.'
+async function resetSandi(pengguna) {
+  const setuju = await konfirmasi({
+    judul: `Terbitkan kata sandi baru untuk ${pengguna.nama}?`,
+    teks: 'Kata sandi lama langsung tidak berlaku dan sesi yang sedang berjalan ikut gugur.',
+    tombolYa: 'Ya, terbitkan',
+    nada: 'peringatan',
+  })
 
-  if (!window.confirm(pesan)) return
+  if (!setuju) return
 
   router.post(`/admin/pengguna/${pengguna.id}/reset-sandi`, {}, { preserveScroll: true })
 }

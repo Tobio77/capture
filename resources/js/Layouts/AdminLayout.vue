@@ -13,7 +13,6 @@ const page = usePage()
 const pengguna = computed(() => page.props.auth.pengguna)
 const menu = computed(() => page.props.menu)
 const ruteSaatIni = computed(() => page.props.rute_saat_ini)
-const flash = computed(() => page.props.flash)
 
 const cakupan = computed(() =>
   pengguna.value.lintas_unit
@@ -447,33 +446,6 @@ const keluar = () => router.post('/keluar')
             aria-hidden="true"
           ></div>
         </div>
-
-        <Transition
-          enter-active-class="transition duration-200 ease-out"
-          enter-from-class="-translate-y-2 opacity-0"
-          enter-to-class="translate-y-0 opacity-100"
-        >
-          <div
-            v-if="flash.sukses"
-            class="mt-6 flex items-start gap-2 rounded-lg border border-garis bg-berhasil-lembut px-4 py-3 text-sm text-berhasil-teks print:hidden"
-          >
-            <Ikon nama="cek" ukuran="h-4 w-4 shrink-0 mt-0.5" />
-            <span>{{ flash.sukses }}</span>
-          </div>
-        </Transition>
-        <Transition
-          enter-active-class="transition duration-200 ease-out"
-          enter-from-class="-translate-y-2 opacity-0"
-          enter-to-class="translate-y-0 opacity-100"
-        >
-          <div
-            v-if="flash.gagal"
-            class="mt-6 flex items-start gap-2 rounded-lg border border-garis bg-peringatan-lembut px-4 py-3 text-sm text-peringatan-teks print:hidden"
-          >
-            <Ikon nama="peringatan" ukuran="h-4 w-4 shrink-0 mt-0.5" />
-            <span>{{ flash.gagal }}</span>
-          </div>
-        </Transition>
 
         <!--
           Transisi antar halaman: isi lama memudar keluar, isi baru masuk

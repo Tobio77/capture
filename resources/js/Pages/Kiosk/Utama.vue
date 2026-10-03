@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import LayarAbsen from '@/Components/Absen/LayarAbsen.vue'
 import Ikon from '@/Components/Ikon.vue'
+import { konfirmasi } from '@/Composables/useNotifikasi'
 
 /**
  * Layar tap pada perangkat absen (UIUX §4.2).
@@ -79,8 +80,15 @@ const titik = computed(() =>
     : (kiosk.value?.nama_titik ?? ''),
 )
 
-function keluarDariEvent() {
-  if (window.confirm('Keluar dari event ini? Perangkat perlu kode unit kerja untuk bergabung lagi.')) {
+async function keluarDariEvent() {
+  const setuju = await konfirmasi({
+    judul: 'Keluar dari event ini?',
+    teks: 'Perangkat perlu kode unit kerja untuk bergabung lagi.',
+    tombolYa: 'Ya, keluar',
+    nada: 'peringatan',
+  })
+
+  if (setuju) {
     router.post('/kiosk/event/keluar')
   }
 }

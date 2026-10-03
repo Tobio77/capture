@@ -120,8 +120,8 @@ onBeforeUnmount(() => {
           role="alert"
           aria-live="assertive"
           class="notif-kartu relative w-full max-w-md overflow-hidden rounded-3xl bg-permukaan text-center"
-          @mouseenter="terjeda = true"
-          @mouseleave="terjeda = false"
+          @pointerenter="(e) => { if (e.pointerType === 'mouse') terjeda = true }"
+          @pointerleave="terjeda = false"
           @touchstart.passive="terjeda = true"
           @touchend.passive="terjeda = false"
         >

@@ -6,6 +6,7 @@ import TandaAbsen from '@/Components/UI/TandaAbsen.vue'
 import SaklarTema from '@/Components/UI/SaklarTema.vue'
 import { useJamServer } from '@/Composables/useJamServer'
 import { useMiring } from '@/Composables/useMiring'
+import { konfirmasi } from '@/Composables/useNotifikasi'
 
 /**
  * Halaman depan titik absen — "Pelat Bengkel" (S32).
@@ -63,8 +64,6 @@ const props = defineProps({
 
 const page = usePage()
 const pengguna = computed(() => page.props.auth?.pengguna ?? null)
-const sukses = computed(() => page.props.flash?.sukses)
-const gagal = computed(() => page.props.flash?.gagal)
 
 const { jam, detik, tanggalPanjang, sekarang } = useJamServer(props.waktu_server)
 
@@ -240,12 +239,15 @@ function pilihAbsenEvent() {
   }
 }
 
-function lepasPerangkat() {
-  if (
-    window.confirm(
-      'Lepaskan perangkat ini dari titik absen? Perangkat harus dihubungkan ulang dengan kode unit kerja.',
-    )
-  ) {
+async function lepasPerangkat() {
+  const setuju = await konfirmasi({
+    judul: 'Lepaskan perangkat ini?',
+    teks: 'Perangkat berhenti menjadi titik absen dan harus dihubungkan ulang dengan kode unit kerja.',
+    tombolYa: 'Ya, lepaskan',
+    nada: 'bahaya',
+  })
+
+  if (setuju) {
     router.post('/kiosk/lepas')
   }
 }
@@ -402,17 +404,6 @@ function lepasPerangkat() {
 
               <p class="tahap tahap-redup text-sm text-sidebar-redup" style="--tunda: 820ms">
                 {{ konteks }}
-              </p>
-
-              <p
-                v-if="sukses"
-                class="rounded-xl bg-emerald-400/15 px-3.5 py-2.5 text-sm text-emerald-200"
-              >
-                {{ sukses }}
-              </p>
-
-              <p v-if="gagal" class="rounded-xl bg-rose-400/15 px-3.5 py-2.5 text-sm text-rose-200">
-                {{ gagal }}
               </p>
             </div>
           </div>

@@ -1,6 +1,5 @@
 <script setup>
-import { computed } from 'vue'
-import { Head, Link, useForm, usePage } from '@inertiajs/vue3'
+import { Head, Link, useForm } from '@inertiajs/vue3'
 import Ikon from '@/Components/Ikon.vue'
 
 /**
@@ -26,8 +25,6 @@ defineProps({
   soal_captcha: { type: String, default: null },
 })
 
-const page = usePage()
-const flash = computed(() => page.props.flash)
 
 /*
  * Tiga keterangan pada pelat. Warnanya disebut EKSPLISIT (emerald/teal/langit
@@ -181,22 +178,6 @@ const kirim = () => {
           <p class="mt-1 text-sm text-redup">
             Gunakan akun yang diterbitkan Superadmin Capture.
           </p>
-
-          <div
-            v-if="flash.gagal"
-            class="mt-5 flex items-start gap-2 rounded-lg bg-peringatan-lembut px-3.5 py-3 text-sm text-peringatan-teks"
-          >
-            <Ikon nama="peringatan" ukuran="h-4 w-4 mt-0.5 shrink-0" />
-            <span>{{ flash.gagal }}</span>
-          </div>
-
-          <div
-            v-if="flash.sukses"
-            class="mt-5 flex items-start gap-2 rounded-lg bg-berhasil-lembut px-3.5 py-3 text-sm text-berhasil-teks"
-          >
-            <Ikon nama="cek" ukuran="h-4 w-4 mt-0.5 shrink-0" />
-            <span>{{ flash.sukses }}</span>
-          </div>
 
           <form class="mt-6 flex flex-col gap-5" @submit.prevent="kirim">
             <div>

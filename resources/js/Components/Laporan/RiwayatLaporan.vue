@@ -4,6 +4,7 @@ import { router } from '@inertiajs/vue3'
 import Ikon from '@/Components/Ikon.vue'
 import Lencana from '@/Components/UI/Lencana.vue'
 import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
+import { konfirmasi } from '@/Composables/useNotifikasi'
 
 /**
  * Riwayat Generate Laporan Resmi (FR-LAP-04, revisi antrian).
@@ -68,10 +69,15 @@ onMounted(() => {
 
 onBeforeUnmount(() => clearInterval(jeda))
 
-function hapus(item) {
-  if (!window.confirm(`Hapus riwayat laporan "${item.periode_label}" (${labelFormat(item.format)})?`)) {
-    return
-  }
+async function hapus(item) {
+  const setuju = await konfirmasi({
+    judul: 'Hapus riwayat laporan ini?',
+    teks: `Laporan "${item.periode_label}" (${labelFormat(item.format)}) beserta berkasnya dihapus.`,
+    tombolYa: 'Ya, hapus',
+    nada: 'bahaya',
+  })
+
+  if (!setuju) return
 
   router.delete(`/admin/laporan/riwayat/${item.id}`, {
     preserveScroll: true,

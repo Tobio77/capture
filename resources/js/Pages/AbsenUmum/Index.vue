@@ -10,6 +10,7 @@ import Tanggal from '@/Components/UI/Tanggal.vue'
 import RingkasanRekap from '@/Components/Rekap/RingkasanRekap.vue'
 import TabelRekap from '@/Components/Rekap/TabelRekap.vue'
 import { hariIniIso } from '@/lib/tanggal'
+import { konfirmasi } from '@/Composables/useNotifikasi'
 
 /**
  * Absen Umum — pemantauan sesi absensi harian tanpa event kegiatan.
@@ -41,14 +42,29 @@ const adaOverride = computed(() =>
   Object.values(props.status_jendela).some((status) => status.sumber === 'override'),
 )
 
-function aturOverride(aksi) {
+async function aturOverride(aksi) {
   const tanya = {
-    buka: 'Buka paksa absen umum hari ini, mengabaikan jadwal? Berlaku sampai hari berganti.',
-    tutup: 'Tutup paksa absen umum hari ini? Perangkat akan menolak tap sampai hari berganti.',
-    cabut: 'Kembalikan ke jadwal bawaan?',
+    buka: {
+      judul: 'Buka paksa absen umum hari ini?',
+      teks: 'Jadwal diabaikan dan perangkat menerima tap sampai hari berganti.',
+      tombolYa: 'Ya, buka paksa',
+      nada: 'peringatan',
+    },
+    tutup: {
+      judul: 'Tutup paksa absen umum hari ini?',
+      teks: 'Perangkat akan menolak tap sampai hari berganti.',
+      tombolYa: 'Ya, tutup paksa',
+      nada: 'bahaya',
+    },
+    cabut: {
+      judul: 'Kembalikan ke jadwal bawaan?',
+      teks: 'Buka/tutup paksa hari ini dicabut, dan jadwal Setting Absen berlaku kembali.',
+      tombolYa: 'Ya, kembalikan',
+      nada: 'info',
+    },
   }
 
-  if (!window.confirm(tanya[aksi])) return
+  if (!(await konfirmasi(tanya[aksi]))) return
 
   router.post('/admin/kelola-absen/absen-umum/override', { aksi }, { preserveScroll: true })
 }

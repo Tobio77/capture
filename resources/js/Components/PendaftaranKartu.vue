@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useForm } from '@inertiajs/vue3'
 import Modal from '@/Components/Modal.vue'
+import { konfirmasi } from '@/Composables/useNotifikasi'
 
 /**
  * Pendaftaran kartu RFID pegawai (FR-TAP-03).
@@ -47,10 +48,15 @@ function simpan() {
   })
 }
 
-function cabut() {
-  if (!window.confirm(`Cabut kartu RFID ${props.pegawai.nama}? Pegawai tetap dapat absen manual.`)) {
-    return
-  }
+async function cabut() {
+  const setuju = await konfirmasi({
+    judul: `Cabut kartu RFID ${props.pegawai.nama}?`,
+    teks: 'Kartu tidak lagi dikenali perangkat. Pegawai tetap dapat absen dengan mengetik NIP.',
+    tombolYa: 'Ya, cabut kartu',
+    nada: 'bahaya',
+  })
+
+  if (!setuju) return
 
   form.delete(`/admin/pegawai/${props.pegawai.id}/kartu`, {
     preserveScroll: true,

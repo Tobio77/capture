@@ -11,6 +11,7 @@ import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
 import TombolAksi from '@/Components/UI/TombolAksi.vue'
 import Pilihan from '@/Components/UI/Pilihan.vue'
 import TombolProses from '@/Components/UI/TombolProses.vue'
+import { konfirmasi } from '@/Composables/useNotifikasi'
 
 /**
  * Kelola perangkat absen (FR-USR-02, FR-USR-03).
@@ -113,23 +114,37 @@ function terbitkanKode(perangkat) {
   router.post(`/admin/perangkat/${perangkat.id}/kode`, {}, { preserveScroll: true })
 }
 
-function cabutToken(perangkat) {
-  const pesan =
-    `Cabut akses perangkat "${perangkat.nama_titik}"?\n\n` +
-    'Perangkat langsung kehilangan akses dan harus diaktifkan ulang dengan kode baru.'
+async function cabutToken(perangkat) {
+  const setuju = await konfirmasi({
+    judul: `Cabut akses "${perangkat.nama_titik}"?`,
+    teks: 'Perangkat langsung kehilangan akses dan harus diaktifkan ulang dengan kode baru.',
+    tombolYa: 'Ya, cabut akses',
+    nada: 'bahaya',
+  })
 
-  if (!window.confirm(pesan)) return
+  if (!setuju) return
 
   router.delete(`/admin/perangkat/${perangkat.id}/token`, { preserveScroll: true })
 }
 
-function ubahStatus(perangkat) {
-  const aksi = perangkat.aktif ? 'menonaktifkan' : 'mengaktifkan'
-  const peringatan = perangkat.aktif
-    ? '\n\nAksesnya sekaligus dicabut, sehingga perangkat berhenti melayani tap.'
-    : ''
+async function ubahStatus(perangkat) {
+  const setuju = await konfirmasi(
+    perangkat.aktif
+      ? {
+          judul: `Nonaktifkan perangkat ${perangkat.nama_titik}?`,
+          teks: 'Aksesnya sekaligus dicabut, sehingga perangkat berhenti melayani tap.',
+          tombolYa: 'Ya, nonaktifkan',
+          nada: 'bahaya',
+        }
+      : {
+          judul: `Aktifkan perangkat ${perangkat.nama_titik}?`,
+          teks: 'Perangkat perlu diaktifkan ulang dengan kode aktivasi sebelum dapat melayani tap.',
+          tombolYa: 'Ya, aktifkan',
+          nada: 'info',
+        },
+  )
 
-  if (!window.confirm(`Yakin ${aksi} perangkat ${perangkat.nama_titik}?${peringatan}`)) return
+  if (!setuju) return
 
   router.patch(
     `/admin/perangkat/${perangkat.id}/status`,

@@ -4,6 +4,7 @@ import { router, usePage } from '@inertiajs/vue3'
 import Ikon from '@/Components/Ikon.vue'
 import Lencana from '@/Components/UI/Lencana.vue'
 import TabelData from '@/Components/UI/TabelData.vue'
+import { konfirmasi } from '@/Composables/useNotifikasi'
 
 /**
  * Tabel kehadiran, dipakai bersama oleh Rekap Event, Rekap Umum, dan halaman
@@ -102,13 +103,18 @@ const kunciBaris = (isi) => (props.tanggal ? `${isi.pegawai_id}-${isi.tanggal}` 
  * untuk hal yang TIDAK dapat diketahui dari sini — kartu ringkasan (Total
  * Hadir, Tepat, Terlambat) milik induk, bukan tabel ini.
  */
-function hapusAbsensi(isi, jenis) {
+async function hapusAbsensi(isi, jenis) {
   const label = jenis === 'datang' ? 'Datang' : 'Pulang'
   const id = jenis === 'datang' ? isi.datang_id : isi.pulang_id
 
-  if (!window.confirm(`Hapus absensi ${label} — ${isi.nama}? Tindakan ini tidak dapat dibatalkan.`)) {
-    return
-  }
+  const setuju = await konfirmasi({
+    judul: `Hapus absensi ${label}?`,
+    teks: `Absensi ${label.toLowerCase()} ${isi.nama} dihapus permanen. Tindakan ini tidak dapat dibatalkan.`,
+    tombolYa: 'Ya, hapus',
+    nada: 'bahaya',
+  })
+
+  if (!setuju) return
 
   router.delete(`/admin/absensi/${id}`, {
     preserveScroll: true,

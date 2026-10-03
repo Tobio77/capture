@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { router } from '@inertiajs/vue3'
 import Modal from '@/Components/Modal.vue'
 import { useFaceApi } from '@/Composables/useFaceApi'
+import { konfirmasi } from '@/Composables/useNotifikasi'
 
 /**
  * Pendaftaran/pembaruan foto referensi wajah pegawai (FR-PEG-05).
@@ -209,10 +210,15 @@ function simpan() {
   )
 }
 
-function cabut() {
-  if (!window.confirm(`Cabut pendaftaran wajah ${props.pegawai.nama}? Foto referensi akan dihapus.`)) {
-    return
-  }
+async function cabut() {
+  const setuju = await konfirmasi({
+    judul: `Cabut pendaftaran wajah ${props.pegawai.nama}?`,
+    teks: 'Foto referensi wajahnya dihapus dan harus didaftarkan ulang.',
+    tombolYa: 'Ya, cabut',
+    nada: 'bahaya',
+  })
+
+  if (!setuju) return
 
   mengirim.value = true
 

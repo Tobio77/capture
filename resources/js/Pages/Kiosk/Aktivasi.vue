@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { Head, useForm, usePage } from '@inertiajs/vue3'
+import { Head, useForm } from '@inertiajs/vue3'
 import Ikon from '@/Components/Ikon.vue'
 
 const props = defineProps({
@@ -13,8 +13,6 @@ const props = defineProps({
   panjang_kode: { type: Number, default: 8 },
 })
 
-const page = usePage()
-const flash = computed(() => page.props.flash)
 
 const form = useForm({ kode: '' })
 
@@ -74,19 +72,6 @@ const kirim = () => {
             cukup dihubungkan satu kali.
           </template>
         </p>
-
-        <div
-          v-if="flash.gagal"
-          class="mt-5 rounded-lg bg-peringatan-lembut px-4 py-3 text-sm text-peringatan-teks"
-        >
-          {{ flash.gagal }}
-        </div>
-        <div
-          v-if="flash.sukses"
-          class="mt-5 rounded-lg bg-berhasil-lembut px-4 py-3 text-sm text-berhasil-teks"
-        >
-          {{ flash.sukses }}
-        </div>
 
         <form class="mt-6 space-y-5" @submit.prevent="kirim">
           <div>

@@ -6,6 +6,7 @@ import Lencana from '@/Components/UI/Lencana.vue'
 import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
 import Modal from '@/Components/Modal.vue'
 import TombolProses from '@/Components/UI/TombolProses.vue'
+import { konfirmasi } from '@/Composables/useNotifikasi'
 
 /**
  * Riwayat Backup data absensi (FR-MTN-01) — pola yang sama persis dengan
@@ -62,10 +63,15 @@ onMounted(() => {
 
 onBeforeUnmount(() => clearInterval(jeda))
 
-function hapus(item) {
-  if (!window.confirm(`Hapus riwayat backup "${item.nama_berkas}"?`)) {
-    return
-  }
+async function hapus(item) {
+  const setuju = await konfirmasi({
+    judul: 'Hapus riwayat backup ini?',
+    teks: `Berkas "${item.nama_berkas}" ikut dihapus dari penyimpanan.`,
+    tombolYa: 'Ya, hapus',
+    nada: 'bahaya',
+  })
+
+  if (!setuju) return
 
   router.delete(`/admin/setting/maintenance/backup/${item.id}`, {
     preserveScroll: true,
@@ -77,7 +83,7 @@ function hapus(item) {
 
 /*
  * Pulihkan (restore) — aksi paling berisiko di halaman ini, jadi satu-
- * satunya di sini yang menuntut lebih dari window.confirm(): mengetik ULANG
+ * satunya di sini yang menuntut lebih dari dialog konfirmasi biasa: mengetik ULANG
  * nama berkasnya sendiri, diperiksa PERSIS SAMA di server (lihat
  * MaintenanceController::pulihkan()) — tombol yang bisa tertekan tanpa
  * sengaja tidak boleh cukup untuk menulis ulang data lintas lima tabel.

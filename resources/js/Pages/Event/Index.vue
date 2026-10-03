@@ -14,6 +14,7 @@ import RentangTanggal from '@/Components/UI/RentangTanggal.vue'
 import TanggalIsian from '@/Components/UI/TanggalIsian.vue'
 import TombolProses from '@/Components/UI/TombolProses.vue'
 import { hariIniIso } from '@/lib/tanggal'
+import { konfirmasi } from '@/Composables/useNotifikasi'
 
 /**
  * Daftar Event (FR-EVT-01 s.d. FR-EVT-05).
@@ -140,22 +141,28 @@ async function muatDetail(id) {
   }
 }
 
-function tutup(event) {
-  const pesan =
-    `Tutup entry event "${event.nama}"?\n\n` +
-    'Tap baru pada perangkat absen untuk event ini akan ditolak, dan event tidak dapat dibuka kembali.'
+async function tutup(event) {
+  const setuju = await konfirmasi({
+    judul: `Tutup entry "${event.nama}"?`,
+    teks: 'Tap baru pada perangkat absen untuk event ini akan ditolak, dan event tidak dapat dibuka kembali.',
+    tombolYa: 'Ya, tutup entry',
+    nada: 'peringatan',
+  })
 
-  if (window.confirm(pesan)) {
+  if (setuju) {
     router.post(`/admin/kelola-absen/event/${event.id}/tutup`, {}, { preserveScroll: true })
   }
 }
 
-function hapus(event) {
-  if (
-    window.confirm(
-      `Hapus event "${event.nama}" secara permanen? Tindakan ini tidak dapat dibatalkan.`,
-    )
-  ) {
+async function hapus(event) {
+  const setuju = await konfirmasi({
+    judul: `Hapus event "${event.nama}"?`,
+    teks: 'Event dihapus secara permanen. Tindakan ini tidak dapat dibatalkan.',
+    tombolYa: 'Ya, hapus',
+    nada: 'bahaya',
+  })
+
+  if (setuju) {
     router.delete(`/admin/kelola-absen/event/${event.id}`, { preserveScroll: true })
   }
 }

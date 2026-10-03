@@ -11,6 +11,7 @@ import Lencana from '@/Components/UI/Lencana.vue'
 import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
 import TombolAksi from '@/Components/UI/TombolAksi.vue'
 import Pilihan from '@/Components/UI/Pilihan.vue'
+import { konfirmasi } from '@/Composables/useNotifikasi'
 
 const props = defineProps({
   pegawai: { type: Object, required: true },
@@ -53,12 +54,18 @@ function bersihkanFilter() {
   terapkanFilter()
 }
 
-const sinkron = (penuh) => {
-  const konfirmasi = penuh
-    ? 'Sinkronisasi penuh menarik seluruh pegawai dari WORKA dan menonaktifkan pegawai yang sudah tidak ada di sana. Lanjutkan?'
-    : null
-
-  if (konfirmasi && !window.confirm(konfirmasi)) return
+const sinkron = async (penuh) => {
+  if (
+    penuh &&
+    !(await konfirmasi({
+      judul: 'Jalankan sinkronisasi penuh?',
+      teks: 'Seluruh pegawai ditarik ulang dari WORKA, dan pegawai yang sudah tidak ada di sana dinonaktifkan.',
+      tombolYa: 'Ya, sinkronkan',
+      nada: 'peringatan',
+    }))
+  ) {
+    return
+  }
 
   sedangSinkron.value = true
   router.post(

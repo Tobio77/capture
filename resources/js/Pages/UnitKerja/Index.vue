@@ -11,6 +11,7 @@ import KeadaanKosong from '@/Components/UI/KeadaanKosong.vue'
 import TombolAksi from '@/Components/UI/TombolAksi.vue'
 import Pilihan from '@/Components/UI/Pilihan.vue'
 import TombolProses from '@/Components/UI/TombolProses.vue'
+import { konfirmasi } from '@/Composables/useNotifikasi'
 
 const props = defineProps({
   daftar: { type: Object, required: true },
@@ -29,7 +30,7 @@ const kueri = computed(() =>
 const adaPenyaring = computed(() => Object.keys(kueri.value).length > 0)
 
 function terapkan() {
-  router.get('/kelola-absen/unit-kerja', kueri.value, {
+  router.get('/admin/kelola-absen/unit-kerja', kueri.value, {
     preserveState: true,
     preserveScroll: true,
     replace: true,
@@ -99,22 +100,27 @@ const simpan = () => {
   const opsi = { preserveScroll: true, onSuccess: tutup }
 
   if (sedangDiubah.value) {
-    form.patch(`/kelola-absen/unit-kerja/${sedangDiubah.value.id}`, opsi)
+    form.patch(`/admin/kelola-absen/unit-kerja/${sedangDiubah.value.id}`, opsi)
   } else {
-    form.post('/kelola-absen/unit-kerja', opsi)
+    form.post('/admin/kelola-absen/unit-kerja', opsi)
   }
 }
 
-const ubahStatus = (unit) => {
-  const aksi = unit.aktif ? 'menonaktifkan' : 'mengaktifkan'
-  const peringatan =
-    unit.aktif && (unit.jumlah_pegawai > 0 || unit.jumlah_kiosk > 0)
-      ? `\n\nUnit ini masih menaungi ${unit.jumlah_pegawai} pegawai dan ${unit.jumlah_kiosk} perangkat absen. Data lama tetap tersimpan.`
-      : ''
+const ubahStatus = async (unit) => {
+  const masihMenaungi = unit.aktif && (unit.jumlah_pegawai > 0 || unit.jumlah_kiosk > 0)
 
-  if (window.confirm(`Yakin ${aksi} unit kerja ${unit.kode}?${peringatan}`)) {
+  const setuju = await konfirmasi({
+    judul: `${unit.aktif ? 'Nonaktifkan' : 'Aktifkan'} unit kerja ${unit.kode}?`,
+    teks: masihMenaungi
+      ? `Unit ini masih menaungi ${unit.jumlah_pegawai} pegawai dan ${unit.jumlah_kiosk} perangkat absen. Data lama tetap tersimpan.`
+      : '',
+    tombolYa: unit.aktif ? 'Ya, nonaktifkan' : 'Ya, aktifkan',
+    nada: unit.aktif ? 'bahaya' : 'info',
+  })
+
+  if (setuju) {
     router.patch(
-      `/kelola-absen/unit-kerja/${unit.id}/status`,
+      `/admin/kelola-absen/unit-kerja/${unit.id}/status`,
       { aktif: !unit.aktif },
       { preserveScroll: true },
     )
@@ -128,13 +134,24 @@ const ubahStatus = (unit) => {
  * di menu Perangkat Absen — yang ditutup penggantian kode hanyalah pintu bagi
  * mesin yang BELUM masuk.
  */
-const gantiKode = (unit) => {
-  const pesan = unit.kode_perangkat
-    ? `Ganti kode perangkat unit ${unit.kode}?\n\nKode lama (${unit.kode_perangkat}) langsung berhenti berlaku, sehingga komputer yang belum terhubung harus memakai kode baru. Perangkat yang sudah terhubung TIDAK terputus.`
-    : `Terbitkan kode perangkat untuk unit ${unit.kode}?`
+const gantiKode = async (unit) => {
+  const setuju = await konfirmasi(
+    unit.kode_perangkat
+      ? {
+          judul: `Ganti kode perangkat unit ${unit.kode}?`,
+          teks: `Kode lama (${unit.kode_perangkat}) langsung berhenti berlaku, sehingga komputer yang belum terhubung harus memakai kode baru. Perangkat yang sudah terhubung tidak terputus.`,
+          tombolYa: 'Ya, ganti kode',
+          nada: 'peringatan',
+        }
+      : {
+          judul: `Terbitkan kode perangkat untuk unit ${unit.kode}?`,
+          tombolYa: 'Ya, terbitkan',
+          nada: 'info',
+        },
+  )
 
-  if (window.confirm(pesan)) {
-    router.post(`/kelola-absen/unit-kerja/${unit.id}/kode`, {}, { preserveScroll: true })
+  if (setuju) {
+    router.post(`/admin/kelola-absen/unit-kerja/${unit.id}/kode`, {}, { preserveScroll: true })
   }
 }
 

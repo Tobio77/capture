@@ -7,6 +7,7 @@ import TombolAksi from '@/Components/UI/TombolAksi.vue'
 import Lencana from '@/Components/UI/Lencana.vue'
 import Pilihan from '@/Components/UI/Pilihan.vue'
 import TanggalIsian from '@/Components/UI/TanggalIsian.vue'
+import { konfirmasi } from '@/Composables/useNotifikasi'
 
 /**
  * Hari Libur bertanggal (FR-SET-08) — dipisah dari `Setting/Absen.vue`
@@ -50,10 +51,15 @@ const tambahLibur = () =>
     onSuccess: () => formLibur.reset(),
   })
 
-const hapusLibur = (libur) => {
-  if (! window.confirm(`Hapus hari libur "${libur.keterangan}" pada ${libur.tanggal_panjang}?`)) {
-    return
-  }
+const hapusLibur = async (libur) => {
+  const setuju = await konfirmasi({
+    judul: `Hapus hari libur "${libur.keterangan}"?`,
+    teks: `${libur.tanggal_panjang} kembali menjadi hari kerja biasa.`,
+    tombolYa: 'Ya, hapus',
+    nada: 'bahaya',
+  })
+
+  if (!setuju) return
 
   formLibur.delete(`/admin/kelola-absen/setting/hari-libur/${libur.id}`, { preserveScroll: true })
 }

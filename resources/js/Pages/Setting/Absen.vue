@@ -111,7 +111,7 @@ const simpan = () => {
     deskripsi="Metode absen, toleransi keterlambatan, ambang kecocokan wajah, dan kompresi foto — berlaku untuk seluruh unit kerja."
   >
     <form class="grid gap-6 lg:grid-cols-3" @submit.prevent="simpan">
-      <div class="space-y-6 lg:col-span-2">
+      <div class="min-w-0 space-y-6 lg:col-span-2">
         <!--
           Sakelar fitur. Yang dimatikan tertutup sepenuhnya: pilihannya di
           halaman depan terkunci, layarnya tidak dapat dibuka, dan setiap tap
