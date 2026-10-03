@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import PanelEntry from '@/Components/Kiosk/PanelEntry.vue'
 import PanelPresensi from '@/Components/Kiosk/PanelPresensi.vue'
+import NotifikasiSudahAbsen from '@/Components/Absen/NotifikasiSudahAbsen.vue'
 import { useVerifikasiWajah } from '@/Composables/useVerifikasiWajah'
 import { useAntrianAbsen } from '@/Composables/useAntrianAbsen'
 import { useFaceApi } from '@/Composables/useFaceApi'
@@ -262,7 +263,7 @@ async function tangkapTap({ id_card, jenis: jenisTap }) {
     const tercatat = isi.data.sudah_absen?.[jenisTap]
 
     if (tercatat) {
-      sudahAbsen(`Sudah absen ${jenisTap} pukul ${tercatat}.`)
+      sudahAbsen(`Sudah absen ${jenisTap} pukul ${tercatat}.`, jenisTap, tercatat)
 
       return
     }
@@ -392,7 +393,7 @@ async function simpanAbsen(data, foto, embedding = null) {
         presensi.value = isi.data.daftar_presensi
       }
 
-      sudahAbsen(isi.message)
+      sudahAbsen(isi.message, isi.data?.jenis ?? hasil.value?.jenis, isi.data?.waktu)
 
       return
     }
@@ -490,18 +491,42 @@ function gagalkan(teks) {
  * di depan layar: bukan "coba lagi", melainkan "Anda sudah aman". Warnanya pun
  * berbeda — biru keterangan, bukan amber peringatan.
  */
-function sudahAbsen(teks) {
+/*
+ * Notifikasi absen ganda di tengah layar ({@see NotifikasiSudahAbsen}).
+ * Tampil selama tahap 'sudah', sehingga tap orang berikutnya — yang
+ * memindahkan tahap — menutupnya dengan sendirinya.
+ */
+const DURASI_SUDAH = 5000
+const notifSudah = ref({ jenis: 'datang', jam: null })
+
+const konteksSudah = computed(() =>
+  props.status_jendela !== null || !eventAktif.value
+    ? 'hari ini'
+    : `pada kegiatan ${eventAktif.value.nama}`,
+)
+
+function sudahAbsen(teks, jenisTercatat, jam) {
   pesan.value = teks
+  notifSudah.value = { jenis: jenisTercatat ?? jenis.value, jam: jam ?? null }
   tahap.value = 'sudah'
-  pulihkan()
+  pulihkan(DURASI_SUDAH)
+}
+
+/** Tutup notifikasi absen ganda sebelum waktunya habis. */
+function tutupSudah() {
+  if (tahap.value !== 'sudah') return
+
+  clearTimeout(jedaPulih)
+  tahap.value = entryDibuka.value ? 'menunggu_tap' : 'menunggu_event'
+  panel.value?.rebutFokus()
 }
 
 /** Kembali menunggu tap berikutnya setelah hasil sempat terbaca. */
-function pulihkan() {
+function pulihkan(lama = 4000) {
   jedaPulih = setTimeout(() => {
     tahap.value = entryDibuka.value ? 'menunggu_tap' : 'menunggu_event'
     panel.value?.rebutFokus()
-  }, 4000)
+  }, lama)
 }
 
 </script>
@@ -606,5 +631,17 @@ function pulihkan() {
 
       <PanelPresensi :daftar="presensi" :event="eventAktif" :keterangan-kosong="props.judul_kosong" />
     </main>
+
+    <NotifikasiSudahAbsen
+      :terbuka="tahap === 'sudah'"
+      :jenis="notifSudah.jenis"
+      :jam="notifSudah.jam"
+      :nama="hasil?.nama"
+      :nip="hasil?.nip"
+      :unit-kerja="hasil?.unit_kerja"
+      :konteks="konteksSudah"
+      :durasi="DURASI_SUDAH"
+      @tutup="tutupSudah"
+    />
   </div>
 </template>
