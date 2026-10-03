@@ -91,11 +91,14 @@ class BerandaController extends Controller
             ],
 
             /*
-             * Absen Umum tetap ditawarkan walau dimatikan admin — layarnya
-             * yang menerangkan keadaan itu. Menyembunyikan pintasannya justru
-             * membuat petugas mengira perangkatnya rusak.
+             * Sakelar fitur di Setting Absen. Fitur yang dinonaktifkan tetap
+             * tampil sebagai pilihan yang terkunci beserta keterangannya —
+             * menyembunyikannya justru membuat petugas mengira perangkatnya
+             * rusak — sementara layarnya sendiri ditutup
+             * PastikanFiturAbsenAktif.
              */
             'absen_umum_aktif' => (bool) $setting['absen_umum_aktif'],
+            'absen_event_aktif' => (bool) $setting['absen_event_aktif'],
 
             /*
              * FR-SET-06. Menentukan bunyi ajakan pada perangkat yang belum

@@ -61,6 +61,21 @@ const errorJadwalMingguan = computed(() => {
   return kunci ? 'Ada jam yang belum valid pada tabel di bawah — periksa kembali.' : null
 })
 
+const fitur = [
+  {
+    kunci: 'absen_umum_aktif',
+    judul: 'Absen Umum',
+    keterangan:
+      'Absen datang dan pulang harian untuk seluruh dinas. Bila dinonaktifkan, sesi hari ini tidak dihapus dan berlanjut begitu fiturnya dinyalakan kembali.',
+  },
+  {
+    kunci: 'absen_event_aktif',
+    judul: 'Absen Event',
+    keterangan:
+      'Absen kegiatan yang dibuka admin. Bila dinonaktifkan, event tetap dapat dikelola tetapi perangkat tidak dapat melayaninya.',
+  },
+]
+
 const metode = [
   {
     kunci: 'metode_manual_aktif',
@@ -97,6 +112,42 @@ const simpan = () => {
   >
     <form class="grid gap-6 lg:grid-cols-3" @submit.prevent="simpan">
       <div class="space-y-6 lg:col-span-2">
+        <!--
+          Sakelar fitur. Yang dimatikan tertutup sepenuhnya: pilihannya di
+          halaman depan terkunci, layarnya tidak dapat dibuka, dan setiap tap
+          ditolak server (PastikanFiturAbsenAktif). Data yang sudah tercatat
+          tetap dapat dibaca di Rekap dan Laporan.
+        -->
+        <section class="panel p-6">
+          <h2 class="font-display text-sm font-semibold text-utama">Fitur Absensi</h2>
+          <p class="mt-1 text-xs text-redup">
+            Fitur yang dinonaktifkan tidak dapat diakses dari perangkat absen maupun layar absen
+            admin. Data yang sudah tercatat tetap tampil pada Rekap dan Laporan.
+          </p>
+
+          <div class="mt-4 space-y-3">
+            <label
+              v-for="item in fitur"
+              :key="item.kunci"
+              class="flex cursor-pointer items-start gap-3 rounded-md border border-garis px-4 py-3 transition hover:bg-permukaan-hover"
+            >
+              <input v-model="form[item.kunci]" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-garis text-aksen focus:ring-aksen" />
+              <span class="min-w-0 flex-1">
+                <span class="flex items-center gap-2 text-sm font-medium text-utama">
+                  {{ item.judul }}
+                  <span
+                    class="rounded-full px-2 py-0.5 text-[11px] font-medium"
+                    :class="form[item.kunci] ? 'bg-berhasil-lembut text-berhasil-teks' : 'bg-peringatan-lembut text-peringatan-teks'"
+                  >
+                    {{ form[item.kunci] ? 'Aktif' : 'Nonaktif' }}
+                  </span>
+                </span>
+                <span class="mt-0.5 block text-xs text-redup">{{ item.keterangan }}</span>
+              </span>
+            </label>
+          </div>
+        </section>
+
         <!-- FR-SET-01 -->
         <section class="panel p-6">
           <h2 class="font-display text-sm font-semibold text-utama">Metode Absensi Aktif</h2>
@@ -141,7 +192,7 @@ const simpan = () => {
                   type="number"
                   min="0"
                   :max="batas.toleransi_maks"
-                  class="w-28 rounded-md border-garis font-display tabular-nums bayang focus:border-aksen focus:ring-aksen sm:text-sm"
+                  class="kolom-isian w-28 font-display tabular-nums"
                 />
                 <span class="text-sm text-sekunder">menit</span>
               </div>
@@ -188,22 +239,13 @@ const simpan = () => {
             didahulukan bila keduanya berlaku bersamaan.
           </p>
 
-          <label class="mt-4 flex cursor-pointer items-start gap-3">
-            <input
-              v-model="form.absen_umum_aktif"
-              type="checkbox"
-              class="mt-0.5 h-4 w-4 rounded border-garis text-aksen focus:ring-aksen"
-            />
-            <span>
-              <span class="block text-sm font-medium text-utama">
-                Nyalakan absen umum harian
-              </span>
-              <span class="mt-0.5 block text-xs text-redup">
-                Bila dimatikan, perangkat absen hanya melayani event kegiatan dan menolak tap di
-                luar itu.
-              </span>
-            </span>
-          </label>
+          <p
+            v-if="!form.absen_umum_aktif"
+            class="mt-4 rounded-md bg-peringatan-lembut px-3 py-2 text-xs text-peringatan-teks"
+          >
+            Fitur Absen Umum sedang dinonaktifkan pada bagian Fitur Absensi di atas. Jadwal di
+            bawah tetap tersimpan dan berlaku kembali begitu fiturnya dinyalakan.
+          </p>
 
           <!--
             FR-SET-07 (revisi jadwal per hari). Jam masuk dan jendela

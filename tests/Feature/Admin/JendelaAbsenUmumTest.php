@@ -203,7 +203,8 @@ class JendelaAbsenUmumTest extends TestCase
             ->post(self::URL.'/override', ['aksi' => 'buka', 'unit_kerja_id' => $this->upt->id])
             ->assertForbidden();
 
-        $this->tap()->assertStatus(409);
+        // Sejak sakelar fitur, tapnya sudah ditolak sebelum mencapai controller.
+        $this->tap()->assertForbidden()->assertJsonPath('code', 'FITUR_NONAKTIF');
     }
 
     /* ---------------------------------------------------------------------
@@ -276,7 +277,8 @@ class JendelaAbsenUmumTest extends TestCase
             ->post(self::URL.'/override', ['aksi' => 'buka', 'unit_kerja_id' => $this->upt->id])
             ->assertForbidden();
 
-        $this->tap()->assertStatus(409);
+        // Sejak sakelar fitur, tapnya sudah ditolak sebelum mencapai controller.
+        $this->tap()->assertForbidden()->assertJsonPath('code', 'FITUR_NONAKTIF');
         $this->assertSame(0, Absensi::query()->count());
     }
 

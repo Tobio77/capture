@@ -52,7 +52,9 @@ const props = defineProps({
    */
   event_aktif: { type: Object, default: null },
 
+  // Sakelar fitur di Setting Absen; yang mati tampil terkunci.
   absen_umum_aktif: { type: Boolean, required: true },
+  absen_event_aktif: { type: Boolean, default: true },
   mode_pendaftaran: { type: Boolean, required: true },
   waktu_server: { type: String, default: null },
   jam_masuk: { type: String, default: '07:30' },
@@ -67,7 +69,9 @@ const gagal = computed(() => page.props.flash?.gagal)
 const { jam, detik, tanggalPanjang, sekarang } = useJamServer(props.waktu_server)
 
 const perangkatAktif = computed(() => props.perangkat !== null)
-const adaEvent = computed(() => props.event_aktif !== null)
+// Kegiatan yang dibuka tidak berarti apa-apa bagi layar ini selama fitur
+// Absen Event dinonaktifkan admin.
+const adaEvent = computed(() => props.absen_event_aktif && props.event_aktif !== null)
 
 const namaPerangkat = computed(() => props.perangkat?.nama_titik ?? null)
 
@@ -436,7 +440,8 @@ function lepasPerangkat() {
         <button
           ref="pitaUmum"
           type="button"
-          class="pita-utama kilau tautan-aksi tahap tahap-pita group flex min-h-[6.5rem] w-full items-center gap-5 px-6 py-5 text-left active:scale-[0.995] sm:px-8"
+          :disabled="!absen_umum_aktif"
+          class="pita-utama kilau tautan-aksi tahap tahap-pita group flex min-h-[6.5rem] w-full items-center gap-5 px-6 py-5 text-left active:scale-[0.995] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100 sm:px-8"
           style="--tunda: 520ms"
           @click="pilihAbsenUmum"
         >
@@ -444,8 +449,9 @@ function lepasPerangkat() {
 
           <span class="min-w-0 flex-1">
             <span class="block font-display text-2xl font-semibold">Absen Umum</span>
-            <span class="mt-0.5 block text-sm text-white">
-              {{ absen_umum_aktif ? 'Datang dan pulang harian' : 'Sedang dimatikan admin' }}
+            <span class="mt-0.5 flex items-center gap-1.5 text-sm text-white">
+              <Ikon v-if="!absen_umum_aktif" nama="kunci" ukuran="h-3.5 w-3.5 shrink-0" />
+              {{ absen_umum_aktif ? 'Datang dan pulang harian' : 'Sedang dinonaktifkan admin' }}
             </span>
           </span>
 
@@ -465,7 +471,7 @@ function lepasPerangkat() {
         <button
           ref="pitaEvent"
           type="button"
-          :disabled="perangkatAktif && !adaEvent"
+          :disabled="!absen_event_aktif || (perangkatAktif && !adaEvent)"
           class="pita-kedua kilau tautan-aksi tahap tahap-pita group flex min-h-[5.5rem] w-full items-center gap-5 px-6 py-4 text-left active:scale-[0.995] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100 sm:px-8"
           style="--tunda: 620ms"
           @click="pilihAbsenEvent"
@@ -478,9 +484,11 @@ function lepasPerangkat() {
               <Ikon v-if="!adaEvent" nama="kunci" ukuran="h-3.5 w-3.5 shrink-0" />
               <span class="truncate">
                 {{
-                  adaEvent
-                    ? `${event_aktif.nama} · mulai ${event_aktif.jam_mulai}`
-                    : 'Belum ada kegiatan yang dibuka'
+                  !absen_event_aktif
+                    ? 'Sedang dinonaktifkan admin'
+                    : adaEvent
+                      ? `${event_aktif.nama} · mulai ${event_aktif.jam_mulai}`
+                      : 'Belum ada kegiatan yang dibuka'
                 }}
               </span>
             </span>

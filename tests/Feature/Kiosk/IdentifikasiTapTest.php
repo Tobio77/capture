@@ -452,6 +452,9 @@ class IdentifikasiTapTest extends TestCase
         // membawa pesan "Tidak ada event yang sedang dibuka" apa adanya —
         // sama seperti mode event — sehingga operator yang membacanya di
         // layar Absen Umum wajar mengira absen umum butuh event kegiatan.
+        //
+        // Sejak sakelar fitur, penolakannya datang dari
+        // PastikanFiturAbsenAktif, sebelum tap mencapai controller.
         $this->matikanAbsenUmum();
 
         Pegawai::factory()->create([
@@ -461,11 +464,11 @@ class IdentifikasiTapTest extends TestCase
 
         $this->denganToken()
             ->post('/kiosk/umum/tap/identifikasi', ['id_card' => '199001012020011001'], ['Accept' => 'application/json'])
-            ->assertStatus(409)
+            ->assertForbidden()
             ->assertJson([
                 'success' => false,
-                'code' => 'EVENT_TIDAK_AKTIF',
-                'message' => 'Absen Umum sedang dimatikan oleh admin pada Setting Absen.',
+                'code' => 'FITUR_NONAKTIF',
+                'message' => 'Fitur Absen Umum sedang dinonaktifkan oleh admin.',
             ]);
     }
 

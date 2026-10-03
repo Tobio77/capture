@@ -3,6 +3,7 @@
 use App\Http\Middleware\AutentikasiKiosk;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\HeaderKeamanan;
+use App\Http\Middleware\PastikanFiturAbsenAktif;
 use App\Http\Middleware\PastikanPenggunaAktif;
 use App\Http\Middleware\PastikanPeranPengguna;
 use Illuminate\Foundation\Application;
@@ -56,6 +57,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'kiosk' => AutentikasiKiosk::class,
+            'fitur.absen' => PastikanFiturAbsenAktif::class,
             'peran' => PastikanPeranPengguna::class,
             'pengguna.aktif' => PastikanPenggunaAktif::class,
         ]);

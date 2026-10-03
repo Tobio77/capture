@@ -33,6 +33,14 @@ class SettingAbsenService
 
     public const string KUNCI_ABSEN_UMUM = 'absen.absen_umum_aktif';
 
+    /**
+     * Sakelar fitur Absen Event. Menyala secara bawaan; bila dimatikan, layar
+     * Absen Event beserta seluruh endpoint tapnya tertutup bagi setiap
+     * perangkat (lihat middleware PastikanFiturAbsenAktif).
+     * Pengelolaan event di panel admin tetap terbuka.
+     */
+    public const string KUNCI_ABSEN_EVENT = 'absen.absen_event_aktif';
+
     public const string KUNCI_JAM_MASUK_UMUM = 'absen.jam_masuk_umum';
 
     /*
@@ -166,11 +174,12 @@ class SettingAbsenService
             'kompresi_foto' => $this->kompresi()->value,
 
             /*
-             * Absen umum: sesi harian yang dibuka sistem sendiri ketika tidak
-             * ada kegiatan berjalan, memakai jam masuk dan toleransi di bawah
-             * ini. Dimatikan bila instansi hanya ingin absensi berbasis event.
+             * Sakelar kedua fitur absen. Yang dimatikan tertutup sepenuhnya —
+             * layar dan endpoint tapnya — lewat PastikanFiturAbsenAktif.
+             * Absen umum memakai jam masuk dan toleransi di bawah ini.
              */
             'absen_umum_aktif' => $this->bool(self::KUNCI_ABSEN_UMUM, true),
+            'absen_event_aktif' => $this->bool(self::KUNCI_ABSEN_EVENT, true),
             'jam_masuk_umum' => $this->jam(self::KUNCI_JAM_MASUK_UMUM, self::JAM_MASUK_BAWAAN),
 
             // Jendela operasional; lihat catatan pada konstantanya.
@@ -362,6 +371,7 @@ class SettingAbsenService
             self::KUNCI_AMBANG_WAJAH => (string) (int) $nilai('ambang_kecocokan_wajah'),
             self::KUNCI_KOMPRESI => (string) $nilai('kompresi_foto'),
             self::KUNCI_ABSEN_UMUM => $this->dariBool($nilai('absen_umum_aktif')),
+            self::KUNCI_ABSEN_EVENT => $this->dariBool($nilai('absen_event_aktif')),
             self::KUNCI_JAM_MASUK_UMUM => substr((string) $nilai('jam_masuk_umum'), 0, 5),
             self::KUNCI_BUKA_DATANG => substr((string) $nilai('jam_buka_datang'), 0, 5),
             self::KUNCI_TUTUP_DATANG => substr((string) $nilai('jam_tutup_datang'), 0, 5),

@@ -35,6 +35,7 @@ class SimpanSettingAbsenRequest extends FormRequest
             ],
             'kompresi_foto' => ['required', Rule::enum(KompresiFoto::class)],
             'absen_umum_aktif' => ['required', 'boolean'],
+            'absen_event_aktif' => ['required', 'boolean'],
             'jam_masuk_umum' => ['required', 'date_format:H:i'],
 
             // FR-SET-07. Jam tutup TIDAK diharuskan lebih besar daripada jam
@@ -110,7 +111,8 @@ class SimpanSettingAbsenRequest extends FormRequest
             'toleransi_default_menit' => 'toleransi keterlambatan default',
             'ambang_kecocokan_wajah' => 'ambang kecocokan wajah',
             'kompresi_foto' => 'kompresi foto absen',
-            'absen_umum_aktif' => 'absen umum harian',
+            'absen_umum_aktif' => 'fitur absen umum',
+            'absen_event_aktif' => 'fitur absen event',
             'jam_masuk_umum' => 'jam masuk harian',
             'jam_buka_datang' => 'jam buka absen datang',
             'jam_tutup_datang' => 'jam tutup absen datang',

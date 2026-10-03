@@ -96,7 +96,9 @@ Route::prefix('kiosk')->name('kiosk.')->group(function () {
          *   umum  → selalu tersedia, tidak terikat status event apa pun
          */
         foreach ([TitikAbsenService::MODE_EVENT, TitikAbsenService::MODE_UMUM] as $mode) {
-            Route::prefix($mode)->name("{$mode}.")->group(function () use ($mode) {
+            // Fitur yang dinonaktifkan admin di Setting Absen tertutup
+            // seluruhnya — layar maupun endpoint-nya.
+            Route::prefix($mode)->name("{$mode}.")->middleware("fitur.absen:{$mode}")->group(function () use ($mode) {
                 Route::get('/', LayarKioskController::class)
                     ->defaults('mode', $mode)
                     ->name('layar');
@@ -198,7 +200,9 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
          * grup /kiosk (NFR-03).
          */
         Route::get('absen-umum', [AbsenUmumController::class, 'index'])->name('absen-umum.index');
-        Route::get('absen-umum/layar', [AbsenUmumController::class, 'layar'])->name('absen-umum.layar');
+        Route::get('absen-umum/layar', [AbsenUmumController::class, 'layar'])
+            ->middleware('fitur.absen:umum')
+            ->name('absen-umum.layar');
         Route::post('absen-umum/buka', [AbsenUmumController::class, 'buka'])->name('absen-umum.buka');
 
         // Override buka/tutup harian (FR-SET-07); berlaku sampai hari berganti.
@@ -212,7 +216,7 @@ Route::middleware(['auth', 'pengguna.aktif'])->prefix('admin')->group(function (
             ->middleware('throttle:60,1')
             ->name('absen-umum.data');
 
-        Route::prefix('absen-umum')->name('absen-umum.')->group(function () {
+        Route::prefix('absen-umum')->name('absen-umum.')->middleware('fitur.absen:umum')->group(function () {
             Route::post('tap/identifikasi', IdentifikasiTapController::class)
                 ->middleware('throttle:absen-tap')
                 ->name('tap.identifikasi');

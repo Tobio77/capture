@@ -49,6 +49,11 @@ setiap pegawai dari unit mana pun berhak mengabsen padanya.
 - **Absen Umum** — satu sesi harian untuk seluruh dinas per tanggal, menyala
   terus secara bawaan. Sakelarnya di Setting Absen menahan penerimaan tap,
   bukan sesinya: mematikan lalu menyalakannya kembali melanjutkan sesi hari itu.
+- **Sakelar fitur** (Setting Absen → Fitur Absensi, `absen_umum_aktif` dan
+  `absen_event_aktif`) — fitur yang dimatikan tertutup sepenuhnya: pilihannya
+  di halaman depan terkunci, layarnya dipulangkan, dan setiap endpoint tapnya
+  menolak dengan kode `FITUR_NONAKTIF` (middleware `fitur.absen:{umum|event}`).
+  Pemantauan, pengelolaan event, Rekap, dan Laporan tetap terbuka.
 - **Absen Event** — kegiatan yang dibuat admin dinas, dan hanya boleh ada satu
   yang aktif pada satu waktu. Perangkat yang sudah dikenali langsung melayaninya
   tanpa mengetik kode apa pun lagi.

@@ -36,6 +36,7 @@ class SettingAbsenTest extends TestCase
             'ambang_kecocokan_wajah' => 85,
             'kompresi_foto' => 'sedang',
             'absen_umum_aktif' => true,
+            'absen_event_aktif' => true,
             'jam_masuk_umum' => '07:30',
 
             // FR-SET-07: jendela operasional wajib ikut, sebab formulirnya

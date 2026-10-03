@@ -168,6 +168,22 @@ async function tarikPresensi() {
   try {
     const jawaban = await fetch(props.endpoint.presensi, { headers: { Accept: 'application/json' } })
 
+    /*
+     * Fitur absen ini dinonaktifkan admin selagi layarnya terbuka. Memuat
+     * ulang halaman membiarkan server memulangkan layar ke tempat asalnya
+     * beserta keterangannya, alih-alih membiarkan kolom tap yang pasti
+     * ditolak tetap terpampang.
+     */
+    if (jawaban.status === 403) {
+      const isi = await jawaban.json().catch(() => null)
+
+      if (isi?.code === 'FITUR_NONAKTIF') {
+        window.location.reload()
+
+        return
+      }
+    }
+
     if (!jawaban.ok) return
 
     const isi = await jawaban.json()
