@@ -110,6 +110,24 @@ class TitikAbsenService
     }
 
     /**
+     * Cakupan unit untuk Daftar e-Presensi pada titik absen pemanggil.
+     *
+     * Perangkat absen melayani seluruh dinas, jadi selalu null. Layar absen
+     * di peramban admin mengikuti cakupan admin yang membukanya: Admin UPT
+     * hanya melihat pegawai unitnya sendiri.
+     *
+     * @return array<int, int>|null
+     */
+    public function cakupanPresensi(Request $request): ?array
+    {
+        if ($request->kiosk() !== null) {
+            return null;
+        }
+
+        return $request->user()?->cakupanUnit();
+    }
+
+    /**
      * URL foto pegawai yang sesuai dengan titik absen pemanggil.
      *
      * Layar yang sama dipakai beberapa konteks dengan pagar autentikasi

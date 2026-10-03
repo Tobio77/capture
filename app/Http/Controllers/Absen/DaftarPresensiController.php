@@ -58,6 +58,7 @@ class DaftarPresensiController extends Controller
             'daftar_presensi' => $this->absensi->daftarPresensi(
                 $event,
                 fn (int $id) => $this->titik->urlFotoAbsen($request, $id),
+                $this->titik->cakupanPresensi($request),
             ),
         ]);
     }

@@ -46,6 +46,20 @@ class User extends Authenticatable
         return $this->role->lintasUnit();
     }
 
+    /**
+     * Unit kerja yang datanya boleh dilihat pengguna ini: null berarti
+     * seluruh unit (Superadmin & Admin Dinas); selain itu unitnya sendiri
+     * beserta seluruh seksi/subbag di bawahnya (Admin UPT).
+     *
+     * @return array<int, int>|null
+     */
+    public function cakupanUnit(): ?array
+    {
+        return $this->lintasUnit()
+            ? null
+            : UnitKerja::idsDenganTurunan((int) $this->unit_kerja_id);
+    }
+
     public function berperan(PeranPengguna ...$peran): bool
     {
         return in_array($this->role, $peran, strict: true);

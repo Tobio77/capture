@@ -244,14 +244,26 @@ class AbsensiService
      * terbaca (pelajaran S28b). {@see TitikAbsenService::urlFotoAbsen()} yang
      * mengetahui pilihannya.
      *
+     * Setiap baris menyebut unit kerja pegawainya: sejak S49 siapa pun dari
+     * unit mana pun boleh mengabsen di titik mana pun, sehingga nama saja
+     * tidak lagi menjawab "pegawai dari mana ini".
+     *
+     * `$cakupanUnit` membatasi baris pada pegawai unit tertentu — dipakai
+     * layar absen di peramban Admin UPT. Perangkat absen selalu null.
+     *
      * @param  callable(int): string  $urlFoto  perakit URL foto absen
+     * @param  array<int, int>|null  $cakupanUnit
      * @return Collection<int, array<string, mixed>>
      */
-    public function daftarPresensi(EventAbsen $event, callable $urlFoto): Collection
+    public function daftarPresensi(EventAbsen $event, callable $urlFoto, ?array $cakupanUnit = null): Collection
     {
         return Absensi::query()
-            ->with('pegawai:id,nip,nama')
+            ->with(['pegawai:id,nip,nama,unit_kerja_id', 'pegawai.unitKerja:id,nama'])
             ->where('event_absen_id', $event->id)
+            ->when($cakupanUnit !== null, fn ($q) => $q->whereHas(
+                'pegawai',
+                fn ($p) => $p->whereIn('unit_kerja_id', $cakupanUnit),
+            ))
             ->orderBy('waktu')
             ->get()
             ->groupBy('pegawai_id')
@@ -264,6 +276,7 @@ class AbsensiService
                     'pegawai_id' => $pegawai->id,
                     'nip' => $pegawai->nip,
                     'nama' => $pegawai->nama,
+                    'unit_kerja' => $pegawai->unitKerja?->nama,
                     'jam_masuk' => $datang?->waktu->format('H:i'),
                     'jam_pulang' => $pulang?->waktu->format('H:i'),
                     'status_ketepatan' => $datang?->status_ketepatan?->value,

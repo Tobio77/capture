@@ -64,7 +64,10 @@ const tersaring = computed(() => {
   if (kunci === '') return props.daftar
 
   return props.daftar.filter(
-    (baris) => baris.nama.toLowerCase().includes(kunci) || String(baris.nip).includes(kunci),
+    (baris) =>
+      baris.nama.toLowerCase().includes(kunci) ||
+      String(baris.nip).includes(kunci) ||
+      (baris.unit_kerja ?? '').toLowerCase().includes(kunci),
   )
 })
 
@@ -176,7 +179,7 @@ watch(
         v-if="daftar.length > PER_HALAMAN"
         v-model="cari"
         :jeda="0"
-        placeholder="Cari nama atau NIP…"
+        placeholder="Cari nama, NIP, atau unit…"
         class="w-full min-w-[9rem] sm:ml-auto sm:w-56"
       />
     </div>
@@ -215,11 +218,11 @@ watch(
       ikon="cari"
       nada="biru"
       judul="Tidak ada yang cocok"
-      :keterangan="`Tidak ada nama atau NIP yang memuat “${cari.trim()}” pada daftar hari ini.`"
+      :keterangan="`Tidak ada nama, NIP, atau unit kerja yang memuat “${cari.trim()}” pada daftar hari ini.`"
     />
 
-    <div v-else class="gulir-halus flex-1 overflow-y-auto">
-      <table class="min-w-full text-sm">
+    <div v-else class="gulir-halus flex-1 overflow-auto">
+      <table class="w-full min-w-[44rem] text-sm">
         <thead
           class="sticky top-0 z-10 bg-permukaan-2 text-xs uppercase tracking-wider text-redup backdrop-blur"
         >
@@ -227,6 +230,7 @@ watch(
             <th scope="col" class="px-4 py-2.5 text-left font-medium">No</th>
             <th scope="col" class="px-4 py-2.5 text-left font-medium">NIP</th>
             <th scope="col" class="px-4 py-2.5 text-left font-medium">Nama</th>
+            <th scope="col" class="px-4 py-2.5 text-left font-medium">Unit Kerja</th>
             <th scope="col" class="px-4 py-2.5 text-left font-medium">Masuk</th>
             <th scope="col" class="px-4 py-2.5 text-left font-medium">Pulang</th>
             <th scope="col" class="px-4 py-2.5 text-left font-medium">Foto</th>
@@ -245,7 +249,7 @@ watch(
             <td class="px-4 py-2.5 font-display tabular-nums text-sekunder">
               {{ baris.nip }}
             </td>
-            <td class="px-4 py-2.5 font-medium text-utama">
+            <td class="whitespace-nowrap px-4 py-2.5 font-medium text-utama">
               {{ baris.nama }}
               <Lencana
                 v-if="baris.status_ketepatan === 'terlambat'"
@@ -256,6 +260,12 @@ watch(
               >
                 Terlambat
               </Lencana>
+            </td>
+            <td
+              class="max-w-[14rem] truncate px-4 py-2.5 text-xs text-sekunder"
+              :title="baris.unit_kerja ?? ''"
+            >
+              {{ baris.unit_kerja ?? '—' }}
             </td>
             <td class="px-4 py-2.5 font-display tabular-nums text-berhasil-teks">
               {{ baris.jam_masuk ?? '—' }}

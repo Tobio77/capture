@@ -72,7 +72,10 @@ class EventController extends Controller
         if ($request->string('format')->toString() === 'pdf') {
             return $this->ekspor->unduhPdf('cetak.event', [
                 'baris' => $baris,
-                'cakupan' => 'Seluruh unit kerja',
+                // Angka perangkat dan absen sudah dibatasi cakupan pengunduh.
+                'cakupan' => $pengguna->lintasUnit()
+                    ? 'Seluruh unit kerja'
+                    : ($pengguna->unitKerja?->nama ?? 'Unit kerja sendiri'),
                 'keterangan' => $baris->count().' event pada penyaringan ini',
             ], "{$nama}.pdf");
         }
@@ -121,7 +124,7 @@ class EventController extends Controller
      */
     public function detail(Request $request, EventAbsen $event): JsonResponse
     {
-        return response()->json($this->event->detail($event));
+        return response()->json($this->event->detail($event, $request->user()->cakupanUnit()));
     }
 
     /**

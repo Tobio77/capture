@@ -26,6 +26,15 @@ class FotoAbsenController extends Controller
         ['event' => $event] = $this->titik->untuk($request);
 
         abort_unless($event !== null && $event->id === $absensi->event_absen_id, 403);
+
+        // Layar absen Admin UPT hanya membuka foto pegawai unitnya sendiri,
+        // sama seperti daftar presensi yang ditampilkannya.
+        $cakupan = $this->titik->cakupanPresensi($request);
+        abort_unless(
+            $cakupan === null || in_array($absensi->pegawai?->unit_kerja_id, $cakupan, true),
+            403,
+        );
+
         abort_if($absensi->foto_path === null, 404);
 
         $disk = Storage::disk(AbsensiService::DISK);

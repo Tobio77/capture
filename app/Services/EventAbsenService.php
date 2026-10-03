@@ -64,11 +64,12 @@ class EventAbsenService
      */
     public function daftar(User $pelaku, array $filter = []): LengthAwarePaginator
     {
-        $halaman = $this->kueriDaftar($filter)
+        $cakupan = $pelaku->cakupanUnit();
+        $halaman = $this->kueriDaftar($filter, $cakupan)
             ->paginate(self::PER_HALAMAN)
             ->withQueryString();
 
-        $absensi = $this->jumlahAbsensi($halaman->getCollection()->pluck('id')->all());
+        $absensi = $this->jumlahAbsensi($halaman->getCollection()->pluck('id')->all(), $cakupan);
 
         return $halaman->through(fn (EventAbsen $satu) => $this->untukLayar(
             $satu,
@@ -85,8 +86,9 @@ class EventAbsenService
      */
     public function semua(User $pelaku, array $filter = []): Collection
     {
-        $event = $this->kueriDaftar($filter)->get();
-        $absensi = $this->jumlahAbsensi($event->pluck('id')->all());
+        $cakupan = $pelaku->cakupanUnit();
+        $event = $this->kueriDaftar($filter, $cakupan)->get();
+        $absensi = $this->jumlahAbsensi($event->pluck('id')->all(), $cakupan);
 
         return $event->map(fn (EventAbsen $satu) => $this->untukLayar(
             $satu,
@@ -121,7 +123,7 @@ class EventAbsenService
      * @param  array<string, mixed>  $filter
      * @return Builder<EventAbsen>
      */
-    protected function kueriDaftar(array $filter = []): Builder
+    protected function kueriDaftar(array $filter = [], ?array $cakupan = null): Builder
     {
         return EventAbsen::query()
             /*
@@ -131,7 +133,11 @@ class EventAbsenService
              */
             ->kegiatan()
             ->with('pembuat:id,nama')
-            ->withCount('kiosk')
+            // Admin UPT hanya menghitung perangkat unitnya sendiri.
+            ->withCount(['kiosk' => fn ($q) => $q->when(
+                $cakupan !== null,
+                fn ($k) => $k->whereIn('kiosk.unit_kerja_id', $cakupan),
+            )])
             ->when(
                 filled($filter['cari'] ?? null),
                 fn ($query) => $query->where(function ($q) use ($filter) {
@@ -312,11 +318,20 @@ class EventAbsenService
      * pada kegiatan ini, dari unit mana, dan dari alamat berapa" — pertanyaan
      * yang sebelumnya dijawab setengah-setengah oleh daftar kode per unit.
      *
+     * `$cakupan` membatasi perangkat dan jumlah absen pada unit Admin UPT;
+     * null berarti seluruh dinas.
+     *
+     * @param  array<int, int>|null  $cakupan
      * @return array<string, mixed>
      */
-    public function detail(EventAbsen $event): array
+    public function detail(EventAbsen $event, ?array $cakupan = null): array
     {
-        $event->load(['kiosk:id,nama_titik,unit_kerja_id', 'kiosk.unitKerja:id,kode,nama']);
+        $event->load([
+            'kiosk' => fn ($q) => $q
+                ->select('kiosk.id', 'kiosk.nama_titik', 'kiosk.unit_kerja_id')
+                ->when($cakupan !== null, fn ($k) => $k->whereIn('kiosk.unit_kerja_id', $cakupan)),
+            'kiosk.unitKerja:id,kode,nama',
+        ]);
 
         return [
             'id' => $event->id,
@@ -326,7 +341,7 @@ class EventAbsenService
             'status' => $event->status->value,
             'status_label' => $event->status->label(),
             'ditutup_pada' => $event->ditutup_pada?->toIso8601String(),
-            'jumlah_absensi' => $this->jumlahAbsensi([$event->id])[$event->id],
+            'jumlah_absensi' => $this->jumlahAbsensi([$event->id], $cakupan)[$event->id],
             'kiosk' => $event->kiosk
                 ->sortByDesc(fn (Kiosk $kiosk) => $kiosk->pivot->terakhir_aktif_pada)
                 ->map(fn (Kiosk $kiosk) => [
@@ -391,10 +406,14 @@ class EventAbsenService
     /**
      * Jumlah absensi per event, dalam satu kali agregasi.
      *
+     * `$cakupan` menghitung hanya absensi pegawai unit tersebut (Admin UPT);
+     * null menghitung seluruh dinas.
+     *
      * @param  array<int, int>  $eventIds
+     * @param  array<int, int>|null  $cakupan
      * @return array<int, int>
      */
-    protected function jumlahAbsensi(array $eventIds): array
+    protected function jumlahAbsensi(array $eventIds, ?array $cakupan = null): array
     {
         $kosong = array_fill_keys($eventIds, 0);
 
@@ -405,6 +424,10 @@ class EventAbsenService
         $jumlah = DB::table(self::TABEL_ABSENSI)
             ->selectRaw('event_absen_id, count(*) as jumlah')
             ->whereIn('event_absen_id', $eventIds)
+            ->when($cakupan !== null, fn ($q) => $q->whereIn(
+                'pegawai_id',
+                DB::table('pegawai')->select('id')->whereIn('unit_kerja_id', $cakupan),
+            ))
             ->groupBy('event_absen_id')
             ->pluck('jumlah', 'event_absen_id')
             ->all();

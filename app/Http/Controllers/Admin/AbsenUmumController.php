@@ -175,6 +175,8 @@ class AbsenUmumController extends Controller
             'daftar_presensi' => $sesi === null ? [] : $this->absensi->daftarPresensi(
                 $sesi,
                 fn (int $id) => route('absen-umum.absen.foto', ['absensi' => $id]),
+                // Admin UPT hanya melihat pegawai unitnya pada layar ini.
+                $request->user()->cakupanUnit(),
             ),
             'event' => $sesi === null ? null : [
                 'id' => $sesi->id,
