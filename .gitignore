@@ -30,3 +30,6 @@ Thumbs.db
 /playwright-report
 /blob-report
 /test-results
+
+# Pengaturan pribadi Claude Code (yang bersama ada di .claude/settings.json)
+.claude/settings.local.json

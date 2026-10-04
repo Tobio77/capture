@@ -33,6 +33,22 @@ sesi tersebut di `05-TASK-Absensi.md`, lalu baca detail kebutuhannya di
 - Seluruh teks UI, pesan error, dan label menggunakan **Bahasa Indonesia baku**, mengikuti konvensi dokumen pemerintahan.
 - Commit message singkat dan jelas; commit per unit kerja yang dapat didemonstrasikan (selaras dengan Definition of Done di `05-TASK-Absensi.md`).
 
+## Commit & Push Otomatis (disetujui pengguna)
+
+Claude **langsung commit dan push** tanpa menunggu diminta, dengan aturan:
+
+- Commit setelah satu unit kerja selesai **dan** test yang relevan lulus
+  (`php artisan test` untuk perubahan PHP, `npx vitest run` + `npm run build`
+  untuk perubahan frontend). Test gagal = jangan commit; laporkan dulu.
+- Satu commit per unit kerja, pesan berformat `Sxx: …` mengikuti riwayat.
+  Jangan `git add -A` membabi buta — periksa `git status` agar berkas tak
+  terkait, berkas rahasia, atau berkas sementara tidak ikut.
+- Push hanya ke **branch kerja saat ini**. Jangan pernah push ke `main`,
+  force push, menghapus branch remote, atau melewati hook (`--no-verify`) —
+  aturan `deny` di `.claude/settings.json` ikut menjaganya.
+- Masuk ke `main` hanya lewat PR yang ditinjau pengguna.
+- Bila pengguna berkata "jangan commit dulu", tahan sampai diminta.
+
 ## Palet & Gaya Visual (mengikuti prototipe UI/UX yang sudah disepakati)
 
 - Warna: navy (`#0F2A43`, elemen struktural/sidebar), teal (`#0D9488`, aksi utama), emerald (`#059669`, status berhasil/tepat waktu), amber (`#B45309`, status terlambat/peringatan).
